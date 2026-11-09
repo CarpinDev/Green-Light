@@ -61,4 +61,37 @@ describe('calendar', () => {
             expect(() => clampDay(2026, 1, 0)).toThrow();
         });
     })
+
+    describe('calendar', () => {
+    describe('clampDay', () => {
+        it('usa el último día del mes si el día no existe', () => {
+            expect(clampDay(2026, 2, 31)).toBe('2026-02-28');
+        });
+
+        it('respeta el 29 de febrero en año bisiesto', () => {
+            expect(clampDay(2028, 2, 30)).toBe('2028-02-29');
+        });
+    });
+
+    describe('dueDateFor: fecha límite de pago de un corte', () => {
+        // Mantén aquí tus pruebas anteriores.
+
+        it('si el corte se recortó a fin de mes, la fecha límite pasa al mes siguiente', () => {
+            expect(dueDateFor('2026-02-28', 30)).toBe('2026-03-30');
+        });
+    });
+
+    describe('validaciones', () => {
+        it('rechaza fechas que no son YYYY-MM-DD', () => {
+            expect(() => cutDateFor('abc', 15)).toThrow();
+        });
+
+        it('rechaza días fuera del rango permitido', () => {
+            expect(() => clampDay(2026, 1, 0)).toThrow();
+        });
+
+        // Mueve aquí las demás pruebas de errores
+        // que anteriormente estaban en extra: algunos bugs.
+    });
+});
 });
