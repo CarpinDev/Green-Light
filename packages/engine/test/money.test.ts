@@ -1,6 +1,5 @@
 import Decimal from 'decimal.js';
 
-export type Cents = number;
 import { describe, expect, it } from 'vitest';
 import { pesos, roundCents, formatCop } from '../src/money';
 
