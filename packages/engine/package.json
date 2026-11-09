@@ -8,5 +8,12 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "dependencies": {
+    "decimal.js": "^10.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.7"
   }
 }
