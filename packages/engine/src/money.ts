@@ -25,10 +25,10 @@ export function formatCop(cents: Cents): string {
     const negative = cents < 0;
     const abs = Math.abs(cents);
 
-    const pesos = Math.trunc(abs / 100);
+    const wholePesos = Math.trunc(abs / 100);
     const centavos = abs % 100;
 
-    const formattedPesos = pesos
+    const formattedPesos = wholePesos
         .toString()
         .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
