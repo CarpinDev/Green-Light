@@ -42,32 +42,34 @@ export function schedule(
   rates.forEach(assertRate);
   if (options.firstPeriodRate !== undefined) assertRate(options.firstPeriodRate);
 
-  // Si hay menos tasas que cuotas, se repite la última
-  const rateAt = (i: number): Decimal => rates[Math.min(i, rates.length - 1)]!;
-  const baseCapital = Math.floor(principal / n);
-
   const rows: ScheduleRow[] = [];
-  let balance: number = principal;
+  let balance = principal;
   let payment = 0;
   let paymentRate: Decimal | undefined;
 
   for (let i = 0; i < n; i++) {
-    const rate = rateAt(i);
+    // Si hay menos tasas que cuotas, se repite la última
+    const rate = rates[Math.min(i, rates.length - 1)];
+    if (rate === undefined) {
+      throw new Error(`no hay tasa para el periodo ${i + 1}`);
+    }
+
     const isLast = i === n - 1;
     const contractualInterest = roundCents(new Decimal(balance).times(rate));
 
     let capital: number;
     if (method === 'constant_capital') {
-      // La última cuota absorbe los centavos que no se pudieron repartir
-      capital = isLast ? balance : baseCapital;
+      // El residuo se reparte de a 1 centavo; la suma de todas las k da exactamente P
+      const k = i + 1;
+      capital = Math.floor((principal * k) / n) - Math.floor((principal * (k - 1)) / n);
     } else {
       // La cuota se recalcula sobre el saldo y las cuotas restantes solo si cambia la tasa
       if (paymentRate === undefined || !rate.equals(paymentRate)) {
-        payment = fixedPayment(balance as Cents, rate, n - i);
+        payment = fixedPayment(balance, rate, n - i);
         paymentRate = rate;
       }
-      // La última cuota liquida el saldo y absorbe el redondeo acumulado
-      capital = isLast ? balance : Math.min(balance, payment - contractualInterest);
+      // La última cuota liquida el saldo; si el interés supera la cuota, no hay abono a capital
+      capital = isLast ? balance : Math.min(balance, Math.max(0, payment - contractualInterest));
     }
 
     const interest =
@@ -78,11 +80,11 @@ export function schedule(
     const closing = balance - capital;
     rows.push({
       period: i + 1,
-      openingBalance: balance as Cents,
+      openingBalance: balance,
       interest,
-      capital: capital as Cents,
-      payment: (capital + interest) as Cents,
-      closingBalance: closing as Cents,
+      capital,
+      payment: capital + interest,
+      closingBalance: closing,
     });
     balance = closing;
   }

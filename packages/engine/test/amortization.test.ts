@@ -18,6 +18,7 @@ describe('amortization', () => {
   });
 
   describe('schedule: abono constante a capital', () => {
+
     const rows = schedule(pesos(1_200_000), 12, [R1], 'constant_capital');
 
     it('el capital es fijo y el interés se calcula sobre el saldo', () => {
