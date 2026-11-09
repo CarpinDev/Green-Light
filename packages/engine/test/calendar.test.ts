@@ -36,6 +36,10 @@ describe('calendar', () => {
         it('si coincide con el día de corte, pasa al mes siguiente (y cambia de año)', () => {
             expect(dueDateFor('2026-12-15', 15)).toBe('2027-01-15');
         });
+
+        it('si el corte se recortó a fin de mes, la fecha límite pasa al mes siguiente', () => {
+            expect(dueDateFor('2026-02-28', 30)).toBe('2026-03-30');
+        });
     });
 
     describe('nthCutAfter: cortes de las cuotas siguientes', () => {
@@ -48,50 +52,21 @@ describe('calendar', () => {
         });
     });
 
-    describe('extra: algunos bugs', () => {
-        it('bug en dueDateFor', () => {
-            expect(dueDateFor('2026-02-28', 30)).toBe('2026-03-30')
-        })
-
-        it('rechaza fechas con formato inválido', () => {
-            expect(() => cutDateFor('abc', 15)).toThrow();
-        });
-
-        it('rechaza días fuera del rango permitido', () => {
-            expect(() => clampDay(2026, 1, 0)).toThrow();
-        });
-    })
-
-    describe('calendar', () => {
-    describe('clampDay', () => {
-        it('usa el último día del mes si el día no existe', () => {
-            expect(clampDay(2026, 2, 31)).toBe('2026-02-28');
-        });
-
-        it('respeta el 29 de febrero en año bisiesto', () => {
-            expect(clampDay(2028, 2, 30)).toBe('2028-02-29');
-        });
-    });
-
-    describe('dueDateFor: fecha límite de pago de un corte', () => {
-        // Mantén aquí tus pruebas anteriores.
-
-        it('si el corte se recortó a fin de mes, la fecha límite pasa al mes siguiente', () => {
-            expect(dueDateFor('2026-02-28', 30)).toBe('2026-03-30');
-        });
-    });
-
     describe('validaciones', () => {
         it('rechaza fechas que no son YYYY-MM-DD', () => {
             expect(() => cutDateFor('abc', 15)).toThrow();
         });
 
-        it('rechaza días fuera del rango permitido', () => {
+        it('rechaza fechas con mes inexistente', () => {
+            expect(() => cutDateFor('2026-13-01', 15)).toThrow();
+        });
+
+        it('rechaza días fuera del rango permitido en clampDay', () => {
             expect(() => clampDay(2026, 1, 0)).toThrow();
         });
 
-        // Mueve aquí las demás pruebas de errores
-        // que anteriormente estaban en extra: algunos bugs.
+        it('rechaza días de pago fuera del rango permitido', () => {
+            expect(() => dueDateFor('2026-11-15', 32)).toThrow();
+        });
     });
-});
 });
