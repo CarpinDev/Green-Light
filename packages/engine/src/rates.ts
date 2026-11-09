@@ -26,7 +26,7 @@ function assertValidRate(rate: Decimal, label: string): void {
 export function mvToEa(mv: Decimal): Decimal {
     assertValidRate(mv, "MV");
 
-    return mv.plus(1).pow(12).minus(1);
+    return mv.plus(1).pow(12).minus(1).toDecimalPlaces(12);
 }
 
 /**
