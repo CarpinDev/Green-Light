@@ -22,4 +22,7 @@ describe('money', () => {
     expect(formatCop(123_456_789)).toBe('$1.234.567,89');
     expect(formatCop(pesos(1_234_567))).toBe('$1.234.567');
   });
+   it("formatea valores negativos correctamente", () => {
+        expect(formatCop(-5)).toBe("-$0,05");
+    });
 });
