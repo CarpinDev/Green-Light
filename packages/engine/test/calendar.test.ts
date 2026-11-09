@@ -52,5 +52,13 @@ describe('calendar', () => {
         it('bug en dueDateFor', () => {
             expect(dueDateFor('2026-02-28', 30)).toBe('2026-03-30')
         })
+
+        it('rechaza fechas con formato inválido', () => {
+            expect(() => cutDateFor('abc', 15)).toThrow();
+        });
+
+        it('rechaza días fuera del rango permitido', () => {
+            expect(() => clampDay(2026, 1, 0)).toThrow();
+        });
     })
 });

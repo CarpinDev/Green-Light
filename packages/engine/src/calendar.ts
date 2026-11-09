@@ -1,30 +1,66 @@
 /**
- * Formatea una fecha como YYYY-MM-DD.
+ * Representa una fecha descompuesta.
  */
-function formatDate(year: number, month: number, day: number): string {
-    const m = String(month).padStart(2, "0");
-    const d = String(day).padStart(2, "0");
-
-    return `${year}-${m}-${d}`;
+interface ParsedDate {
+    year: number;
+    month: number;
+    day: number;
 }
 
 /**
- * Parsea una fecha YYYY-MM-DD en [año, mes, día].
- * Lanza un error si el formato es inválido.
+ * Convierte YYYY-MM-DD en sus componentes y valida la fecha.
  */
-function parseDate(date: string): [number, number, number] {
-    const [year, month, day] = date.split("-").map(Number);
+function parseDate(value: string): ParsedDate {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
 
-    if (year === undefined || month === undefined || day === undefined) {
-        throw new Error(`Fecha inválida: ${date}`);
+    if (!match) {
+        throw new Error(`Fecha inválida: ${value}. Usa YYYY-MM-DD.`);
     }
 
-    return [year, month, day];
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+
+    if (month < 1 || month > 12) {
+        throw new Error(`Mes inválido: ${month}.`);
+    }
+
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    if (day < 1 || day > lastDay) {
+        throw new Error(`Día inválido: ${day}.`);
+    }
+
+    return { year, month, day };
+}
+
+/**
+ * Agrega meses a una fecha conservando el día cuando sea posible.
+ * Si el día no existe en el mes destino, lo limita al último día.
+ */
+export function addMonths(
+    year: number,
+    month: number,
+    months: number,
+    day: number
+): string {
+    const totalMonths = year * 12 + (month - 1) + months;
+
+    const targetYear = Math.floor(totalMonths / 12);
+    const targetMonth = (totalMonths % 12) + 1;
+
+    return clampDay(targetYear, targetMonth, day);
+}
+
+/**
+ * Formatea una fecha como YYYY-MM-DD.
+ */
+function formatDate(year: number, month: number, day: number): string {
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 /**
  * Obtiene el último día de un mes.
- * month utiliza formato 1-12.
  */
 function lastDayOfMonth(year: number, month: number): number {
     return new Date(Date.UTC(year, month, 0)).getUTCDate();
@@ -38,8 +74,16 @@ export function clampDay(
     month: number,
     day: number
 ): string {
+    if (!Number.isInteger(day) || day < 1 || day > 31) {
+        throw new Error(`Día inválido: ${day}. Debe estar entre 1 y 31.`);
+    }
+
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+        throw new Error(`Mes inválido: ${month}.`);
+    }
+
     const lastDay = lastDayOfMonth(year, month);
-    const clampedDay = Math.min(Math.max(day, 1), lastDay);
+    const clampedDay = Math.min(day, lastDay);
 
     return formatDate(year, month, clampedDay);
 }
@@ -52,70 +96,69 @@ export function cutDateFor(
     purchaseDate: string,
     cutDay: number
 ): string {
-    const [year, month, day] = parseDate(purchaseDate);
+    const { year, month, day } = parseDate(purchaseDate);
+
+    if (!Number.isInteger(cutDay) || cutDay < 1 || cutDay > 31) {
+        throw new Error("Día de corte inválido.");
+    }
 
     if (day <= cutDay) {
         return clampDay(year, month, cutDay);
     }
 
-    const nextMonth = month === 12 ? 1 : month + 1;
-    const nextYear = month === 12 ? year + 1 : year;
-
-    return clampDay(nextYear, nextMonth, cutDay);
+    return addMonths(year, month, 1, cutDay);
 }
 
 /**
  * Calcula la fecha límite de pago de un corte.
- * Si paymentDay <= cutDay, pasa al mes siguiente.
+ * Si el día de pago es igual o anterior al corte,
+ * pasa al mes siguiente.
  */
 export function dueDateFor(
     cutDate: string,
     paymentDay: number
 ): string {
-    const [year, month, cutDay] = parseDate(cutDate);
+    const { year, month, day } = parseDate(cutDate);
+
+    if (!Number.isInteger(paymentDay) || paymentDay < 1 || paymentDay > 31) {
+        throw new Error("Día de pago inválido.");
+    }
 
     const lastDay = lastDayOfMonth(year, month);
 
-    // Si el corte coincide con el último día del mes,
-    // puede ser un corte ajustado por falta de días.
-    if (cutDay === lastDay && paymentDay > cutDay) {
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextYear = month === 12 ? year + 1 : year;
-
-        return clampDay(nextYear, nextMonth, paymentDay);
+    // Corte ajustado al último día del mes.
+    if (day === lastDay && paymentDay > day) {
+        return addMonths(year, month, 1, paymentDay);
     }
 
-    // Si el día de pago es igual o anterior al corte,
-    // corresponde al mes siguiente.
-    if (paymentDay <= cutDay) {
-        const nextMonth = month === 12 ? 1 : month + 1;
-        const nextYear = month === 12 ? year + 1 : year;
-
-        return clampDay(nextYear, nextMonth, paymentDay);
+    // Pago igual o anterior al corte: mes siguiente.
+    if (paymentDay <= day) {
+        return addMonths(year, month, 1, paymentDay);
     }
 
-    // Si el día de pago es posterior al corte,
-    // corresponde al mismo mes.
+    // Pago posterior al corte: mismo mes.
     return clampDay(year, month, paymentDay);
 }
 
 /**
- * Calcula el N-ésimo corte posterior a una fecha de compra.
- *
- * Importante: conserva el día configurado del corte.
- * Ejemplo: corte 31 → febrero 28 → marzo 31.
+ * Calcula el N-ésimo corte posterior a una fecha de corte.
+ * Conserva el día configurado incluso cuando algún mes
+ * requiere ajustar temporalmente el corte.
  */
 export function nthCutAfter(
-    purchaseDate: string,
+    cutDate: string,
     cutDay: number,
     n: number
 ): string {
-    const [year, month] = parseDate(purchaseDate);
+    const { year, month } = parseDate(cutDate);
 
-    const totalMonths = year * 12 + (month - 1) + n;
+    if (!Number.isInteger(cutDay) || cutDay < 1 || cutDay > 31) {
+        throw new Error("Día de corte inválido.");
+    }
 
-    const targetYear = Math.floor(totalMonths / 12);
-    const targetMonth = (totalMonths % 12) + 1;
+    if (!Number.isInteger(n) || n < 0) {
+        throw new Error("La cantidad de cortes debe ser un entero no negativo.");
+    }
 
-    return clampDay(targetYear, targetMonth, cutDay);
+    return addMonths(year, month, n, cutDay);
 }
