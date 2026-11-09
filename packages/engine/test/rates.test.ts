@@ -22,6 +22,15 @@ describe('rates', () => {
     it('rechaza tasas negativas', () => {
       expect(() => rateFromEa('-0.1')).toThrow();
     });
+
+    it('eaToMv y mvToEa rechazan tasas negativas aunque se llamen directo', () => {
+      expect(() => eaToMv(new Decimal('-0.1'))).toThrow();
+      expect(() => mvToEa(new Decimal('-0.01'))).toThrow();
+    });
+
+    it('mvToEa redondea el resultado a 12 decimales', () => {
+  expect(mvToEa(new Decimal('0.01')).toString()).toBe('0.126825030132');
+});
   });
 
   describe('RateHistory', () => {
@@ -37,6 +46,13 @@ describe('rates', () => {
       const h = new RateHistory();
       h.add('2026-01-01', rateFromEa('0.28'));
       expect(() => h.rateOn('2025-12-31')).toThrow();
+    });
+
+    it('una tasa con la misma fecha reemplaza a la anterior (corrección)', () => {
+      const h = new RateHistory();
+      h.add('2026-03-01', rateFromEa('0.30'));
+      h.add('2026-03-01', rateFromEa('0.31'));
+      expect(h.rateOn('2026-12-01').ea.toString()).toBe('0.31');
     });
   });
 });
