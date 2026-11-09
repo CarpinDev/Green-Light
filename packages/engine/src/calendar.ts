@@ -74,6 +74,19 @@ export function dueDateFor(
 ): string {
     const [year, month, cutDay] = parseDate(cutDate);
 
+    const lastDay = lastDayOfMonth(year, month);
+
+    // Si el corte coincide con el último día del mes,
+    // puede ser un corte ajustado por falta de días.
+    if (cutDay === lastDay && paymentDay > cutDay) {
+        const nextMonth = month === 12 ? 1 : month + 1;
+        const nextYear = month === 12 ? year + 1 : year;
+
+        return clampDay(nextYear, nextMonth, paymentDay);
+    }
+
+    // Si el día de pago es igual o anterior al corte,
+    // corresponde al mes siguiente.
     if (paymentDay <= cutDay) {
         const nextMonth = month === 12 ? 1 : month + 1;
         const nextYear = month === 12 ? year + 1 : year;
@@ -81,6 +94,8 @@ export function dueDateFor(
         return clampDay(nextYear, nextMonth, paymentDay);
     }
 
+    // Si el día de pago es posterior al corte,
+    // corresponde al mismo mes.
     return clampDay(year, month, paymentDay);
 }
 
