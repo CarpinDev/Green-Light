@@ -27,6 +27,8 @@ export interface ScheduleOptions {
   /** Tasa que solo se usa para cobrar el interés de la cuota 1. No altera el capital. */
   firstPeriodRate?: Decimal;
   prepayments?: readonly Prepayment[];
+  /** Cuota que informa el banco; reemplaza a la calculada. Solo con fixed_installment. */
+  initialPayment?: Cents;
 }
 
 export function fixedPayment(principal: Cents, rate: Decimal, n: number): Cents {
@@ -54,6 +56,14 @@ export function schedule(
   rates.forEach(assertRate);
   if (options.firstPeriodRate !== undefined) assertRate(options.firstPeriodRate);
   const prepayments = indexPrepayments(options.prepayments ?? [], n);
+  if (options.initialPayment !== undefined) {
+    if (method !== 'fixed_installment') {
+      throw new RangeError('initialPayment solo aplica con cuota fija');
+    }
+    if (!Number.isSafeInteger(options.initialPayment) || options.initialPayment <= 0) {
+      throw new RangeError(`initialPayment debe ser un entero de centavos > 0, llegó ${options.initialPayment}`);
+    }
+  }
 
   // Tramo sobre el que se reparte el capital en abono constante.
   // Se reinicia cuando un abono reduce la cuota.
@@ -67,7 +77,7 @@ export function schedule(
   if (method === 'fixed_installment') {
     const firstRate = rates[0];
     if (firstRate !== undefined) {
-      payment = fixedPayment(principal, firstRate, n);
+      payment = options.initialPayment ?? fixedPayment(principal, firstRate, n);
       paymentRate = firstRate;
     }
   }

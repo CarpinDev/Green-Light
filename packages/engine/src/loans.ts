@@ -1,0 +1,94 @@
+import { type IsoDate, dayOfMonth, shiftMonths } from './calendar';
+import type { Cents } from './money';
+import type { RateHistory } from './rates';
+import { type AmortizationMethod, type PrepaymentMode, type ScheduleRow, schedule } from './amortization';
+import { groupPrepayments } from './prepayment-periods';
+
+/** Para un préstamo que ya venías pagando, `principal` es el saldo actual y `termMonths` las cuotas que faltan. */
+export interface Loan {
+  id: string;
+  principal: Cents;
+  termMonths: number;
+  firstPaymentDate: IsoDate;
+  rates: RateHistory;
+  method: AmortizationMethod;
+  /** Cuota que informa el banco; solo con cuota fija. Si falta, se calcula. */
+  fixedPayment?: Cents;
+  /** Seguro que se cobra con cada cuota. */
+  insurance: Cents;
+}
+
+export interface LoanPrepayment {
+  id: string;
+  loanId: string;
+  date: IsoDate;
+  amount: Cents;
+  mode: PrepaymentMode;
+}
+
+export interface LoanRow extends ScheduleRow {
+  loanId: string;
+  dueDate: IsoDate;
+  insurance: Cents;
+  /** payment + insurance. */
+  total: Cents;
+  /** Fecha en que se hizo el abono de esta cuota (la del último si hubo varios). */
+  prepaymentDate?: IsoDate;
+}
+
+/** Fechas de pago: una por mes con el día de `firstPaymentDate` (se recorta en los meses cortos). */
+export function loanDueDates(loan: Loan): IsoDate[] {
+  if (!Number.isInteger(loan.termMonths) || loan.termMonths < 1) {
+    throw new RangeError(`termMonths debe ser un entero >= 1, llegó ${loan.termMonths}`);
+  }
+  const day = dayOfMonth(loan.firstPaymentDate);
+  return Array.from({ length: loan.termMonths }, (_, k) => shiftMonths(loan.firstPaymentDate, k, day));
+}
+
+/**
+ * Cronograma del préstamo. Cada cuota usa la tasa vigente al inicio de su periodo
+ * (un mes antes de su fecha de pago), que es como el banco fija una tasa variable.
+ */
+export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] = []): LoanRow[] {
+  for (const p of prepayments) {
+    if (p.loanId !== loan.id) {
+      throw new Error(`el abono ${p.id} es del préstamo ${p.loanId}, no de ${loan.id}`);
+    }
+  }
+
+  const dueDates = loanDueDates(loan);
+  const day = dayOfMonth(loan.firstPaymentDate);
+  const grouped = groupPrepayments(dueDates, prepayments);
+  const rates = dueDates.map((due) => loan.rates.rateOn(shiftMonths(due, -1, day)).mv);
+
+  const rows = schedule(loan.principal, loan.termMonths, rates, loan.method, {
+    prepayments: [...grouped.values()].map((g) => ({ afterPeriod: g.afterPeriod, amount: g.amount, mode: g.mode })),
+    ...(loan.fixedPayment !== undefined && { initialPayment: loan.fixedPayment }),
+  });
+
+  return rows.map((row, i) => {
+    const dueDate = dueDates[i];
+    if (dueDate === undefined) throw new Error(`no hay fecha de pago para la cuota ${i + 1}`);
+    // Si un abono liquidó la deuda, esa fila ya no paga cuota ni seguro
+    const insurance = row.payment > 0 ? loan.insurance : 0;
+    const paidOn = row.prepayment > 0 ? grouped.get(i)?.date : undefined;
+    return {
+      ...row,
+      loanId: loan.id,
+      dueDate,
+      insurance,
+      total: row.payment + insurance,
+      ...(paidOn !== undefined && { prepaymentDate: paidOn }),
+    };
+  });
+}
+
+/** Lo que se debe de capital en `on`: baja con cada abono y cada pago cuya fecha ya llegó. */
+export function payoffAmount(loan: Loan, on: IsoDate, prepayments: readonly LoanPrepayment[] = []): Cents {
+  let balance = loan.principal;
+  for (const row of loanSchedule(loan, prepayments)) {
+    if (row.prepaymentDate !== undefined && row.prepaymentDate <= on) balance = row.openingBalance;
+    if (row.dueDate <= on) balance = row.closingBalance;
+  }
+  return balance;
+}
