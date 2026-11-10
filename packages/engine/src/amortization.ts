@@ -92,19 +92,19 @@ export function schedule(
   return rows;
 }
 
-function assertPrincipal(principal: number): void {
+export function assertPrincipal(principal: number): void {
   if (!Number.isSafeInteger(principal) || principal <= 0) {
     throw new RangeError(`principal debe ser un entero de centavos > 0, llegó ${principal}`);
   }
 }
 
-function assertInstallments(n: number): void {
+export function assertInstallments(n: number): void {
   if (!Number.isInteger(n) || n < 1) {
     throw new RangeError(`n debe ser un entero >= 1, llegó ${n}`);
   }
 }
 
-function assertRate(rate: Decimal): void {
+export function assertRate(rate: Decimal): void {
   if (!rate.isFinite() || rate.isNegative()) {
     throw new RangeError(`tasa inválida: ${rate.toString()}`);
   }
