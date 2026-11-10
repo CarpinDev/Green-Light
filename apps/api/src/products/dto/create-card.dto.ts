@@ -4,9 +4,7 @@ import {
   IsBoolean,
   IsIn,
   IsInt,
-  IsISO8601,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
   Matches,
@@ -14,24 +12,9 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { RateDto } from './rate.dto';
 import { AMORTIZATION_METHODS, FIRST_PERIOD_INTERESTS } from '../amortization';
 import type { CreateCardInput } from '../cards.service';
-
-export class RateDto {
-  /** YYYY-MM-DD; el formato y que sea una fecha real. */
-  @Matches(/^\d{4}-\d{2}-\d{2}$/)
-  @IsISO8601({ strict: true })
-  effectiveFrom!: string;
-
-  /** Fracción como texto: '0.2899' es 28,99 %. */
-  @IsOptional()
-  @IsNumberString()
-  ea?: string;
-
-  @IsOptional()
-  @IsNumberString()
-  mv?: string;
-}
 
 export class CreateCardDto implements CreateCardInput {
   @IsString()
