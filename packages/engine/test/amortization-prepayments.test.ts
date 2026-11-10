@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import Decimal from 'decimal.js';
 import { pesos } from '../src/money';
-import { schedule, type ScheduleRow } from '../src/amortization-prepayments';
+import { schedule, type ScheduleRow } from '../src/amortization';
 
 const R1 = new Decimal('0.01'); // 1 % M.V.
 
