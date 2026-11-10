@@ -1,0 +1,89 @@
+### Pruebas manuales de POST /capital-payments (extensión REST Client de VS Code). Datos ficticios.
+### Antes: crea dos tarjetas, un préstamo y una cuenta (cards.http, loans.http, accounts.http) y una
+### compra con la primera tarjeta (expenses.http, caso 2, con fecha 2026-03-12). Cambia los ids:
+@host = http://localhost:3001
+@cardId = 1
+@otherCardId = 2
+@loanId = 3
+@accountId = 4
+@purchaseId = 1
+
+### 1. Abono a una tarjeta, sin compra (el motor lo reparte por mayor tasa) -> 201 { "id": ... }
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{ "productId": {{cardId}}, "date": "2026-03-25", "amountCents": 20000000 }
+
+### 2. Abono a una compra de esa tarjeta, reduciendo la cuota -> 201
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{
+  "productId": {{cardId}},
+  "date": "2026-03-25",
+  "amountCents": 20000000,
+  "expenseId": {{purchaseId}},
+  "mode": "reduce_payment"
+}
+
+### 3. Abono el mismo día de la compra -> 201
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{
+  "productId": {{cardId}},
+  "date": "2026-03-12",
+  "amountCents": 20000000,
+  "expenseId": {{purchaseId}}
+}
+
+### 4. Abono antes de la compra -> 400 "es antes de la compra"
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{
+  "productId": {{cardId}},
+  "date": "2026-03-11",
+  "amountCents": 20000000,
+  "expenseId": {{purchaseId}}
+}
+
+### 5. Compra de otra tarjeta -> 400
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{
+  "productId": {{otherCardId}},
+  "date": "2026-03-25",
+  "amountCents": 20000000,
+  "expenseId": {{purchaseId}}
+}
+
+### 6. Abono a un préstamo -> 201
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{ "productId": {{loanId}}, "date": "2026-04-15", "amountCents": 200000000 }
+
+### 7. Abono a un préstamo apuntando a una compra -> 400
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{
+  "productId": {{loanId}},
+  "date": "2026-04-15",
+  "amountCents": 200000000,
+  "expenseId": {{purchaseId}}
+}
+
+### 8. Abono a una cuenta -> 400
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{ "productId": {{accountId}}, "date": "2026-03-25", "amountCents": 20000000 }
+
+### 9. Producto que no existe -> 400 (el mensaje trae el id)
+POST {{host}}/capital-payments
+Content-Type: application/json
+
+{ "productId": 999, "date": "2026-03-25", "amountCents": 20000000 }
