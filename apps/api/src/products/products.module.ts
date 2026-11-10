@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CardsController } from './cards.controller';
 import { CardsService } from './cards.service';
 import { AccountBalance } from './entities/account-balance.entity';
 import { Account } from './entities/account.entity';
@@ -21,6 +22,7 @@ import { StatementCheck } from './entities/statement-check.entity';
       StatementCheck,
     ]),
   ],
+  controllers: [CardsController],
   providers: [CardsService],
   exports: [CardsService],
 })

@@ -44,6 +44,11 @@ describe('resolveRate', () => {
     expect(() => resolveRate({})).toThrow(BadRequestException);
   });
 
+  it('100 % o más: 400 "fuera de rango" (numeric(14,12) no lo admite)', () => {
+    expect(() => resolveRate({ ea: '150' })).toThrow(/fuera de rango/);
+    expect(() => resolveRate({ mv: '1' })).toThrow(BadRequestException);
+  });
+
   it('negativa o que no es número: 400 (no un 500)', () => {
     expect(() => resolveRate({ ea: '-0.1' })).toThrow(BadRequestException);
     expect(() => resolveRate({ mv: 'abc' })).toThrow(BadRequestException);

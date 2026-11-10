@@ -55,6 +55,10 @@ function parseRate(raw: string, label: string): Decimal {
   if (!value.isFinite() || value.isNegative()) {
     throw new BadRequestException(`La ${label} debe ser un número finito y no negativo, llegó "${raw}"`);
   }
+  // numeric(14,12) no admite 100 o más; ninguna tasa legal llega al 100 % E.A.
+  if (value.gte(1)) {
+    throw new BadRequestException(`La ${label} "${raw}" está fuera de rango: debe ser menor que 1 (100 %)`);
+  }
   return value;
 }
 
