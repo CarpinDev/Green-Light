@@ -8,7 +8,8 @@ services:
       POSTGRES_PASSWORD: greenlight
       POSTGRES_DB: greenlight
     ports:
-      - '5432:5432'
+      # Solo para esta máquina: con '5432:5432' cualquiera en la red podría entrar con estas credenciales
+      - '127.0.0.1:5432:5432'
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

@@ -1,5 +1,8 @@
 {
   "name": "greenlight",
   "private": true,
+  "engines": {
+    "node": ">=20.19"
+  },
   "workspaces": ["apps/*", "packages/*"]
 }
