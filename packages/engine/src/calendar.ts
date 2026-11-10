@@ -195,3 +195,9 @@ export function shiftMonths(date: IsoDate, months: number, day: number): IsoDate
 
     return addMonths(year, month, months, day);
 }
+
+
+/** Último día del mes de una fecha. */
+export function endOfMonth(date: IsoDate): IsoDate {
+    return shiftMonths(date, 0, 31);
+}
