@@ -86,3 +86,17 @@ Content-Type: application/json
   "dueDay": 5,
   "rate": { "effectiveFrom": "2026-01-01", "ea": "150" }
 }
+
+### 7. M.V. de 20 % mensual (su E.A. calculada sería 790 %) -> 400 "fuera de rango"
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "5555",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "mv": "0.2" }
+}

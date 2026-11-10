@@ -49,6 +49,13 @@ describe('resolveRate', () => {
     expect(() => resolveRate({ mv: '1' })).toThrow(BadRequestException);
   });
 
+  it('una M.V. válida cuya E.A. calculada sale de rango también es 400', () => {
+    // 0.5 mensual = E.A. 128,75 (12.875 %), que no cabe en numeric(14,12); 0.2 = E.A. 7,92 (792 %),
+    // que Postgres guardaría sin quejarse
+    expect(() => resolveRate({ mv: '0.5' })).toThrow(/fuera de rango/);
+    expect(() => resolveRate({ mv: '0.2' })).toThrow(/fuera de rango/);
+  });
+
   it('negativa o que no es número: 400 (no un 500)', () => {
     expect(() => resolveRate({ ea: '-0.1' })).toThrow(BadRequestException);
     expect(() => resolveRate({ mv: 'abc' })).toThrow(BadRequestException);
