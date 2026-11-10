@@ -18,6 +18,9 @@ const card: CreditCard = {
   minPaymentMethod: 'constant_capital',
   singleInstallmentInterestFree: true,
   firstPeriodInterest: 'full_month',
+  creditLimit: pesos(5_000_000),
+  handlingFee: pesos(30_000),
+  insurance: pesos(5_000),
 };
 
 const purchase = (overrides: Partial<CardPurchase> = {}): CardPurchase => ({
