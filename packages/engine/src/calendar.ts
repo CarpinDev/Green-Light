@@ -167,6 +167,11 @@ export function nthCutAfter(
 /** Fecha en formato YYYY-MM-DD. */
 export type IsoDate = string;
 
+/** Día del mes (1..31) de una fecha YYYY-MM-DD. */
+export function dayOfMonth(date: IsoDate): number {
+    return parseDate(date).day;
+}
+
 /** Días entre dos fechas (to − from); negativo si `to` es anterior. */
 export function daysBetween(from: IsoDate, to: IsoDate): number {
     const a = parseDate(from);
@@ -176,4 +181,17 @@ export function daysBetween(from: IsoDate, to: IsoDate): number {
     return Math.round(
         (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / msPerDay,
     );
+}
+
+
+/**
+ * Mueve una fecha `months` meses (también negativos) usando el día indicado.
+ * Si el día no existe en el mes destino, usa el último.
+ */
+export function shiftMonths(date: IsoDate, months: number, day: number): IsoDate {
+    const { year, month } = parseDate(date);
+
+    assertDayOfMonth(day, "El día");
+
+    return addMonths(year, month, months, day);
 }
