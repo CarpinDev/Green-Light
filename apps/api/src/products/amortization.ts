@@ -2,14 +2,11 @@ import type {
   AmortizationMethod,
   FirstPeriodInterest,
 } from '@greenlight/engine';
+import type { Covers, MustBeTrue } from '../common/covers';
 
 // Los enums de la base reflejan exactamente los tipos del motor:
 // - satisfies impide poner un valor que el motor no tiene.
 // - los tipos Covered* dejan de compilar si al arreglo le falta un valor del motor.
-type Covers<T, A extends readonly T[]> = [Exclude<T, A[number]>] extends [never]
-  ? true
-  : false;
-type MustBeTrue<T extends true> = T;
 
 export const AMORTIZATION_METHODS = [
   'constant_capital',
