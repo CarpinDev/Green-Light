@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { type IsoDate, cutDateFor, dueDateFor } from './calendar';
 import type { Cents } from './money';
+import { sumBy } from './collections';
 import type { CardPurchase, CreditCard, PurchaseRow } from './cards';
 
 export interface PaymentBreakdown {
@@ -78,8 +79,4 @@ export function utilization(
 
 function breakdown(capital: Cents, interest: Cents, fees: Cents): PaymentBreakdown {
   return { capital, interest, fees, total: capital + interest + fees };
-}
-
-function sumBy<T>(items: readonly T[], pick: (item: T) => number): number {
-  return items.reduce((acc, item) => acc + pick(item), 0);
 }

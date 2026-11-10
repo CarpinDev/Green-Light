@@ -1,6 +1,7 @@
 import Decimal from 'decimal.js';
 import { type IsoDate, endOfMonth, shiftMonths } from './calendar';
 import type { Cents } from './money';
+import { sumBy } from './collections';
 
 export interface RecurringIncome {
   id: string;
@@ -37,7 +38,13 @@ export interface CashExpense {
   description: string;
 }
 
-export type CashEventKind = 'income' | 'expense' | 'fixed_expense' | 'loan_payment' | 'card_payment';
+export type CashEventKind =
+  | 'income'
+  | 'expense'
+  | 'fixed_expense'
+  | 'loan_payment'
+  | 'card_payment'
+  | 'capital_payment';
 
 /** Movimiento del disponible. El monto lleva signo: + si entra plata, − si sale. */
 export interface CashEvent {
@@ -198,8 +205,4 @@ function summarizeMonths(input: ProjectionInput, all: readonly CashEvent[], mont
   }
 
   return summaries;
-}
-
-function sumBy<T>(items: readonly T[], pick: (item: T) => number): number {
-  return items.reduce((acc, item) => acc + pick(item), 0);
 }
