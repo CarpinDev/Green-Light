@@ -18,6 +18,11 @@ export interface CreditCard {
   /** Si es true, las compras a 1 cuota no pagan interés. */
   singleInstallmentInterestFree: boolean;
   firstPeriodInterest: FirstPeriodInterest;
+  /** Cupo total de la tarjeta. */
+  creditLimit: Cents;
+  /** Cargos fijos que se cobran en cada corte. */
+  handlingFee: Cents;
+  insurance: Cents;
 }
 
 export interface CardPurchase {
@@ -32,6 +37,7 @@ export interface CardPurchase {
 
 export interface PurchaseRow extends ScheduleRow {
   purchaseId: string;
+  cardId: string;
   cutDate: IsoDate;
   dueDate: IsoDate;
 }
@@ -75,7 +81,13 @@ export function planPurchase(card: CreditCard, purchase: CardPurchase): Purchase
   return rows.map((row, i) => {
     const cutDate = cuts[i];
     if (cutDate === undefined) throw new Error(`no hay corte para la cuota ${i + 1}`);
-    return { ...row, purchaseId: purchase.id, cutDate, dueDate: dueDateFor(cutDate, card.dueDay) };
+    return {
+      ...row,
+      purchaseId: purchase.id,
+      cardId: card.id,
+      cutDate,
+      dueDate: dueDateFor(cutDate, card.dueDay),
+    };
   });
 }
 
