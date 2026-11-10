@@ -163,6 +163,26 @@ describe('planCard: abonos sin compra asignada (mayor tasa primero)', () => {
     expect(prepaidBy(rows, 'A')).toBe(0);
   });
 
+  it('un segundo abono ve lo que dejó el primero', () => {
+    const { rows, unapplied } = planCard(card, [A, P], [
+      pay({ id: 'u1', date: '2026-02-18', amount: pesos(600_000) }),
+      pay({ id: 'u2', date: '2026-02-20', amount: pesos(600_000) }),
+    ]);
+    expect(prepaidBy(rows, 'A')).toBe(pesos(800_000)); // 600.000 + 200.000
+    expect(prepaidBy(rows, 'P')).toBe(pesos(400_000));
+    expect(unapplied).toEqual([]);
+  });
+
+  it('un abono asignado posterior no cuenta para el reparto de uno anterior', () => {
+    const { rows } = planCard(card, [A, P], [
+      pay({ id: 'late', purchaseId: 'A', date: '2026-03-01', amount: pesos(100_000) }),
+      pay({ id: 'early', date: '2026-02-18', amount: pesos(800_000) }),
+    ]);
+    // El sin asignar toma los 800.000 completos de A; el asignado de marzo ya no cabe en A y se recorta
+    expect(prepaidBy(rows, 'A')).toBe(pesos(800_000));
+    expect(prepaidBy(rows, 'P')).toBe(0);
+  });
+
   it('ignora compras y abonos de otras tarjetas', () => {
     const other: CardPurchase = { ...A, id: 'Z', cardId: 'card-2' };
     const { rows } = planCard(card, [A, other], [...unassigned(100_000), pay({ id: 'w', cardId: 'card-2' })]);
