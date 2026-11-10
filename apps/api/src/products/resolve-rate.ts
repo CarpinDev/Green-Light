@@ -37,12 +37,25 @@ export function resolveRate(input: RateInput): ResolvedRate {
         `La M.V. ${mv.toString()} no corresponde a la E.A. ${ea.toString()} (se esperaba cerca de ${expected.toString()})`,
       );
     }
-    return { ea, mv, source: 'both' };
+    return inRange({ ea, mv, source: 'both' });
   }
-  if (ea !== undefined) return { ea, mv: fromEngine(() => eaToMv(ea)), source: 'ea' };
-  if (mv !== undefined) return { ea: fromEngine(() => mvToEa(mv)), mv, source: 'mv' };
+  if (ea !== undefined) return inRange({ ea, mv: fromEngine(() => eaToMv(ea)), source: 'ea' });
+  if (mv !== undefined) return inRange({ ea: fromEngine(() => mvToEa(mv)), mv, source: 'mv' });
 
   throw new BadRequestException('Falta la tasa: envía la E.A., la M.V. o las dos');
+}
+
+/**
+ * Revisa lo que se calculó, no solo lo que escribió el usuario: una M.V. de 0.2 pasa parseRate
+ * pero equivale a una E.A. de 790 %, que Postgres guardaría como basura (o reventaría con un 500).
+ */
+function inRange(rate: ResolvedRate): ResolvedRate {
+  if (rate.ea.gte(1) || rate.mv.gte(1)) {
+    throw new BadRequestException(
+      `La tasa está fuera de rango: E.A. ${rate.ea.toString()}, M.V. ${rate.mv.toString()} (ambas deben ser menores que 1, o sea 100 %)`,
+    );
+  }
+  return rate;
 }
 
 function parseRate(raw: string, label: string): Decimal {
@@ -54,6 +67,10 @@ function parseRate(raw: string, label: string): Decimal {
   }
   if (!value.isFinite() || value.isNegative()) {
     throw new BadRequestException(`La ${label} debe ser un número finito y no negativo, llegó "${raw}"`);
+  }
+  // numeric(14,12) no admite 100 o más; ninguna tasa legal llega al 100 % E.A.
+  if (value.gte(1)) {
+    throw new BadRequestException(`La ${label} "${raw}" está fuera de rango: debe ser menor que 1 (100 %)`);
   }
   return value;
 }

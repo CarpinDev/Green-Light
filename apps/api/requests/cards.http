@@ -1,0 +1,102 @@
+### Pruebas manuales de POST /cards (extensión REST Client de VS Code). Datos ficticios.
+### Ejecútalas en orden. Si ya existe la tarjeta de prueba, la primera da 409: cambia last4.
+@host = http://localhost:3001
+
+### 1. Tarjeta válida -> 201 { "id": ... }
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "4321",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.2899" }
+}
+
+### 2. La misma otra vez (mismo banco y últimos 4) -> 409
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "4321",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.2899" }
+}
+
+### 3. cutDay fuera de rango -> 400
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "1111",
+  "creditLimitCents": 500000000,
+  "cutDay": 40,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.2899" }
+}
+
+### 4. Un campo que no está en el DTO -> 400
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "2222",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.2899" },
+  "color": "azul"
+}
+
+### 5. E.A. con una M.V. que no cuadra -> 400
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "3333",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.2899", "mv": "0.0241" }
+}
+
+### 6. E.A. de 15.000 % (150) -> 400 "fuera de rango", no un 500 de Postgres
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "4444",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "150" }
+}
+
+### 7. M.V. de 20 % mensual (su E.A. calculada sería 790 %) -> 400 "fuera de rango"
+POST {{host}}/cards
+Content-Type: application/json
+
+{
+  "name": "Visa Ficticia",
+  "bank": "Banco Ejemplo",
+  "last4": "5555",
+  "creditLimitCents": 500000000,
+  "cutDay": 15,
+  "dueDay": 5,
+  "rate": { "effectiveFrom": "2026-01-01", "mv": "0.2" }
+}
