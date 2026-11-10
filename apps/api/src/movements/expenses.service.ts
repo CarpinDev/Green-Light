@@ -3,7 +3,7 @@ import type { Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { type RateInput, resolveRate } from '../products/resolve-rate';
-import { Category } from './entities/category.entity';
+import { assertCategoryOfKind } from './category-check';
 import { Expense } from './entities/expense.entity';
 
 export interface CreateExpenseInput {
@@ -38,7 +38,7 @@ export class ExpensesService {
     }
 
     this.assertRulesFor(product, input);
-    if (input.categoryId !== undefined) await this.assertExpenseCategory(input.categoryId);
+    if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
 
     // La promoción reutiliza resolveRate: una tasa no se valida en dos lugares distintos
     const promo = input.promo ? resolveRate({ ea: input.promo.ea, mv: input.promo.mv }) : undefined;
@@ -89,11 +89,4 @@ export class ExpensesService {
     }
   }
 
-  private async assertExpenseCategory(categoryId: number): Promise<void> {
-    const category = await this.dataSource.getRepository(Category).findOneBy({ id: categoryId });
-    if (!category) throw new BadRequestException(`La categoría ${categoryId} no existe`);
-    if (category.kind !== 'expense') {
-      throw new BadRequestException(`La categoría ${categoryId} es de ingreso: un gasto necesita una categoría de gasto`);
-    }
-  }
 }
