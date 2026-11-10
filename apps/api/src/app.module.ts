@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { typeOrmConfig } from './database/typeorm.config';
+import { ProductsModule } from './products/products.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { typeOrmConfig } from './database/typeorm.config';
         autoLoadEntities: true,
       }),
     }),
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
