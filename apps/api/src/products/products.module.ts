@@ -6,6 +6,7 @@ import { CreditCard } from './entities/credit-card.entity';
 import { Loan } from './entities/loan.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
+import { StatementCheck } from './entities/statement-check.entity';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { Product } from './entities/product.entity';
       Loan,
       Account,
       AccountBalance,
+      StatementCheck,
     ]),
   ],
 })

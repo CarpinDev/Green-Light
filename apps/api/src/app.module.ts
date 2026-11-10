@@ -6,6 +6,8 @@ import { AppService } from './app.service';
 import { typeOrmConfig } from './database/typeorm.config';
 import { ProductsModule } from './products/products.module';
 import { MovementsModule } from './movements/movements.module';
+import { IncomesModule } from './incomes/incomes.module';
+import { SettingsModule } from './settings/settings.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { MovementsModule } from './movements/movements.module';
     }),
     ProductsModule,
     MovementsModule,
+    IncomesModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
