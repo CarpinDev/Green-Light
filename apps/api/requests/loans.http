@@ -1,0 +1,76 @@
+### Pruebas manuales de POST /loans (extensión REST Client de VS Code). Datos ficticios.
+### Ejecútalas en orden. Si ya existe el préstamo de prueba, la primera da 409: cambia last4.
+@host = http://localhost:3001
+
+### 1. Préstamo válido -> 201 { "id": ... }
+POST {{host}}/loans
+Content-Type: application/json
+
+{
+  "name": "Libre inversión",
+  "bank": "Banco Ejemplo",
+  "last4": "9876",
+  "principalCents": 1000000000,
+  "termMonths": 12,
+  "firstPaymentDate": "2026-02-10",
+  "insuranceCents": 1200000,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.195618" }
+}
+
+### 2. El mismo otra vez -> 409
+POST {{host}}/loans
+Content-Type: application/json
+
+{
+  "name": "Libre inversión",
+  "bank": "Banco Ejemplo",
+  "last4": "9876",
+  "principalCents": 1000000000,
+  "termMonths": 12,
+  "firstPaymentDate": "2026-02-10",
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.195618" }
+}
+
+### 3. Con la cuota informada por el banco -> 201
+POST {{host}}/loans
+Content-Type: application/json
+
+{
+  "name": "Vehículo",
+  "bank": "Banco Ejemplo",
+  "last4": "2468",
+  "principalCents": 1000000000,
+  "termMonths": 12,
+  "firstPaymentDate": "2026-02-10",
+  "fixedPaymentCents": 91679993,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.195618", "mv": "0.015" }
+}
+
+### 4. Cuota informada en 0 -> 400
+POST {{host}}/loans
+Content-Type: application/json
+
+{
+  "name": "Vehículo",
+  "bank": "Banco Ejemplo",
+  "last4": "1111",
+  "principalCents": 1000000000,
+  "termMonths": 12,
+  "firstPaymentDate": "2026-02-10",
+  "fixedPaymentCents": 0,
+  "rate": { "effectiveFrom": "2026-01-01", "ea": "0.195618" }
+}
+
+### 5. Sin tasa -> 400
+POST {{host}}/loans
+Content-Type: application/json
+
+{
+  "name": "Vehículo",
+  "bank": "Banco Ejemplo",
+  "last4": "2222",
+  "principalCents": 1000000000,
+  "termMonths": 12,
+  "firstPaymentDate": "2026-02-10",
+  "rate": { "effectiveFrom": "2026-01-01" }
+}

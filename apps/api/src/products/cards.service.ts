@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import type { AmortizationMethod, Cents, FirstPeriodInterest, IsoDate } from '@greenlight/engine';
-import { DataSource, QueryFailedError } from 'typeorm';
+import { DataSource } from 'typeorm';
+import { isUniqueViolation } from '../common/pg-errors';
 import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
@@ -22,9 +23,6 @@ export interface CreateCardInput {
   singleInstallmentInterestFree?: boolean;
   firstPeriodInterest?: FirstPeriodInterest;
 }
-
-/** Código de Postgres para una violación de unicidad. */
-const UNIQUE_VIOLATION = '23505';
 
 @Injectable()
 export class CardsService {
@@ -70,7 +68,7 @@ export class CardsService {
         return product;
       });
     } catch (err) {
-      if (err instanceof QueryFailedError && (err.driverError as { code?: string }).code === UNIQUE_VIOLATION) {
+      if (isUniqueViolation(err)) {
         throw new ConflictException(`Ya existe una tarjeta de ${input.bank} terminada en ${input.last4}`);
       }
       throw err;
