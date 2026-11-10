@@ -27,6 +27,7 @@ import { Category } from './category.entity';
 @Check(`"installments" IS NULL OR "installments" BETWEEN 1 AND 72`)
 // Promoción: la E.A. y la M.V. van juntas o no va ninguna
 @Check(`("promo_ea" IS NULL) = ("promo_mv" IS NULL)`)
+@Check(`"promo_ea" >= 0 AND "promo_mv" >= 0`)
 export class Expense {
   @PrimaryGeneratedColumn() id!: number;
 

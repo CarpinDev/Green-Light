@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -15,6 +16,8 @@ import { Expense } from './expense.entity';
 
 /** Abono extraordinario a capital de una tarjeta o un préstamo. */
 @Entity('capital_payment')
+// La proyección pregunta seguido por los abonos de una tarjeta o préstamo
+@Index(['productId', 'date'])
 @Check(`"amount_cents" > 0`)
 export class CapitalPayment {
   @PrimaryGeneratedColumn() id!: number;
