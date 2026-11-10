@@ -54,10 +54,11 @@ export function usedCredit(
 ): Cents {
   const made = purchases.filter((p) => p.date <= date);
   const ids = new Set(made.map((p) => p.id));
-  const released = sumBy(
-    rows.filter((r) => ids.has(r.purchaseId) && r.dueDate <= date),
-    (r) => r.capital + r.prepayment,
-  );
+  const own = rows.filter((r) => ids.has(r.purchaseId));
+  // La cuota libera su capital al vencer; el abono, el día que se hace
+  const released =
+    sumBy(own.filter((r) => r.dueDate <= date), (r) => r.capital) +
+    sumBy(own.filter((r) => (r.prepaymentDate ?? r.dueDate) <= date), (r) => r.prepayment);
   return sumBy(made, (p) => p.amount) - released;
 }
 
