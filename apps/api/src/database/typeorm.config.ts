@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import type { DataSourceOptions } from 'typeorm';
+import { SnakeNamingStrategy } from 'typeorm-naming-strategies';
 
 /** Cómo leer una variable de entorno: process.env en el CLI, ConfigService en Nest. */
 export type EnvReader = (key: string) => string | undefined;
@@ -15,6 +16,8 @@ export function typeOrmConfig(env: EnvReader = (key) => process.env[key]): DataS
     database: env('DB_NAME'),
     entities: [join(__dirname, '..', '**', '*.entity.{ts,js}')],
     migrations: [join(__dirname, 'migrations', '*.{ts,js}')],
+    // createdAt en TS queda created_at en la base, sin repetir name: en cada columna
+    namingStrategy: new SnakeNamingStrategy(),
     // El esquema solo cambia con migraciones
     synchronize: false,
   };
