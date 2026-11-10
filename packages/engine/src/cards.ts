@@ -106,14 +106,12 @@ export function planPurchase(
   return rows.map((row, i) => {
     const cutDate = cuts[i];
     if (cutDate === undefined) throw new Error(`no hay corte para la cuota ${i + 1}`);
-    const paidOn = row.prepayment > 0 ? grouped.get(i)?.date : undefined;
     return {
       ...row,
       purchaseId: purchase.id,
       cardId: card.id,
       cutDate,
       dueDate: dueDateFor(cutDate, card.dueDay),
-      ...(paidOn !== undefined && { prepaymentDate: paidOn }),
     };
   });
 }
