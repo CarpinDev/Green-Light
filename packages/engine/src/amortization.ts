@@ -43,6 +43,29 @@ export function fixedPayment(principal: Cents, rate: Decimal, n: number): Cents 
   return roundCents(payment);
 }
 
+/**
+ * Cuántas cuotas de valor `payment` hacen falta para pagar `balance` a la tasa `rate` (hacia arriba:
+ * la última puede ser menor). Sale de despejar n en la fórmula de la cuota fija.
+ */
+export function periodsToPayOff(balance: Cents, rate: Decimal, payment: Cents): number {
+  assertPrincipal(balance);
+  assertRate(rate);
+  if (!Number.isSafeInteger(payment) || payment <= 0) {
+    throw new RangeError(`la cuota debe ser un entero de centavos > 0, llegó ${payment}`);
+  }
+
+  if (rate.isZero()) return Math.ceil(balance / payment);
+
+  const interestShare = new Decimal(balance).times(rate).div(payment);
+  if (interestShare.gte(1)) {
+    throw new RangeError(`una cuota de ${payment} no alcanza a cubrir el interés de ${balance} al ${rate.toString()}`);
+  }
+
+  const n = new Decimal(1).minus(interestShare).ln().neg().div(rate.plus(1).ln());
+  // La cuota viene redondeada al centavo: 12,0000001 cuotas son 12, no 13
+  return n.toDecimalPlaces(6).ceil().toNumber();
+}
+
 export function schedule(
   principal: Cents,
   n: number,
@@ -71,6 +94,8 @@ export function schedule(
 
   const rows: ScheduleRow[] = [];
   let balance = principal;
+  // Periodo en que debe terminar la deuda; un abono reduce_term en cuota fija lo recorta
+  let termEnd = n;
   // La cuota fija nace del capital original; solo un abono reduce_payment la recalcula
   let payment = 0;
   let paymentRate: Decimal | undefined;
@@ -82,7 +107,7 @@ export function schedule(
     }
   }
 
-  for (let i = 0; i < n && (i === 0 || balance > 0); i++) {
+  for (let i = 0; i < termEnd && (i === 0 || balance > 0); i++) {
     const rate = rates[Math.min(i, rates.length - 1)];
     if (rate === undefined) {
       throw new Error(`no hay tasa para el periodo ${i + 1}`);
@@ -94,12 +119,15 @@ export function schedule(
     balance -= prepayment;
 
     if (pre && pre.mode === 'reduce_payment') {
-      segment = { start: i, principal: balance, count: n - i };
+      segment = { start: i, principal: balance, count: termEnd - i };
       paymentRate = undefined; // fuerza recálculo de la cuota fija
+    } else if (pre && method === 'fixed_installment' && balance > 0) {
+      // Se conserva la cuota vigente: el saldo nuevo se paga antes
+      termEnd = Math.min(termEnd, i + periodsToPayOff(balance, rate, payment));
     }
 
     // 2. Capital de la cuota
-    const isLast = i === n - 1;
+    const isLast = i === termEnd - 1;
     const contractualInterest = roundCents(new Decimal(balance).times(rate));
 
     let capital: number;
@@ -115,7 +143,7 @@ export function schedule(
       capital = isLast ? balance : Math.min(balance, scheduled);
     } else {
       if (paymentRate === undefined || !rate.equals(paymentRate)) {
-        payment = fixedPayment(balance, rate, n - i);
+        payment = fixedPayment(balance, rate, termEnd - i);
         paymentRate = rate;
       }
       capital = isLast ? balance : Math.min(balance, Math.max(0, payment - contractualInterest));
