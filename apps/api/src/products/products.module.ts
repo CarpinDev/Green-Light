@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CardsService } from './cards.service';
 import { AccountBalance } from './entities/account-balance.entity';
 import { Account } from './entities/account.entity';
 import { CreditCard } from './entities/credit-card.entity';
@@ -20,5 +21,7 @@ import { StatementCheck } from './entities/statement-check.entity';
       StatementCheck,
     ]),
   ],
+  providers: [CardsService],
+  exports: [CardsService],
 })
 export class ProductsModule {}
