@@ -163,3 +163,17 @@ export function nthCutAfter(
 
     return addMonths(year, month, n, cutDay);
 }
+
+/** Fecha en formato YYYY-MM-DD. */
+export type IsoDate = string;
+
+/** Días entre dos fechas (to − from); negativo si `to` es anterior. */
+export function daysBetween(from: IsoDate, to: IsoDate): number {
+    const a = parseDate(from);
+    const b = parseDate(to);
+    const msPerDay = 86_400_000;
+
+    return Math.round(
+        (Date.UTC(b.year, b.month - 1, b.day) - Date.UTC(a.year, a.month - 1, a.day)) / msPerDay,
+    );
+}

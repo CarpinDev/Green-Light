@@ -1,8 +1,8 @@
 import Decimal from "decimal.js";
 
 export interface Rate {
-    ea: Decimal;
-    mv: Decimal;
+    readonly ea: Decimal;
+    readonly mv: Decimal;
 }
 
 interface Entry {
@@ -110,4 +110,23 @@ export class RateHistory {
 
         return applicableEntry.rate;
     }
+}
+
+/** Tasa cero (compras sin interés). */
+export const ZERO_RATE: Rate = Object.freeze({ ea: new Decimal(0), mv: new Decimal(0) });
+
+/**
+ * EA → tasa efectiva para un periodo de `days` días (año de 365 días).
+ */
+export function eaToPeriod(ea: Decimal, days: number): Decimal {
+    assertValidRate(ea, "EA");
+
+    if (!Number.isFinite(days) || days < 0) {
+        throw new RangeError(`days debe ser >= 0, llegó ${days}`);
+    }
+
+    return ea.plus(1)
+        .pow(new Decimal(days).div(365))
+        .minus(1)
+        .toDecimalPlaces(12);
 }
