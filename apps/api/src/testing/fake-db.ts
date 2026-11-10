@@ -59,6 +59,15 @@ export class FakeDb {
     if (type === this.failOn) throw new Error('la base se cayó');
 
     const list = tables.get(type) ?? [];
+
+    // Como TypeORM: guardar una entidad con un id que ya existe la actualiza
+    const existing = entity.id === undefined ? undefined : list.find((r) => r.id === entity.id);
+    if (existing) {
+      // Como TypeORM, las propiedades undefined no pisan lo que ya está guardado
+      const changes = Object.fromEntries(Object.entries(entity).filter(([, v]) => v !== undefined));
+      return Object.assign(existing, changes);
+    }
+
     for (const keys of this.unique.get(type) ?? []) {
       if (list.some((r) => keys.every((k) => r[k] === entity[k]))) {
         throw new QueryFailedError(

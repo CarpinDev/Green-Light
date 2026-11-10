@@ -1,0 +1,148 @@
+### Pruebas manuales de categorías, ingresos, gastos fijos y ajustes (REST Client de VS Code). Datos ficticios.
+### Antes: crea una cuenta, una tarjeta y un préstamo (accounts.http, cards.http, loans.http) y cambia los
+### ids de abajo. Las categorías se crean aquí: usa el id que devuelva cada una.
+@host = http://localhost:3001
+@accountId = 1
+@cardId = 2
+@loanId = 3
+@expenseCategoryId = 1
+@incomeCategoryId = 2
+
+### 1. Categoría de gasto -> 201 { "id": ... }
+POST {{host}}/categories
+Content-Type: application/json
+
+{ "name": "Mercado", "kind": "expense" }
+
+### 2. Categoría de ingreso -> 201
+POST {{host}}/categories
+Content-Type: application/json
+
+{ "name": "Salario", "kind": "income" }
+
+### 3. La misma categoría otra vez (mismo nombre y tipo) -> 409
+POST {{host}}/categories
+Content-Type: application/json
+
+{ "name": "Mercado", "kind": "expense" }
+
+### 4. Salario mensual -> 201
+POST {{host}}/recurring-incomes
+Content-Type: application/json
+
+{
+  "name": "Salario",
+  "amountCents": 300000000,
+  "dayOfMonth": 30,
+  "startDate": "2026-01-01",
+  "destinationAccountId": {{accountId}}
+}
+
+### 5. Día 32 -> 400
+POST {{host}}/recurring-incomes
+Content-Type: application/json
+
+{ "name": "Salario", "amountCents": 300000000, "dayOfMonth": 32, "startDate": "2026-01-01" }
+
+### 6. Fin anterior al inicio -> 400
+POST {{host}}/recurring-incomes
+Content-Type: application/json
+
+{
+  "name": "Salario",
+  "amountCents": 300000000,
+  "dayOfMonth": 30,
+  "startDate": "2026-06-01",
+  "endDate": "2026-01-01"
+}
+
+### 7. Cuenta de destino que es un préstamo -> 400
+POST {{host}}/recurring-incomes
+Content-Type: application/json
+
+{
+  "name": "Salario",
+  "amountCents": 300000000,
+  "dayOfMonth": 30,
+  "startDate": "2026-01-01",
+  "destinationAccountId": {{loanId}}
+}
+
+### 8. Ingreso puntual con categoría de ingreso -> 201
+POST {{host}}/one-off-incomes
+Content-Type: application/json
+
+{
+  "date": "2026-06-20",
+  "amountCents": 50000000,
+  "description": "Prima",
+  "categoryId": {{incomeCategoryId}},
+  "destinationAccountId": {{accountId}}
+}
+
+### 9. Ingreso puntual con categoría de gasto -> 400
+POST {{host}}/one-off-incomes
+Content-Type: application/json
+
+{
+  "date": "2026-06-20",
+  "amountCents": 50000000,
+  "categoryId": {{expenseCategoryId}}
+}
+
+### 10. Arriendo (gasto fijo sin tarjeta) -> 201
+POST {{host}}/fixed-expenses
+Content-Type: application/json
+
+{
+  "name": "Arriendo",
+  "amountCents": 120000000,
+  "dayOfMonth": 1,
+  "startDate": "2026-01-01",
+  "categoryId": {{expenseCategoryId}}
+}
+
+### 11. Netflix con tarjeta activa -> 201
+POST {{host}}/fixed-expenses
+Content-Type: application/json
+
+{
+  "name": "Netflix",
+  "amountCents": 4000000,
+  "dayOfMonth": 20,
+  "startDate": "2026-01-01",
+  "cardId": {{cardId}}
+}
+
+### 12. Gasto fijo con "tarjeta" que es una cuenta -> 400
+POST {{host}}/fixed-expenses
+Content-Type: application/json
+
+{
+  "name": "Netflix",
+  "amountCents": 4000000,
+  "dayOfMonth": 20,
+  "startDate": "2026-01-01",
+  "cardId": {{accountId}}
+}
+
+### 13. Ver los ajustes -> 200 con los 4 umbrales
+GET {{host}}/settings
+
+### 14. Cambiar un umbral -> 200 con los 4 ya actualizados
+PATCH {{host}}/settings
+Content-Type: application/json
+
+{ "cardUtilizationPct": "0.25" }
+
+### 15. Umbral fuera de rango -> 400
+PATCH {{host}}/settings
+Content-Type: application/json
+
+{ "cardUtilizationPct": "1.5" }
+
+### 16. PATCH vacío -> 400
+PATCH {{host}}/settings
+Content-Type: application/json
+
+{}

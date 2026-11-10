@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { CategoriesController } from './categories.controller';
+import { CategoriesService } from './categories.service';
 import { CapitalPayment } from './entities/capital-payment.entity';
 import { Category } from './entities/category.entity';
 import { Expense } from './entities/expense.entity';
@@ -8,8 +10,8 @@ import { ExpensesService } from './expenses.service';
 
 @Module({
   imports: [TypeOrmModule.forFeature([Category, Expense, CapitalPayment])],
-  controllers: [ExpensesController],
-  providers: [ExpensesService],
-  exports: [ExpensesService],
+  controllers: [ExpensesController, CategoriesController],
+  providers: [ExpensesService, CategoriesService],
+  exports: [ExpensesService, CategoriesService],
 })
 export class MovementsModule {}
