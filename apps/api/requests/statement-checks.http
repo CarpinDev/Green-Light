@@ -1,0 +1,55 @@
+### POST /statement-checks: ¿el mínimo del banco cuadra con el que calcula el motor? (REST Client de VS Code)
+### Cuando te llega el extracto de la tarjeta, registra su mínimo. El motor arma el extracto de ese corte,
+### calcula su propio mínimo y los compara con la tolerancia de settings (2 % por defecto, planning.http).
+### Si no cuadra, alguna suposición del modelo está mal: la tasa, la cuota de manejo, las cuotas...
+### Guarda el resultado (201). Un corte solo se puede validar una vez (409).
+### Para probarlo necesitas una tarjeta (cards.http) con compras (expenses.http) cuyo corte ya haya pasado.
+### Datos de ejemplo: tarjeta que corta el día 15; cambia cardId y las fechas por las tuyas.
+@host = http://localhost:3001
+@cardId = 1
+
+### 1. El mínimo del banco cuadra con el del motor -> 201 con withinTolerance true
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2026-10-15", "statementMinimumCents": 48000000 }
+
+### 2. Con el pago total del extracto -> 201 (otro corte, para no repetir)
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2026-09-15", "statementMinimumCents": 48000000, "statementTotalCents": 90000000 }
+
+### 3. El mismo corte otra vez -> 409
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2026-10-15", "statementMinimumCents": 48000000 }
+
+### 4. Una fecha que no es de corte -> 400 y te dice cuál sería (cutDay 15: el 14 no sirve)
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2026-10-14", "statementMinimumCents": 48000000 }
+
+### 5. Un corte que todavía no llega -> 400
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2030-01-15", "statementMinimumCents": 48000000 }
+
+### 6. Un pago total menor que el mínimo -> 400
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "cutDate": "2026-08-15", "statementMinimumCents": 48000000, "statementTotalCents": 100 }
+
+### 7. Un id que no es una tarjeta -> 400
+POST {{host}}/statement-checks
+Content-Type: application/json
+
+{ "cardId": 99999, "cutDate": "2026-10-15", "statementMinimumCents": 48000000 }
+
+### La respuesta trae: id (el registro guardado), statement (lines con cada cuota del corte, minimum y
+### fullPayment desglosados en capital, interest, fees y total, y dueDate) y check (calculatedMinimum,
+### bankMinimum, difference, relativeDifference como texto y withinTolerance).

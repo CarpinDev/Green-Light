@@ -17,7 +17,7 @@ export class FakeDb {
   withoutId = new Set<EntityClass>();
   private nextId = 1;
 
-  seed<T extends object>(Entity: new () => T, rows: Partial<T>[]): void {
+  seed<T extends object>(Entity: new () => T, rows: readonly Partial<T>[]): void {
     this.tables.set(
       Entity,
       rows.map((r) => Object.assign(new Entity(), r) as unknown as Row),
@@ -39,6 +39,7 @@ export class FakeDb {
       },
       getRepository: (Entity: new () => object) => ({
         findOneBy: async (where: Row) => this.find(this.tables, Entity, where),
+        find: async (options: { where?: Row } = {}) => this.findAll(this.tables, Entity, options.where ?? {}),
         save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
       }),
     } as unknown as DataSource;
@@ -53,9 +54,13 @@ export class FakeDb {
     return { save, create } as unknown as EntityManager;
   }
 
-  private find(tables: Table, Entity: EntityClass, where: Row): Row | null {
+  private findAll(tables: Table, Entity: EntityClass, where: Row): Row[] {
     const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
-    return (tables.get(Entity) ?? []).find(matches) ?? null;
+    return (tables.get(Entity) ?? []).filter(matches);
+  }
+
+  private find(tables: Table, Entity: EntityClass, where: Row): Row | null {
+    return this.findAll(tables, Entity, where)[0] ?? null;
   }
 
   private insert(tables: Table, entity: Row): Row {
