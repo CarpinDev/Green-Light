@@ -1,5 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
-import { cardEvents, endOfMonth, loanEvents, project, shiftMonths } from '@greenlight/engine';
+import { BadRequestException, ConflictException } from '@nestjs/common';
+import { cardEvents, daysBetween, endOfMonth, loanEvents, project, shiftMonths } from '@greenlight/engine';
 import type * as Engine from '@greenlight/engine';
 import type { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import type { OneOffIncome } from '../incomes/entities/one-off-income.entity';
@@ -37,9 +37,17 @@ export interface ProjectionFacts {
   settings: Settings;
 }
 
+/**
+ * Más viejo que esto, el saldo ya no sirve de punto de partida: los "próximos meses" serían
+ * meses pasados y el semáforo mostraría el pasado como si fuera futuro.
+ */
+export const MAX_BALANCE_AGE_DAYS = 31;
+
 export interface ProjectionResult {
   /** Fecha del saldo más reciente: desde ahí se proyecta. */
   asOf: Engine.IsoDate;
+  /** Días entre `asOf` y hoy (0 si el saldo tiene fecha de hoy o futura). La app puede avisar si es alto. */
+  daysSinceBalance: number;
   /** Suma del último saldo confirmado de cada cuenta. */
   openingBalanceCents: Engine.Cents;
   /** Cuentas (product id) cuyo último saldo es más viejo que `asOf`: conviene actualizarlas. */
@@ -50,9 +58,15 @@ export interface ProjectionResult {
 /**
  * Arma la entrada del motor desde las entidades y llama a project(). Pura: sin base de datos.
  * Cada tarjeta y cada préstamo recibe solo sus propias tasas, compras y abonos.
+ * `today` entra como parámetro para que siga siendo pura y se pueda probar.
+ * Si el último saldo tiene más de MAX_BALANCE_AGE_DAYS días, responde 409.
  */
-export function buildProjection(facts: ProjectionFacts, months: number): ProjectionResult {
+export function buildProjection(facts: ProjectionFacts, months: number, today: Engine.IsoDate): ProjectionResult {
   const start = startingPoint(facts.balances);
+  const daysSinceBalance = Math.max(0, daysBetween(start.asOf, today));
+  if (daysSinceBalance > MAX_BALANCE_AGE_DAYS) {
+    throw new ConflictException(`Tu último saldo es del ${start.asOf}, confírmalo para proyectar`);
+  }
   const to = endOfMonth(shiftMonths(start.asOf, months - 1, 1));
 
   const cardIds = new Set(facts.cards.map((c) => c.productId));
@@ -90,6 +104,7 @@ export function buildProjection(facts: ProjectionFacts, months: number): Project
 
   return {
     asOf: start.asOf,
+    daysSinceBalance,
     openingBalanceCents: start.openingBalanceCents,
     staleAccounts: start.staleAccounts,
     months: project(

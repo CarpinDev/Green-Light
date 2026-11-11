@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { isoDateOf } from '../common/dates';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
 import { RecurringIncome } from '../incomes/entities/recurring-income.entity';
@@ -38,6 +39,7 @@ export class ProjectionService {
     return buildProjection(
       { balances, cards, loans, rates, expenses, capitalPayments, recurringIncomes, oneOffIncomes, fixedExpenses, settings },
       months,
+      isoDateOf(),
     );
   }
 }

@@ -21,3 +21,9 @@ GET {{host}}/projection?months=25
 
 ### 6. months que no es número -> 400
 GET {{host}}/projection?months=abc
+
+### La respuesta trae daysSinceBalance: los días entre tu último saldo confirmado y hoy.
+### Con más de 31 días el saldo ya no sirve de punto de partida y la API responde
+### 409 "Tu último saldo es del X, confírmalo para proyectar". Para probarlo, confirma un saldo
+### con una fecha de hace más de un mes (accounts.http, caso 5) y ejecuta el caso 1; para volver a
+### la normalidad, confirma un saldo de hoy.
