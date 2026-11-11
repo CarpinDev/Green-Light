@@ -3,6 +3,8 @@ import { StyleSheet, Text as NativeText, type TextProps } from 'react-native';
 import { colors, fonts } from '@/theme/tokens';
 
 const BY_WEIGHT: Record<string, string> = {
+  normal: fonts.body,
+  bold: fonts.bodyBold,
   '400': fonts.body,
   '500': fonts.bodyMedium,
   '600': fonts.bodySemiBold,

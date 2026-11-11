@@ -13,6 +13,29 @@ export function parsePesos(text: string): number | null {
   return Number.isSafeInteger(cents) ? cents : null;
 }
 
+/** Centavos como el campo de dinero los muestra: 12000000 -> "$ 120.000", -5000000 -> "-$ 50.000"; null -> "". */
+export function moneyText(cents: number | null): string {
+  if (cents === null) return '';
+  return cents < 0 ? `-${formatCop(-cents)}` : formatCop(cents);
+}
+
+/**
+ * Lo que el usuario escribió en un campo de dinero, ya formateado: "120000" -> "$ 120.000" con sus
+ * centavos. Solo cuentan los dígitos; con `allowNegative`, un "-" al inicio vuelve negativo el monto
+ * (un "-" solo se queda como "-", todavía sin monto). Devuelve null si el número no cabe: el campo
+ * ignora ese cambio y se queda con lo que tenía.
+ */
+export function formatMoneyInput(text: string, allowNegative = false): { text: string; cents: number | null } | null {
+  const negative = allowNegative && text.trimStart().startsWith('-');
+  const digits = text.replace(/\D/g, '');
+  if (digits === '') return { text: negative ? '-' : '', cents: null };
+
+  const cents = parsePesos(digits);
+  if (cents === null) return null;
+  const signed = negative ? -cents || 0 : cents;
+  return { text: negative ? `-${formatCop(cents)}` : formatCop(cents), cents: signed };
+}
+
 /** Como parsePesos, pero acepta un "-" al inicio: un saldo puede ser negativo (sobregiro). "-0" da 0, no -0. */
 export function parseSignedPesos(text: string): number | null {
   const trimmed = text.trim();

@@ -1,17 +1,22 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import type { InstallmentOption, MonthSummary, Product, SimulationResponse } from '@/api/types';
+import { Button } from '@/components/button';
+import { Card } from '@/components/card';
 import { Input } from '@/components/input';
 import { Label } from '@/components/label';
+import { LightBadge } from '@/components/light-badge';
+import { MoneyInput } from '@/components/money-input';
 import { Options } from '@/components/options';
+import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, formatDay, formatMonth } from '@/dates';
-import { formatCop, parsePesos } from '@/money';
-import { colors, fonts, light, radius, type } from '@/theme/tokens';
+import { formatCop } from '@/money';
+import { colors, fonts, light, type } from '@/theme/tokens';
 
 /** Lo que se mandó a simular: el resultado se explica contra esto (p. ej. cuánto cupo queda). */
 interface Request {
@@ -22,12 +27,11 @@ interface Request {
 
 export default function Simulate() {
   const [cardId, setCardId] = useState<number | null>(null);
-  const [amount, setAmount] = useState('');
+  const [amountCents, setAmountCents] = useState<number | null>(null);
   const [installments, setInstallments] = useState('1');
   const [formError, setFormError] = useState<string | null>(null);
 
   const products = useQuery({ queryKey: ['products'], queryFn: () => getJson<Product[]>('/products') });
-  const cards = (products.data ?? []).filter((p) => p.kind === 'credit_card');
 
   // POST /simulations no guarda nada: no hay nada que invalidar, la proyección sigue igual
   // El último resultado bueno vive en el estado: mientras llega el siguiente, la mutación pasa a
@@ -42,10 +46,9 @@ export default function Simulate() {
 
   /** Valida el formulario y simula con `cuotas` (las del campo, o las de la opción que se tocó). */
   const run = (cuotas: number) => {
-    const amountCents = parsePesos(amount);
     if (cardId === null) return setFormError('Elige la tarjeta.');
     if (amountCents === null || amountCents === 0) {
-      return setFormError('Escribe un monto válido, solo números (ej. 1.200.000).');
+      return setFormError('Escribe el monto de la compra (ej. 1.200.000).');
     }
     if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 72) return setFormError('Las cuotas van de 1 a 72.');
 
@@ -57,33 +60,36 @@ export default function Simulate() {
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Label>Tarjeta</Label>
-      {products.isPending ? (
-        <ActivityIndicator color={colors.primary} />
-      ) : products.isError ? (
-        <Text style={styles.error}>No se pudieron cargar tus tarjetas.</Text>
-      ) : cards.length === 0 ? (
-        <Text style={styles.muted}>Todavía no tienes tarjetas de crédito: créala primero.</Text>
-      ) : (
-        <Options
-          items={cards.map((c) => ({ id: c.id, label: `${c.name} ····${c.last4}` }))}
-          selected={cardId}
-          onSelect={setCardId}
-        />
-      )}
+      <QueryState
+        inline
+        query={products}
+        errorTitle="No se pudieron cargar tus tarjetas."
+        emptyText="Todavía no tienes tarjetas de crédito: créala primero."
+        isEmpty={(data) => !data.some((p) => p.kind === 'credit_card')}
+      >
+        {(data) => (
+          <Options
+            items={data
+              .filter((p) => p.kind === 'credit_card')
+              .map((c) => ({ id: c.id, label: `${c.name} ····${c.last4}` }))}
+            selected={cardId}
+            onSelect={setCardId}
+          />
+        )}
+      </QueryState>
 
       <Label>Monto de la compra (pesos)</Label>
-      <Input value={amount} onChangeText={setAmount} placeholder="1.200.000" keyboardType="numeric" />
+      <MoneyInput value={amountCents} onChangeCents={setAmountCents} placeholder="$ 1.200.000" />
 
       <Label>Cuotas</Label>
-      <Input value={installments} onChangeText={setInstallments} placeholder="1 a 72" keyboardType="numeric" />
+      <Input value={installments} onChangeText={setInstallments} placeholder="1 a 72" keyboardType="number-pad" />
 
-      <Pressable
+      <Button
+        label={simulate.isPending ? 'Simulando…' : 'Simular'}
+        loading={simulate.isPending}
         onPress={() => run(Number(installments))}
-        disabled={simulate.isPending}
-        style={[styles.button, simulate.isPending && styles.buttonDisabled]}
-      >
-        <Text style={styles.buttonText}>{simulate.isPending ? 'Simulando…' : 'Simular'}</Text>
-      </Pressable>
+        style={styles.submit}
+      />
 
       {formError !== null && <Text style={styles.error}>{formError}</Text>}
       {simulate.isError && <Text style={styles.error}>{errorText(simulate.error)}</Text>}
@@ -158,12 +164,18 @@ function OptionCard({
     <Pressable
       onPress={onPress}
       disabled={disabled}
-      style={[styles.option, selected && styles.optionSelected, disabled && styles.buttonDisabled]}
+      accessibilityRole="button"
+      accessibilityState={{ selected, disabled }}
+      style={disabled && styles.inactive}
     >
-      <Text style={styles.optionTitle}>{option.installments === 1 ? '1 cuota' : `${option.installments} cuotas`}</Text>
-      <Text>Primera cuota: {formatCop(option.firstPayment)}</Text>
-      <Text>Interés total: {formatCop(option.totalInterest)}</Text>
-      <Text>Costo total: {formatCop(option.totalCost)}</Text>
+      <Card style={[styles.option, selected && styles.optionSelected]}>
+        <Text style={styles.optionTitle}>
+          {option.installments === 1 ? '1 cuota' : `${option.installments} cuotas`}
+        </Text>
+        <Text>Primera cuota: {formatCop(option.firstPayment)}</Text>
+        <Text>Interés total: {formatCop(option.totalInterest)}</Text>
+        <Text>Costo total: {formatCop(option.totalCost)}</Text>
+      </Card>
     </Pressable>
   );
 }
@@ -188,7 +200,7 @@ function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPu
       {rows.map(({ before, after }) => {
         const differs = before !== undefined && before.light !== after.light;
         return (
-          <View key={after.month} style={[styles.monthRow, differs && styles.monthRowChanged]}>
+          <Card key={after.month} style={[styles.monthRow, differs && styles.monthRowChanged]}>
             <Text style={styles.month}>{formatMonth(after.month)}</Text>
             <View style={styles.monthColumns}>
               <MonthColumn title="Sin la compra" month={before} />
@@ -198,7 +210,7 @@ function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPu
                 diff={before && after.closingBalance - before.closingBalance}
               />
             </View>
-          </View>
+          </Card>
         );
       })}
     </View>
@@ -226,58 +238,34 @@ function MonthColumn({
           {formatCop(Math.abs(diff))}
         </Text>
       )}
-      <View style={[styles.badge, { backgroundColor: light[month.light].bg }]}>
-        <Text style={[styles.badgeText, { color: light[month.light].fg }]}>{light[month.light].label}</Text>
-      </View>
+      <LightBadge light={month.light} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 16,
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
-  error: { color: light.red.bg },
+  submit: { marginTop: 16 },
+  inactive: { opacity: 0.5 },
+  error: { color: colors.danger },
   muted: { ...type.caption, color: colors.textMuted },
   result: { marginTop: 16, gap: 16 },
   resultBusy: { opacity: 0.5 },
-  diffDown: { color: light.red.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  diffDown: { color: colors.danger, fontFamily: fonts.bodySemiBold, fontSize: 13 },
   diffUp: { color: light.green.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
   section: { gap: 6 },
   sectionTitle: { ...type.subtitle },
-  alert: { color: light.red.bg, fontWeight: '700' },
+  alert: { color: colors.danger, fontWeight: '700' },
   ok: { color: light.green.bg, fontWeight: '600' },
-  option: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 2,
-  },
-  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  option: { gap: 2 },
+  optionSelected: { borderColor: colors.primary, borderWidth: 2, backgroundColor: colors.primarySoft },
   optionTitle: { ...type.subtitle, fontSize: 16 },
   comparison: { gap: 8 },
-  monthRow: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.sm,
-    padding: 12,
-    gap: 6,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  monthRowChanged: { borderColor: light.red.bg, backgroundColor: colors.surfaceAlt },
+  monthRow: { gap: 6 },
+  // El mes que cambia de color: se distingue por el borde y por el aviso de arriba, no solo por el color
+  monthRowChanged: { borderColor: colors.danger, backgroundColor: colors.surfaceAlt },
   month: { ...type.subtitle, fontSize: 16, textTransform: 'capitalize' },
   monthColumns: { flexDirection: 'row', gap: 12 },
   column: { flex: 1, gap: 2 },
   closing: { ...type.subtitle },
-  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { fontFamily: fonts.bodyBold, fontSize: 12 },
 });

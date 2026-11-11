@@ -14,6 +14,11 @@ export const colors = {
   /** El texto sobre `primary`. */
   onPrimary: '#1A1426',
   primarySoft: '#2A2340',
+  /** Errores: el texto de un fallo o de una cifra que baja. */
+  danger: '#F4A3A8',
+  /** El aviso ámbar: fondo y borde oscuros; el texto va en `light.yellow.bg`. */
+  warningBg: '#2A2418',
+  warningBorder: '#4A3F22',
 } as const;
 
 /** El semáforo en pastel: `fg` es el texto que va encima de `bg` (oscuro, nunca blanco). */
