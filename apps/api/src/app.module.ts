@@ -9,6 +9,7 @@ import { MovementsModule } from './movements/movements.module';
 import { IncomesModule } from './incomes/incomes.module';
 import { SettingsModule } from './settings/settings.module';
 import { ProjectionModule } from './projection/projection.module';
+import { StatementsModule } from './statements/statements.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { ProjectionModule } from './projection/projection.module';
     IncomesModule,
     SettingsModule,
     ProjectionModule,
+    StatementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
