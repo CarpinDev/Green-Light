@@ -3,9 +3,12 @@
 
 export type Light = 'green' | 'yellow' | 'red';
 
+export type CashEventKind =
+  'income' | 'expense' | 'fixed_expense' | 'loan_payment' | 'card_payment' | 'capital_payment';
+
 export interface CashEvent {
   date: string;
-  kind: string;
+  kind: CashEventKind;
   /** Con signo: negativo es una salida. */
   amount: number;
   label: string;

@@ -1,7 +1,18 @@
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { SpaceGrotesk_600SemiBold, SpaceGrotesk_700Bold } from '@expo-google-fonts/space-grotesk';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 
 import { ApiError } from '@/api/client';
+import { CancelButton } from '@/components/cancel-button';
+import { colors, fonts } from '@/theme/tokens';
+
+// La splash se queda hasta que las fuentes carguen: sin esto, la app parpadea con la fuente del sistema
+void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -13,12 +24,43 @@ const queryClient = new QueryClient({
 });
 
 export default function RootLayout() {
+  const [loaded, fontError] = useFonts({
+    [fonts.body]: Inter_400Regular,
+    [fonts.bodyMedium]: Inter_500Medium,
+    [fonts.bodySemiBold]: Inter_600SemiBold,
+    [fonts.bodyBold]: Inter_700Bold,
+    [fonts.title]: SpaceGrotesk_600SemiBold,
+    [fonts.display]: SpaceGrotesk_700Bold,
+  });
+
+  // Si una fuente falla, la app abre igual con la del sistema: mejor eso que una splash eterna
+  const ready = loaded || fontError !== null;
+  useEffect(() => {
+    if (ready) void SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
+
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack screenOptions={{ title: 'GreenLight' }}>
-        <Stack.Screen name="expenses/new" options={{ title: 'Registrar gasto' }} />
-        <Stack.Screen name="simulate" options={{ title: '¿Puedo comprar esto?' }} />
-        <Stack.Screen name="balances" options={{ title: 'Confirmar saldos' }} />
+      <StatusBar style="light" />
+      <Stack
+        screenOptions={{
+          title: 'GreenLight',
+          headerStyle: { backgroundColor: colors.bg },
+          headerTintColor: colors.text,
+          headerTitleStyle: { fontFamily: fonts.title },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: colors.bg },
+        }}
+      >
+        {/* Las pestañas traen su propio encabezado: el del Stack sobraría */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* El formulario de gasto se abre encima de las pestañas, como modal */}
+        <Stack.Screen
+          name="expenses/new"
+          options={{ presentation: 'modal', title: 'Nuevo gasto', headerLeft: () => <CancelButton /> }}
+        />
       </Stack>
     </QueryClientProvider>
   );
