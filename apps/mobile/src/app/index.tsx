@@ -5,12 +5,9 @@ import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, T
 import { getJson } from '@/api/client';
 import { errorText, isStaleBalance } from '@/api/errors';
 import type { MonthSummary, ProjectionResponse } from '@/api/types';
-import { currentMonth, formatDay, formatMonth } from '@/dates';
+import { currentMonth, formatDay, formatMonth, STALE_DAYS } from '@/dates';
 import { LIGHT_COLOR, LIGHT_LABEL } from '@/light';
 import { formatCop } from '@/money';
-
-/** Más de esta cantidad de días desde el último saldo, la proyección merece un aviso. */
-const STALE_DAYS = 7;
 
 export default function Home() {
   const projection = useQuery({
@@ -25,9 +22,18 @@ export default function Home() {
       <Centered>
         <Text style={styles.errorTitle}>{titleOf(projection.error)}</Text>
         <Text style={styles.muted}>{errorText(projection.error)}</Text>
-        <Pressable onPress={() => void projection.refetch()} style={styles.button}>
-          <Text style={styles.buttonText}>Reintentar</Text>
-        </Pressable>
+        {isStaleBalance(projection.error) ? (
+          // Reintentar no sirve: el saldo sigue viejo hasta que lo confirmes
+          <Link href="/balances" asChild>
+            <Pressable style={styles.button}>
+              <Text style={styles.buttonText}>Confirmar saldo</Text>
+            </Pressable>
+          </Link>
+        ) : (
+          <Pressable onPress={() => void projection.refetch()} style={styles.button}>
+            <Text style={styles.buttonText}>Reintentar</Text>
+          </Pressable>
+        )}
       </Centered>
     );
   }
@@ -55,6 +61,12 @@ export default function Home() {
       <Link href="/simulate" asChild>
         <Pressable style={styles.button}>
           <Text style={styles.buttonText}>¿Puedo comprar esto?</Text>
+        </Pressable>
+      </Link>
+
+      <Link href="/balances" asChild>
+        <Pressable style={styles.button}>
+          <Text style={styles.buttonText}>Confirmar saldos</Text>
         </Pressable>
       </Link>
 
@@ -99,10 +111,14 @@ function MonthCard({ month }: { month: MonthSummary }) {
   );
 }
 
+/** Un aviso que lleva directo a confirmar los saldos. */
 function Warning({ children }: { children: React.ReactNode }) {
   return (
     <View style={styles.warning}>
       <Text style={styles.warningText}>{children}</Text>
+      <Link href="/balances" style={styles.warningLink}>
+        Confirmar saldo
+      </Link>
     </View>
   );
 }
@@ -124,8 +140,9 @@ const styles = StyleSheet.create({
   errorTitle: { fontSize: 18, fontWeight: '700' },
   button: { backgroundColor: '#1f6feb', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 8 },
   buttonText: { color: '#fff', fontWeight: '600' },
-  warning: { backgroundColor: '#fff4d6', borderRadius: 8, padding: 12 },
+  warning: { backgroundColor: '#fff4d6', borderRadius: 8, padding: 12, gap: 6 },
   warningText: { color: '#7a5a00' },
+  warningLink: { color: '#1f6feb', fontWeight: '700' },
   card: { backgroundColor: '#fff', borderRadius: 12, borderLeftWidth: 6, padding: 16, gap: 4 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   month: { fontSize: 18, fontWeight: '700', textTransform: 'capitalize' },

@@ -18,6 +18,18 @@ export function formatMonth(month: string): string {
   return parts(`${month}-01`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 }
 
+/** Más de esta cantidad de días desde el último saldo, la proyección merece un aviso. */
+export const STALE_DAYS = 7;
+
+/** Días de `from` a `to` (YYYY-MM-DD). Cuenta en UTC para que la zona horaria y el horario de verano no muevan el resultado. */
+export function daysBetween(from: string, to: string): number {
+  const utc = (iso: string) => {
+    const [year = 0, month = 1, day = 1] = iso.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  };
+  return Math.round((utc(to) - utc(from)) / 86_400_000);
+}
+
 /** Hoy como YYYY-MM-DD, en hora local (toISOString daría el día de UTC, y de noche en Colombia ya es mañana). */
 export function today(now: Date = new Date()): string {
   return `${currentMonth(now)}-${String(now.getDate()).padStart(2, '0')}`;

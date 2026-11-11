@@ -1,5 +1,5 @@
-import { Body, Controller, Param, ParseIntPipe, Post } from '@nestjs/common';
-import { AccountsService } from './accounts.service';
+import { Body, Controller, Get, Param, ParseIntPipe, Post } from '@nestjs/common';
+import { type AccountSummary, AccountsService } from './accounts.service';
 import { ConfirmBalanceDto } from './dto/confirm-balance.dto';
 import { CreateAccountDto } from './dto/create-account.dto';
 
@@ -14,7 +14,13 @@ export class AccountsController {
     return { id };
   }
 
-  /** Confirma un saldo nuevo. 404 si el id no es una cuenta; 409 si ya hay uno en esa fecha. */
+  /** Cuentas activas con su último saldo: de aquí sale "tenías $X al 2 de octubre". */
+  @Get('accounts')
+  list(): Promise<AccountSummary[]> {
+    return this.accounts.listActive();
+  }
+
+  /** Confirma un saldo. 404 si el id no es una cuenta. Si ya había uno en esa fecha, lo reemplaza. */
   @Post('accounts/:id/balances')
   async confirmBalance(@Param('id', ParseIntPipe) id: number, @Body() dto: ConfirmBalanceDto): Promise<{ id: number }> {
     const { id: balanceId } = await this.accounts.confirmBalance(id, dto);

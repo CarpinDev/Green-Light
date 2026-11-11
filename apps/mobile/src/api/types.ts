@@ -60,6 +60,15 @@ export interface Product {
   last4: string;
 }
 
+/** Un elemento de GET /accounts: la cuenta y su saldo confirmado más reciente. */
+export interface AccountSummary {
+  id: number;
+  name: string;
+  bank: string;
+  last4: string;
+  latestBalance: { asOf: string; balanceCents: number } | null;
+}
+
 /** Un elemento de GET /categories?kind=... */
 export interface Category {
   id: number;
