@@ -27,3 +27,10 @@ GET {{host}}/projection?months=abc
 ### 409 "Tu último saldo es del X, confírmalo para proyectar". Para probarlo, confirma un saldo
 ### con una fecha de hace más de un mes (accounts.http, caso 5) y ejecuta el caso 1; para volver a
 ### la normalidad, confirma un saldo de hoy.
+
+### La respuesta trae alerts: avisos, no errores. Cada uno tiene kind, refId, value y threshold
+### (los decimales salen como texto, p. ej. "0.4716"):
+###   - debt_to_income: refId es el mes (2026-04). Los pagos de deuda del mes (mínimos de tarjeta y
+###     cuotas de préstamo, sin abonos a capital) superan el umbral de ingreso de settings.
+###   - card_utilization: refId es el id de la tarjeta. El cupo usado el día de tu saldo supera el umbral.
+### Los umbrales se cambian en settings (PATCH /settings, en planning.http). Sin avisos: "alerts": [].

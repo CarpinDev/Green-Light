@@ -265,3 +265,70 @@ describe('buildProjection: frescura del saldo', () => {
     expect(result).toMatchObject({ asOf: '2026-04-20', daysSinceBalance: 5 });
   });
 });
+
+describe('buildProjection: alertas', () => {
+  const withSettings = (changes: Partial<Settings>, overrides: Partial<ProjectionFacts> = {}) => {
+    const base = facts();
+    return facts({ settings: make(Settings, { ...base.settings, ...changes }), ...overrides });
+  };
+  const alertsOf = (f: ProjectionFacts) => buildProjection(f, 3).alerts;
+
+  it('deuda sobre ingreso: abril (1.414.800 de 3.000.000) y mayo (1.202.800) pasan el 30 %; marzo no paga nada', () => {
+    expect(alertsOf(facts())).toEqual([
+      { kind: 'debt_to_income', refId: '2026-04', value: new Decimal('0.4716'), threshold: new Decimal('0.3') },
+      { kind: 'debt_to_income', refId: '2026-05', value: new Decimal('0.4009'), threshold: new Decimal('0.3') },
+    ]);
+  });
+
+  it('los umbrales salen de settings', () => {
+    const only = (f: ProjectionFacts) => alertsOf(f).map((a) => a.refId);
+    expect(only(withSettings({ debtToIncomePct: new Decimal('0.45') }))).toEqual(['2026-04']);
+    expect(only(withSettings({ debtToIncomePct: new Decimal('0.50') }))).toEqual([]);
+  });
+
+  it('sin nada que avisar, alerts es una lista vacía (no trae undefined)', () => {
+    const calm = withSettings({ debtToIncomePct: new Decimal('0.9') });
+    expect(buildProjection(calm, 3).alerts).toEqual([]);
+  });
+
+  it('cupo usado: la VISA usa 840.000 de 5.000.000 (16,8 %) el día del saldo', () => {
+    // 800.000 de la compra A que falta pagar + 40.000 del Netflix de febrero, que corta el 15 de marzo
+    const alerts = alertsOf(
+      withSettings({ cardUtilizationPct: new Decimal('0.10'), debtToIncomePct: new Decimal('0.9') }),
+    );
+    expect(alerts).toEqual([
+      { kind: 'card_utilization', refId: String(VISA), value: new Decimal('0.168'), threshold: new Decimal('0.1') },
+    ]);
+  });
+
+  it('igualar el umbral no alerta', () => {
+    expect(alertsOf(withSettings({ cardUtilizationPct: new Decimal('0.168') })).map((a) => a.kind)).not.toContain(
+      'card_utilization',
+    );
+  });
+
+  it('el cupo usado cuenta los cargos de gastos fijos con tarjeta que ya se hicieron', () => {
+    const loose = { cardUtilizationPct: new Decimal('0.165') }; // entre 16 % (sin Netflix) y 16,8 % (con Netflix)
+    expect(alertsOf(withSettings(loose)).map((a) => a.kind)).toContain('card_utilization');
+    expect(alertsOf(withSettings(loose, { fixedExpenses: [] })).map((a) => a.kind)).not.toContain('card_utilization');
+  });
+
+  it('cada tarjeta se mide con sus propias compras: una tarjeta sin compras no avisa', () => {
+    const other = make(CreditCard, { ...facts().cards[0], productId: 9 });
+    const base = facts();
+    const f = withSettings(
+      { cardUtilizationPct: new Decimal('0.10') },
+      { cards: [...base.cards, other], rates: [...base.rates, rateRow(3, 9, '2025-12-01', '0.03')] },
+    );
+    const cardAlerts = alertsOf(f).filter((a) => a.kind === 'card_utilization');
+    expect(cardAlerts.map((a) => a.refId)).toEqual([String(VISA)]);
+  });
+
+  it('en JSON los valores salen como texto, sin perder decimales', () => {
+    const json = JSON.parse(JSON.stringify(buildProjection(facts(), 3).alerts)) as unknown;
+    expect(json).toEqual([
+      { kind: 'debt_to_income', refId: '2026-04', value: '0.4716', threshold: '0.3' },
+      { kind: 'debt_to_income', refId: '2026-05', value: '0.4009', threshold: '0.3' },
+    ]);
+  });
+});
