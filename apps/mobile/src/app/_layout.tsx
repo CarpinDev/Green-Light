@@ -15,7 +15,9 @@ const queryClient = new QueryClient({
 export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Stack screenOptions={{ title: 'GreenLight' }} />
+      <Stack screenOptions={{ title: 'GreenLight' }}>
+        <Stack.Screen name="expenses/new" options={{ title: 'Registrar gasto' }} />
+      </Stack>
     </QueryClientProvider>
   );
 }

@@ -6,6 +6,10 @@ import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 type Row = Record<string, unknown>;
 export type EntityClass = new () => object;
 type Table = Map<EntityClass, Row[]>;
+interface FindOptions {
+  where?: Row;
+  order?: Record<string, 'ASC' | 'DESC'>;
+}
 
 export class FakeDb {
   tables: Table = new Map();
@@ -39,7 +43,8 @@ export class FakeDb {
       },
       getRepository: (Entity: new () => object) => ({
         findOneBy: async (where: Row) => this.find(this.tables, Entity, where),
-        find: async (options: { where?: Row } = {}) => this.findAll(this.tables, Entity, options.where ?? {}),
+        find: async (options: FindOptions = {}) =>
+          this.findAll(this.tables, Entity, options.where ?? {}, options.order),
         save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
       }),
     } as unknown as DataSource;
@@ -54,9 +59,19 @@ export class FakeDb {
     return { save, create } as unknown as EntityManager;
   }
 
-  private findAll(tables: Table, Entity: EntityClass, where: Row): Row[] {
+  private findAll(tables: Table, Entity: EntityClass, where: Row, order: FindOptions['order'] = {}): Row[] {
     const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
-    return (tables.get(Entity) ?? []).filter(matches);
+    const found = (tables.get(Entity) ?? []).filter(matches);
+    // Como find({ order }): por cada columna, en el orden en que se pidieron
+    return found.sort((a, b) => {
+      for (const [column, direction] of Object.entries(order)) {
+        const x = String(a[column]);
+        const y = String(b[column]);
+        const cmp = x.localeCompare(y, 'es', { numeric: true });
+        if (cmp !== 0) return direction === 'DESC' ? -cmp : cmp;
+      }
+      return 0;
+    });
   }
 
   private find(tables: Table, Entity: EntityClass, where: Row): Row | null {

@@ -14,7 +14,20 @@ export class ApiError extends Error {
 
 /** GET a la API y devuelve el JSON. Si la respuesta no es ok, lanza un ApiError con el status y el message de Nest. */
 export async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`);
+  return send<T>(path);
+}
+
+/** POST con un cuerpo JSON. Los errores se manejan igual que en getJson (un 400 de validación trae una lista unida con comas). */
+export async function postJson<T>(path: string, body: unknown): Promise<T> {
+  return send<T>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function send<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, init);
   if (!response.ok) throw new ApiError(response.status, await messageOf(response));
   return (await response.json()) as T;
 }

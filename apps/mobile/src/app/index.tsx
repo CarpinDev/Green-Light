@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'expo-router';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { ApiError, getJson } from '@/api/client';
@@ -45,6 +46,12 @@ export default function Home() {
       }
     >
       <Text style={styles.asOf}>Saldo al {formatDay(asOf)}</Text>
+
+      <Link href="/expenses/new" asChild>
+        <Pressable style={styles.button}>
+          <Text style={styles.buttonText}>Registrar gasto</Text>
+        </Pressable>
+      </Link>
 
       {daysSinceBalance > STALE_DAYS && (
         <Warning>Tu último saldo tiene {daysSinceBalance} días: confírmalo para que la proyección sea fiable.</Warning>

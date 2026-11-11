@@ -17,3 +17,8 @@ export function formatDay(iso: string): string {
 export function formatMonth(month: string): string {
   return parts(`${month}-01`).toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
 }
+
+/** Hoy como YYYY-MM-DD, en hora local (toISOString daría el día de UTC, y de noche en Colombia ya es mañana). */
+export function today(now: Date = new Date()): string {
+  return `${currentMonth(now)}-${String(now.getDate()).padStart(2, '0')}`;
+}
