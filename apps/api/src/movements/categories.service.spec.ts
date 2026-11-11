@@ -35,3 +35,31 @@ describe('CategoriesService.create', () => {
     await expect(service.create({ name: 'X', kind: 'expense' })).rejects.not.toThrow(ConflictException);
   });
 });
+
+describe('CategoriesService.list', () => {
+  let db: FakeDb;
+  let service: CategoriesService;
+
+  beforeEach(() => {
+    db = new FakeDb();
+    db.seed(Category, [
+      { id: 1, name: 'Transporte', kind: 'expense' },
+      { id: 2, name: 'Salario', kind: 'income' },
+      { id: 3, name: 'Mercado', kind: 'expense' },
+    ]);
+    service = new CategoriesService(db.dataSource());
+  });
+
+  it('devuelve solo las del tipo pedido, ordenadas por nombre', async () => {
+    expect(await service.list('expense')).toEqual([
+      { id: 3, name: 'Mercado' },
+      { id: 1, name: 'Transporte' },
+    ]);
+    expect(await service.list('income')).toEqual([{ id: 2, name: 'Salario' }]);
+  });
+
+  it('sin categorías de ese tipo devuelve una lista vacía', async () => {
+    db = new FakeDb();
+    expect(await new CategoriesService(db.dataSource()).list('expense')).toEqual([]);
+  });
+});

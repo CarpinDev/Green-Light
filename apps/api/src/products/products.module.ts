@@ -13,13 +13,15 @@ import { Product } from './entities/product.entity';
 import { StatementCheck } from './entities/statement-check.entity';
 import { LoansController } from './loans.controller';
 import { LoansService } from './loans.service';
+import { ProductsController } from './products.controller';
+import { ProductsService } from './products.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Product, ProductRate, CreditCard, Loan, Account, AccountBalance, StatementCheck]),
   ],
-  controllers: [CardsController, LoansController, AccountsController],
-  providers: [CardsService, LoansService, AccountsService],
+  controllers: [CardsController, LoansController, AccountsController, ProductsController],
+  providers: [CardsService, LoansService, AccountsService, ProductsService],
   exports: [CardsService, LoansService, AccountsService],
 })
 export class ProductsModule {}

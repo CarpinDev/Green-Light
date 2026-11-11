@@ -146,3 +146,13 @@ PATCH {{host}}/settings
 Content-Type: application/json
 
 {}
+
+### Listas para la app: lo que elige el formulario de gastos
+### GET /products -> los productos activos { id, kind, name, bank, last4 }, por nombre
+GET {{host}}/products
+
+### GET /categories?kind=expense -> { id, name }, por nombre (kind: expense o income)
+GET {{host}}/categories?kind=expense
+
+### GET /categories sin kind, o con uno inventado -> 400
+GET {{host}}/categories?kind=otro

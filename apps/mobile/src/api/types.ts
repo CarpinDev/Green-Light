@@ -48,3 +48,20 @@ export interface ProjectionResponse {
   months: MonthSummary[];
   alerts: Alert[];
 }
+
+export type ProductKind = 'credit_card' | 'loan' | 'account';
+
+/** Un elemento de GET /products (solo los activos). */
+export interface Product {
+  id: number;
+  kind: ProductKind;
+  name: string;
+  bank: string;
+  last4: string;
+}
+
+/** Un elemento de GET /categories?kind=... */
+export interface Category {
+  id: number;
+  name: string;
+}
