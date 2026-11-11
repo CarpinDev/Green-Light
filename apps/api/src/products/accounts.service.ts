@@ -24,6 +24,15 @@ export interface ConfirmBalanceInput {
   balanceCents: Cents;
 }
 
+/** Lo que la app necesita para confirmar saldos: la cuenta y su último saldo. */
+export interface AccountSummary {
+  id: number;
+  name: string;
+  bank: string;
+  last4: string;
+  latestBalance: { asOf: IsoDate; balanceCents: Cents } | null;
+}
+
 @Injectable()
 export class AccountsService {
   constructor(private readonly dataSource: DataSource) {}
@@ -64,23 +73,49 @@ export class AccountsService {
     }
   }
 
-  /** Confirma el saldo de una cuenta en una fecha; el último es el punto de partida de la proyección. */
+  /** Las cuentas activas, por nombre, cada una con su saldo confirmado más reciente (null si no tiene). */
+  async listActive(): Promise<AccountSummary[]> {
+    const products = await this.dataSource.getRepository(Product).find({
+      where: { kind: 'account', active: true },
+      order: { name: 'ASC' },
+    });
+    // Del más nuevo al más viejo: el primero que aparece de cada cuenta es su último saldo.
+    // Con pocas cuentas basta traerlos todos; si crece, se filtra en la consulta.
+    const balances = await this.dataSource.getRepository(AccountBalance).find({ order: { asOf: 'DESC' } });
+    const latest = new Map<number, AccountBalance>();
+    for (const balance of balances) {
+      if (!latest.has(balance.productId)) latest.set(balance.productId, balance);
+    }
+
+    return products.map(({ id, name, bank, last4 }) => {
+      const balance = latest.get(id);
+      return {
+        id,
+        name,
+        bank,
+        last4,
+        latestBalance: balance ? { asOf: balance.asOf, balanceCents: balance.balanceCents } : null,
+      };
+    });
+  }
+
+  /**
+   * Confirma el saldo de una cuenta en una fecha; el último es el punto de partida de la proyección.
+   * Si ya había uno ese día lo reemplaza: confirmar en la mañana y corregir en la tarde es lo normal.
+   */
   async confirmBalance(accountId: number, input: ConfirmBalanceInput): Promise<AccountBalance> {
     // Account solo existe para productos que son cuentas: un préstamo o una tarjeta también dan 404
     const account = await this.dataSource.getRepository(Account).findOneBy({ productId: accountId });
     if (!account) throw new NotFoundException(`No existe la cuenta ${accountId}`);
 
-    try {
-      return await this.dataSource.getRepository(AccountBalance).save({
-        productId: accountId,
-        asOf: input.asOf,
-        balanceCents: input.balanceCents,
-      });
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        throw new ConflictException(`La cuenta ${accountId} ya tiene un saldo confirmado el ${input.asOf}`);
-      }
-      throw err;
-    }
+    const balances = this.dataSource.getRepository(AccountBalance);
+    const sameDay = await balances.findOneBy({ productId: accountId, asOf: input.asOf });
+    return balances.save({
+      // Con el id guardado, save actualiza esa fila en vez de insertar otra
+      ...(sameDay && { id: sameDay.id }),
+      productId: accountId,
+      asOf: input.asOf,
+      balanceCents: input.balanceCents,
+    });
   }
 }

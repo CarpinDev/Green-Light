@@ -76,6 +76,65 @@ describe('AccountsService', () => {
     });
   });
 
+  describe('listActive', () => {
+    // El default active = true lo pone Postgres; la base falsa no lo conoce
+    const activate = () =>
+      db.seed(
+        Product,
+        db.rows(Product).map((p) => ({ ...p, active: p.active ?? true })),
+      );
+
+    it('devuelve cada cuenta con su saldo más reciente, por nombre', async () => {
+      const b = (await service.create(input({ name: 'Nómina', last4: '2468' }))).id;
+      const a = (await service.create(input({ name: 'Ahorros' }))).id;
+      await service.confirmBalance(a, { asOf: '2026-04-01', balanceCents: 100 });
+      await service.confirmBalance(a, { asOf: '2026-10-02', balanceCents: 300 });
+      await service.confirmBalance(a, { asOf: '2026-06-15', balanceCents: 200 });
+      await service.confirmBalance(b, { asOf: '2026-09-01', balanceCents: -50 });
+
+      activate();
+
+      expect(await service.listActive()).toEqual([
+        {
+          id: a,
+          name: 'Ahorros',
+          bank: 'Banco Ejemplo',
+          last4: '1357',
+          latestBalance: { asOf: '2026-10-02', balanceCents: 300 },
+        },
+        {
+          id: b,
+          name: 'Nómina',
+          bank: 'Banco Ejemplo',
+          last4: '2468',
+          latestBalance: { asOf: '2026-09-01', balanceCents: -50 },
+        },
+      ]);
+    });
+
+    it('una cuenta sin saldos trae latestBalance null', async () => {
+      await service.create(input());
+      activate();
+      expect((await service.listActive())[0]?.latestBalance).toBeNull();
+    });
+
+    it('solo cuentas activas: ni inactivas, ni tarjetas, ni préstamos', async () => {
+      const id = (await service.create(input())).id;
+      activate();
+      db.seed(Product, [
+        ...db.rows(Product),
+        { id: 70, kind: 'account', name: 'Vieja', bank: 'B', last4: '1111', active: false },
+        { id: 71, kind: 'credit_card', name: 'Visa', bank: 'B', last4: '2222', active: true },
+        { id: 72, kind: 'loan', name: 'Préstamo', bank: 'B', last4: '3333', active: true },
+      ]);
+      expect((await service.listActive()).map((a) => a.id)).toEqual([id]);
+    });
+
+    it('sin cuentas devuelve una lista vacía', async () => {
+      expect(await service.listActive()).toEqual([]);
+    });
+  });
+
   describe('confirmBalance', () => {
     let accountId: number;
 
@@ -104,12 +163,25 @@ describe('AccountsService', () => {
       expect(db.rows(AccountBalance)).toHaveLength(2);
     });
 
-    it('la misma fecha dos veces: 409', async () => {
-      await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 1 });
-      await expect(service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 2 })).rejects.toThrow(
-        ConflictException,
-      );
+    it('la misma fecha dos veces: reemplaza el saldo en vez de fallar', async () => {
+      const first = await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 1 });
+      const second = await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 2 });
+
       expect(db.rows(AccountBalance)).toHaveLength(1);
+      expect(db.rows(AccountBalance)[0]).toMatchObject({ asOf: '2026-04-01', balanceCents: 2 });
+      expect(second.id).toBe(first.id);
+    });
+
+    it('reemplazar el saldo de un día no toca el de otro día ni el de otra cuenta', async () => {
+      const other = (await service.create(input({ last4: '2468' }))).id;
+      await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 10 });
+      await service.confirmBalance(accountId, { asOf: '2026-04-02', balanceCents: 20 });
+      await service.confirmBalance(other, { asOf: '2026-04-01', balanceCents: 30 });
+
+      await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 11 });
+
+      const byKey = db.rows(AccountBalance).map((b) => `${b.productId}|${b.asOf}|${b.balanceCents}`);
+      expect(byKey).toEqual([`${accountId}|2026-04-01|11`, `${accountId}|2026-04-02|20`, `${other}|2026-04-01|30`]);
     });
 
     it('un id que no existe: 404', async () => {
