@@ -78,7 +78,7 @@ describe('decimalTransformer: numeric <-> Decimal', () => {
 
     it('ida y vuelta conserva el valor', () => {
       const mv = new Decimal('0.021432916942');
-      expect(decimalTransformer.from(decimalTransformer.to(mv)!)?.equals(mv)).toBe(true);
+      expect(decimalTransformer.from(decimalTransformer.to(mv))?.equals(mv)).toBe(true);
     });
   });
 });

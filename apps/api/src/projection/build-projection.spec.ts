@@ -212,7 +212,7 @@ describe('buildProjection: cómo reparte los datos', () => {
 
   it('cada tarjeta y cada préstamo recibe solo sus tasas, compras y abonos', () => {
     // Una segunda tarjeta sin compras no debe recibir la compra A ni el abono de VISA
-    const other = make(CreditCard, { ...facts().cards[0]!, productId: 9 });
+    const other = make(CreditCard, { ...facts().cards[0], productId: 9 });
     const withTwo = facts({
       cards: [...facts().cards, other],
       rates: [...facts().rates, rateRow(3, 9, '2025-12-01', '0.03')],

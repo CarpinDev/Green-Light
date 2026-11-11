@@ -140,7 +140,7 @@ function startingPoint(
   }
 
   const rows = [...latest.values()];
-  const asOf = rows.reduce((max, b) => (b.asOf > max ? b.asOf : max), rows[0]!.asOf);
+  const asOf = rows.reduce((max, b) => (b.asOf > max ? b.asOf : max), rows[0].asOf);
   return {
     asOf,
     openingBalanceCents: rows.reduce((sum, b) => sum + b.balanceCents, 0),

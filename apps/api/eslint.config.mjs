@@ -31,4 +31,11 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-argument': 'warn'
     },
   },
+  {
+    // Un fake imita una API async aunque no tenga nada que esperar; en producción la regla sigue activa
+    files: ['**/*.spec.ts', 'src/testing/**'],
+    rules: {
+      '@typescript-eslint/require-await': 'off',
+    },
+  },
 );

@@ -5,6 +5,7 @@ import { CardsService, type CreateCardInput } from './cards.service';
 import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
+import type { EntityClass } from '../testing/fake-db';
 
 // Va en apps/api/src/products/. Prueba el service sin Postgres: un DataSource falso guarda en
 // memoria y respeta lo que importa de una transacción (si algo falla, no queda nada).
@@ -14,18 +15,18 @@ import { Product } from './entities/product.entity';
 type Row = Record<string, unknown>;
 
 class FakeDb {
-  tables = new Map<Function, Row[]>();
-  failOn?: Function;
+  tables = new Map<EntityClass, Row[]>();
+  failOn?: EntityClass;
   private nextId = 1;
 
-  rows<T>(entity: new () => T): T[] {
+  rows<T extends object>(entity: new () => T): T[] {
     return (this.tables.get(entity) ?? []) as T[];
   }
 
   dataSource(): DataSource {
     return {
       transaction: async <T>(work: (manager: EntityManager) => Promise<T>): Promise<T> => {
-        const staged = new Map<Function, Row[]>();
+        const staged = new Map<EntityClass, Row[]>();
         for (const [k, v] of this.tables) staged.set(k, [...v]);
         const result = await work(this.manager(staged));
         this.tables = staged; // commit solo si work no lanzó
@@ -34,10 +35,10 @@ class FakeDb {
     } as unknown as DataSource;
   }
 
-  private manager(staged: Map<Function, Row[]>): EntityManager {
+  private manager(staged: Map<EntityClass, Row[]>): EntityManager {
     const save = async (a: unknown, b?: Row) => {
       const entity = (typeof a === 'function' ? Object.assign(new (a as new () => object)(), b) : a) as Row;
-      const type = entity.constructor;
+      const type = entity.constructor as EntityClass;
       if (type === this.failOn) throw new Error('la base se cayó');
       const list = staged.get(type) ?? [];
       if (

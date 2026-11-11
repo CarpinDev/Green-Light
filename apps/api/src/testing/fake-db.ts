@@ -4,16 +4,17 @@ import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
 // importa de una transacción: si algo lanza, no queda nada escrito. Solo para pruebas.
 
 type Row = Record<string, unknown>;
-type Table = Map<Function, Row[]>;
+export type EntityClass = new () => object;
+type Table = Map<EntityClass, Row[]>;
 
 export class FakeDb {
   tables: Table = new Map();
   /** Lanza al guardar esta entidad (simula una caída de la base). */
-  failOn?: Function;
+  failOn?: EntityClass;
   /** Restricciones únicas por entidad: guardar un duplicado falla con el código 23505 de Postgres. */
-  unique = new Map<Function, string[][]>();
+  unique = new Map<EntityClass, string[][]>();
   /** Entidades cuya llave es su propio productId: no reciben un id autogenerado. */
-  withoutId = new Set<Function>();
+  withoutId = new Set<EntityClass>();
   private nextId = 1;
 
   seed<T extends object>(Entity: new () => T, rows: Partial<T>[]): void {
@@ -23,7 +24,7 @@ export class FakeDb {
     );
   }
 
-  rows<T>(Entity: new () => T): T[] {
+  rows<T extends object>(Entity: new () => T): T[] {
     return (this.tables.get(Entity) ?? []) as unknown as T[];
   }
 
@@ -38,7 +39,7 @@ export class FakeDb {
       },
       getRepository: (Entity: new () => object) => ({
         findOneBy: async (where: Row) => this.find(this.tables, Entity, where),
-        save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data) as Row),
+        save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
       }),
     } as unknown as DataSource;
   }
@@ -52,13 +53,13 @@ export class FakeDb {
     return { save, create } as unknown as EntityManager;
   }
 
-  private find(tables: Table, Entity: Function, where: Row): Row | null {
+  private find(tables: Table, Entity: EntityClass, where: Row): Row | null {
     const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
     return (tables.get(Entity) ?? []).find(matches) ?? null;
   }
 
   private insert(tables: Table, entity: Row): Row {
-    const type = entity.constructor;
+    const type = entity.constructor as EntityClass;
     if (type === this.failOn) throw new Error('la base se cayó');
 
     const list = tables.get(type) ?? [];
