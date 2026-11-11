@@ -11,7 +11,7 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { Loan } from '../products/entities/loan.entity';
 import { ProductRate } from '../products/entities/product-rate.entity';
 import { Settings } from '../settings/entities/settings.entity';
-import { type ProjectionResult, buildProjection } from './build-projection';
+import { type ProjectionFacts, type ProjectionResult, buildProjection } from './build-projection';
 
 const SETTINGS_ID = 1;
 
@@ -21,6 +21,11 @@ export class ProjectionService {
   constructor(private readonly dataSource: DataSource) {}
 
   async project(months: number): Promise<ProjectionResult> {
+    return buildProjection(await this.loadFacts(), months, isoDateOf());
+  }
+
+  /** Todas las filas que necesita la proyección; también las usa el simulador. */
+  async loadFacts(): Promise<ProjectionFacts> {
     const db = this.dataSource;
     const [
       balances,
@@ -45,22 +50,17 @@ export class ProjectionService {
       db.getRepository(FixedExpense).find(),
       db.getRepository(Settings).findOneByOrFail({ id: SETTINGS_ID }),
     ]);
-
-    return buildProjection(
-      {
-        balances,
-        cards,
-        loans,
-        rates,
-        expenses,
-        capitalPayments,
-        recurringIncomes,
-        oneOffIncomes,
-        fixedExpenses,
-        settings,
-      },
-      months,
-      isoDateOf(),
-    );
+    return {
+      balances,
+      cards,
+      loans,
+      rates,
+      expenses,
+      capitalPayments,
+      recurringIncomes,
+      oneOffIncomes,
+      fixedExpenses,
+      settings,
+    };
   }
 }

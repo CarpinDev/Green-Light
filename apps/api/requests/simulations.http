@@ -1,0 +1,53 @@
+### POST /simulations: ¿puedo comprar esto? (extensión REST Client de VS Code)
+### No guarda nada: solo calcula. Necesita lo mismo que GET /projection (al menos una cuenta con un
+### saldo confirmado de hace menos de 31 días) y una tarjeta (cards.http). Usa el id de tu tarjeta.
+### La respuesta trae: asOf y daysSinceBalance (de dónde se proyecta), options (la misma compra a 1, 3,
+### 6 y 12 cuotas), rows (las cuotas del plazo elegido), firstPayment, totalInterest, totalCost,
+### availableCredit y exceedsLimit (si no cabe en el cupo; solo avisa), y los meses without / with
+### (tu proyección sin y con la compra, cada mes con su semáforo).
+@host = http://localhost:3001
+@cardId = 1
+
+### 1. Un televisor de 1.200.000 a 3 cuotas, hoy -> 200
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 120000000, "installments": 3 }
+
+### 2. Con fecha, a 12 meses de proyección -> 200
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 120000000, "installments": 6, "date": "2026-12-01", "months": 12 }
+
+### 3. Con una promoción al 0 % (sin interés) -> 200, totalInterest 0
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 120000000, "installments": 12, "promo": { "mv": "0" } }
+
+### 4. Una compra más grande que el cupo -> 200 con "exceedsLimit": true
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 99999999900, "installments": 12 }
+
+### 5. Un id que no es una tarjeta -> 400
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": 99999, "amountCents": 120000000, "installments": 3 }
+
+### 6. Una compra anterior a tu último saldo -> 400
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 120000000, "installments": 3, "date": "2020-01-01" }
+
+### 7. Cuotas fuera de 1 a 72 -> 400
+POST {{host}}/simulations
+Content-Type: application/json
+
+{ "cardId": {{cardId}}, "amountCents": 120000000, "installments": 100 }
+
+### Con un saldo de más de 31 días responde 409, igual que GET /projection (confirma un saldo de hoy).
