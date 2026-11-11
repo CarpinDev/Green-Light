@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import type { AccountSummary } from '@/api/types';
+import { Input } from '@/components/input';
+import { Text } from '@/components/text';
 import { daysBetween, formatDay, STALE_DAYS, today } from '@/dates';
 import { formatCop, parseSignedPesos } from '@/money';
+import { colors, light, radius, type } from '@/theme/tokens';
 
 export default function Balances() {
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
@@ -14,7 +17,7 @@ export default function Balances() {
   if (accounts.isPending) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
@@ -82,8 +85,7 @@ function AccountCard({ account }: { account: AccountSummary }) {
           : `Último saldo: ${formatCop(latest.balanceCents)} ${age === 0 ? 'hoy' : `al ${formatDay(latest.asOf)}`}`}
       </Text>
 
-      <TextInput
-        style={styles.input}
+      <Input
         value={amount}
         onChangeText={setAmount}
         placeholder="Saldo de hoy (ej. 1.500.000)"
@@ -108,27 +110,26 @@ const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, maxWidth: 640, width: '100%', alignSelf: 'center' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
     borderLeftWidth: 6,
-    borderLeftColor: '#2e9e5b',
+    borderLeftColor: light.green.bg,
     padding: 16,
     gap: 8,
   },
-  cardStale: { borderLeftColor: '#e0a800', backgroundColor: '#fff4d6' },
-  name: { fontSize: 18, fontWeight: '700' },
-  muted: { color: '#666', fontSize: 14 },
-  staleText: { color: '#7a5a00', fontSize: 14 },
-  errorTitle: { fontSize: 18, fontWeight: '700' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
+  cardStale: { borderLeftColor: light.yellow.bg },
+  name: { ...type.subtitle },
+  muted: { ...type.caption, color: colors.textMuted },
+  staleText: { ...type.caption, color: light.yellow.bg },
+  errorTitle: { ...type.subtitle },
   button: {
-    backgroundColor: '#1f6feb',
+    backgroundColor: colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     alignItems: 'center',
   },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#fff', fontWeight: '600' },
-  error: { color: '#d64545' },
+  buttonText: { color: colors.onPrimary, fontWeight: '600' },
+  error: { color: light.red.bg },
 });

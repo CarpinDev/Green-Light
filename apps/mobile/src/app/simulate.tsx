@@ -1,15 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import type { InstallmentOption, MonthSummary, Product, SimulationResponse } from '@/api/types';
+import { Input } from '@/components/input';
 import { Label } from '@/components/label';
 import { Options } from '@/components/options';
+import { Text } from '@/components/text';
 import { currentMonth, formatDay, formatMonth } from '@/dates';
-import { LIGHT_COLOR, LIGHT_LABEL } from '@/light';
 import { formatCop, parsePesos } from '@/money';
+import { colors, fonts, light, radius, type } from '@/theme/tokens';
 
 /** Lo que se mandó a simular: el resultado se explica contra esto (p. ej. cuánto cupo queda). */
 interface Request {
@@ -56,7 +58,7 @@ export default function Simulate() {
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Label>Tarjeta</Label>
       {products.isPending ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
       ) : products.isError ? (
         <Text style={styles.error}>No se pudieron cargar tus tarjetas.</Text>
       ) : cards.length === 0 ? (
@@ -70,22 +72,10 @@ export default function Simulate() {
       )}
 
       <Label>Monto de la compra (pesos)</Label>
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="1.200.000"
-        keyboardType="numeric"
-      />
+      <Input value={amount} onChangeText={setAmount} placeholder="1.200.000" keyboardType="numeric" />
 
       <Label>Cuotas</Label>
-      <TextInput
-        style={styles.input}
-        value={installments}
-        onChangeText={setInstallments}
-        placeholder="1 a 72"
-        keyboardType="numeric"
-      />
+      <Input value={installments} onChangeText={setInstallments} placeholder="1 a 72" keyboardType="numeric" />
 
       <Pressable
         onPress={() => run(Number(installments))}
@@ -236,8 +226,8 @@ function MonthColumn({
           {formatCop(Math.abs(diff))}
         </Text>
       )}
-      <View style={[styles.badge, { backgroundColor: LIGHT_COLOR[month.light] }]}>
-        <Text style={styles.badgeText}>{LIGHT_LABEL[month.light]}</Text>
+      <View style={[styles.badge, { backgroundColor: light[month.light].bg }]}>
+        <Text style={[styles.badgeText, { color: light[month.light].fg }]}>{light[month.light].label}</Text>
       </View>
     </View>
   );
@@ -245,37 +235,49 @@ function MonthColumn({
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
-  button: { backgroundColor: '#1f6feb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 16 },
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  error: { color: '#d64545' },
-  muted: { color: '#666', fontSize: 13 },
+  buttonText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
+  error: { color: light.red.bg },
+  muted: { ...type.caption, color: colors.textMuted },
   result: { marginTop: 16, gap: 16 },
   resultBusy: { opacity: 0.5 },
-  diffDown: { color: '#d64545', fontSize: 13, fontWeight: '600' },
-  diffUp: { color: '#2e9e5b', fontSize: 13, fontWeight: '600' },
+  diffDown: { color: light.red.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
+  diffUp: { color: light.green.bg, fontFamily: fonts.bodySemiBold, fontSize: 13 },
   section: { gap: 6 },
-  sectionTitle: { fontSize: 18, fontWeight: '700' },
-  alert: { color: '#d64545', fontWeight: '700' },
-  ok: { color: '#2e9e5b', fontWeight: '600' },
-  option: { backgroundColor: '#fff', borderRadius: 12, borderWidth: 2, borderColor: '#e3e3e3', padding: 12, gap: 2 },
-  optionSelected: { borderColor: '#1f6feb' },
-  optionTitle: { fontSize: 16, fontWeight: '700' },
+  sectionTitle: { ...type.subtitle },
+  alert: { color: light.red.bg, fontWeight: '700' },
+  ok: { color: light.green.bg, fontWeight: '600' },
+  option: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: 12,
+    gap: 2,
+  },
+  optionSelected: { borderColor: colors.primary, backgroundColor: colors.primarySoft },
+  optionTitle: { ...type.subtitle, fontSize: 16 },
   comparison: { gap: 8 },
   monthRow: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: radius.sm,
     padding: 12,
     gap: 6,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  monthRowChanged: { borderColor: '#d64545', backgroundColor: '#fff1f1' },
-  month: { fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
+  monthRowChanged: { borderColor: light.red.bg, backgroundColor: colors.surfaceAlt },
+  month: { ...type.subtitle, fontSize: 16, textTransform: 'capitalize' },
   monthColumns: { flexDirection: 'row', gap: 12 },
   column: { flex: 1, gap: 2 },
-  closing: { fontSize: 18, fontWeight: '700' },
-  badge: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
-  badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+  closing: { ...type.subtitle },
+  badge: { alignSelf: 'flex-start', borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 3 },
+  badgeText: { fontFamily: fonts.bodyBold, fontSize: 12 },
 });

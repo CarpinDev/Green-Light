@@ -1,15 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet } from 'react-native';
 
 import { getJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import type { Category, Product } from '@/api/types';
+import { Input } from '@/components/input';
 import { Label } from '@/components/label';
 import { Options } from '@/components/options';
+import { Text } from '@/components/text';
 import { today } from '@/dates';
 import { parsePesos } from '@/money';
+import { colors, light, radius } from '@/theme/tokens';
 
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -76,26 +79,14 @@ export default function NewExpense() {
   return (
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       <Label>Monto (pesos)</Label>
-      <TextInput
-        style={styles.input}
-        value={amount}
-        onChangeText={setAmount}
-        placeholder="120.000"
-        keyboardType="numeric"
-      />
+      <Input value={amount} onChangeText={setAmount} placeholder="120.000" keyboardType="numeric" />
 
       <Label>Fecha</Label>
-      <TextInput
-        style={styles.input}
-        value={date}
-        onChangeText={setDate}
-        placeholder="AAAA-MM-DD"
-        autoCapitalize="none"
-      />
+      <Input value={date} onChangeText={setDate} placeholder="AAAA-MM-DD" autoCapitalize="none" />
 
       <Label>De dónde sale</Label>
       {products.isPending ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
       ) : products.isError ? (
         <Text style={styles.error}>No se pudieron cargar tus cuentas y tarjetas.</Text>
       ) : sources.length === 0 ? (
@@ -111,19 +102,13 @@ export default function NewExpense() {
       {isCard && (
         <>
           <Label>Cuotas</Label>
-          <TextInput
-            style={styles.input}
-            value={installments}
-            onChangeText={setInstallments}
-            placeholder="1 a 72"
-            keyboardType="numeric"
-          />
+          <Input value={installments} onChangeText={setInstallments} placeholder="1 a 72" keyboardType="numeric" />
         </>
       )}
 
       <Label>Categoría (opcional)</Label>
       {categories.isPending ? (
-        <ActivityIndicator />
+        <ActivityIndicator color={colors.primary} />
       ) : categories.isError ? (
         <Text style={styles.error}>No se pudieron cargar las categorías.</Text>
       ) : categories.data.length === 0 ? (
@@ -138,7 +123,7 @@ export default function NewExpense() {
       )}
 
       <Label>Descripción (opcional)</Label>
-      <TextInput style={styles.input} value={description} onChangeText={setDescription} placeholder="Mercado" />
+      <Input value={description} onChangeText={setDescription} placeholder="Mercado" />
 
       <Pressable
         onPress={submit}
@@ -156,10 +141,15 @@ export default function NewExpense() {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
-  button: { backgroundColor: '#1f6feb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 16 },
+  button: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    padding: 14,
+    alignItems: 'center',
+    marginTop: 16,
+  },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },
-  error: { color: '#d64545' },
-  muted: { color: '#666' },
+  buttonText: { color: colors.onPrimary, fontWeight: '700', fontSize: 16 },
+  error: { color: light.red.bg },
+  muted: { color: colors.textMuted },
 });

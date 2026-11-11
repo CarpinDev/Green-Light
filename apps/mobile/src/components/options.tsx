@@ -1,4 +1,7 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
+
+import { Text } from '@/components/text';
+import { colors, radius } from '@/theme/tokens';
 
 /** Una fila de opciones para elegir una: la elegida va resaltada. */
 export function Options({
@@ -29,13 +32,13 @@ const styles = StyleSheet.create({
   options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   option: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 999,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
   },
-  optionSelected: { backgroundColor: '#1f6feb', borderColor: '#1f6feb' },
-  optionText: { color: '#222' },
-  optionTextSelected: { color: '#fff', fontWeight: '600' },
+  optionSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
+  optionText: { color: colors.text },
+  optionTextSelected: { color: colors.onPrimary, fontWeight: '600' },
 });
