@@ -1,7 +1,7 @@
 import { StyleSheet } from 'react-native';
 
 import { Text } from '@/components/text';
-import { type } from '@/theme/tokens';
+import { colors, type } from '@/theme/tokens';
 
 /** El rótulo de un campo de formulario. */
 export function Label({ children }: { children: React.ReactNode }) {
@@ -9,5 +9,5 @@ export function Label({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
-  label: { ...type.bodyMedium, marginTop: 8 },
+  label: { ...type.bodyMedium, color: colors.textMuted, marginTop: 8 },
 });

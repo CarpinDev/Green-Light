@@ -23,9 +23,9 @@ const ICON: Record<CashEventKind, IconName> = {
 export function UpcomingList({ events }: { events: readonly CashEvent[] }) {
   return (
     <View style={styles.section}>
-      <Text style={styles.heading}>Próximos pagos</Text>
+      <Text style={styles.heading}>Próximos movimientos</Text>
       {events.length === 0 ? (
-        <Text style={styles.empty}>No hay pagos próximos.</Text>
+        <Text style={styles.empty}>No hay movimientos próximos.</Text>
       ) : (
         events.map((event, i) => <Row key={`${event.date}-${event.refId ?? ''}-${i}`} event={event} />)
       )}

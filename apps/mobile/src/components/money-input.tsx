@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import type { TextInputProps } from 'react-native';
+import { StyleSheet, type TextInputProps } from 'react-native';
 
 import { Input } from '@/components/input';
 import { formatMoneyInput, moneyText } from '@/money';
+import { type } from '@/theme/tokens';
 
 interface MoneyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText' | 'keyboardType'> {
   /** El monto en centavos, o null si el campo está vacío. */
@@ -10,6 +11,8 @@ interface MoneyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText' 
   onChangeCents: (cents: number | null) => void;
   /** Un saldo puede ser negativo (sobregiro); un gasto no. */
   allowNegative?: boolean;
+  /** El monto como protagonista: tipografía display y sin caja (el borde y el fondo del campo normal se quitan). */
+  large?: boolean;
 }
 
 /**
@@ -19,7 +22,14 @@ interface MoneyInputProps extends Omit<TextInputProps, 'value' | 'onChangeText' 
  * Al reformatear, el cursor salta al final del texto. Con los dedos en un teclado numérico se escribe
  * al final casi siempre; editar un dígito del medio mueve el cursor.
  */
-export function MoneyInput({ value, onChangeCents, allowNegative = false, ...props }: MoneyInputProps) {
+export function MoneyInput({
+  value,
+  onChangeCents,
+  allowNegative = false,
+  large = false,
+  style,
+  ...props
+}: MoneyInputProps) {
   const [typed, setTyped] = useState('');
   // Se muestra lo escrito mientras siga valiendo el monto del padre; si ya no, el monto manda
   const shown = formatMoneyInput(typed, allowNegative)?.cents === value ? typed : moneyText(value);
@@ -34,6 +44,7 @@ export function MoneyInput({ value, onChangeCents, allowNegative = false, ...pro
   return (
     <Input
       {...props}
+      style={[large && styles.large, style]}
       value={shown}
       onChangeText={handleChange}
       // El teclado numérico de iOS no tiene "-": para saldos se usa el que sí lo trae
@@ -41,3 +52,7 @@ export function MoneyInput({ value, onChangeCents, allowNegative = false, ...pro
     />
   );
 }
+
+const styles = StyleSheet.create({
+  large: { ...type.display, backgroundColor: 'transparent', borderWidth: 0, paddingHorizontal: 0 },
+});

@@ -13,8 +13,15 @@ import { StatPair } from '@/components/home/stat-pair';
 import { UpcomingList } from '@/components/home/upcoming-list';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
-import { currentMonth as thisMonth, formatDayShort, STALE_DAYS, today } from '@/dates';
-import { alertMessage, chartBars, currentMonth, incomeShare, upcomingMovements, visibleMonths } from '@/home/summary';
+import { currentMonth, formatDayShort, STALE_DAYS, today } from '@/dates';
+import {
+  alertMessage,
+  chartBars,
+  firstVisibleMonth,
+  incomeShare,
+  upcomingMovements,
+  visibleMonths,
+} from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
 
@@ -43,8 +50,8 @@ export default function Home() {
       }
     >
       {({ asOf, daysSinceBalance, staleAccounts, months, alerts }) => {
-        const visible = visibleMonths(months, thisMonth());
-        const current = currentMonth(months, thisMonth());
+        const visible = visibleMonths(months, currentMonth());
+        const current = firstVisibleMonth(months, currentMonth());
         const movements = upcomingMovements(
           visible.flatMap((m) => m.events),
           today(),

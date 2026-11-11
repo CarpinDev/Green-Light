@@ -68,3 +68,28 @@ export function formatDayShort(iso: string): string {
   const day = Number(iso.split('-')[2] ?? 1);
   return `${day} ${formatMonthName(iso).slice(0, 3)}`;
 }
+
+/** Ayer como YYYY-MM-DD, en hora local. Se resta un día del calendario (no 24 h), para que el cambio de hora no lo mueva. */
+export function yesterday(now: Date = new Date()): string {
+  return today(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+}
+
+/** Una fecha YYYY-MM-DD que existe en el calendario: acepta 2028-02-29 y rechaza 2026-13-45 y 2026-02-30. */
+export function isValidDate(iso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return false;
+  const [year = 0, month = 0, day = 0] = iso.split('-').map(Number);
+  // JavaScript "arregla" una fecha imposible (31 de feb -> 3 de mar): si el resultado cambió, no existía
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+}
+
+/** Un Date (de un selector de fecha) como YYYY-MM-DD, con el día local. */
+export function toIsoDate(date: Date): string {
+  return today(date);
+}
+
+/** YYYY-MM-DD como Date a medianoche local, para dárselo a un selector de fecha. */
+export function fromIsoDate(iso: string): Date {
+  const [year = 0, month = 1, day = 1] = iso.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}

@@ -10,7 +10,7 @@ export function visibleMonths(months: readonly MonthSummary[], now: string): Mon
 }
 
 /** El primer mes visible: el mes actual (o el siguiente, si la proyección no trae el actual). */
-export function currentMonth(months: readonly MonthSummary[], now: string): MonthSummary | undefined {
+export function firstVisibleMonth(months: readonly MonthSummary[], now: string): MonthSummary | undefined {
   return visibleMonths(months, now)[0];
 }
 

@@ -5,7 +5,7 @@ import {
   alertMessage,
   barGeometry,
   chartBars,
-  currentMonth,
+  firstVisibleMonth,
   incomeShare,
   upcomingIncomes,
   upcomingMovements,
@@ -34,7 +34,7 @@ const event = (date: string, amount: number, overrides: Partial<CashEvent> = {})
   ...overrides,
 });
 
-describe('visibleMonths / currentMonth', () => {
+describe('visibleMonths / firstVisibleMonth', () => {
   const months = [
     month({ month: '2026-09' }),
     month({ month: '2026-10' }),
@@ -47,21 +47,21 @@ describe('visibleMonths / currentMonth', () => {
   });
 
   it('el mes actual es el primero visible', () => {
-    expect(currentMonth(months, '2026-11')?.month).toBe('2026-11');
+    expect(firstVisibleMonth(months, '2026-11')?.month).toBe('2026-11');
   });
 
   it('si la proyección no trae el mes actual, toma el siguiente', () => {
-    expect(currentMonth([month({ month: '2026-12' })], '2026-11')?.month).toBe('2026-12');
+    expect(firstVisibleMonth([month({ month: '2026-12' })], '2026-11')?.month).toBe('2026-12');
   });
 
   it('sin meses desde hoy, no hay mes actual', () => {
-    expect(currentMonth(months, '2027-03')).toBeUndefined();
-    expect(currentMonth([], '2026-11')).toBeUndefined();
+    expect(firstVisibleMonth(months, '2027-03')).toBeUndefined();
+    expect(firstVisibleMonth([], '2026-11')).toBeUndefined();
   });
 
   it('un cambio de año no confunde el orden (YYYY-MM se ordena como texto)', () => {
     const across = [month({ month: '2026-12' }), month({ month: '2027-01' })];
-    expect(currentMonth(across, '2026-12')?.month).toBe('2026-12');
+    expect(firstVisibleMonth(across, '2026-12')?.month).toBe('2026-12');
     expect(visibleMonths(across, '2027-01').map((m) => m.month)).toEqual(['2027-01']);
   });
 });
