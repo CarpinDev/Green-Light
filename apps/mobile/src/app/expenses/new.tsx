@@ -45,9 +45,10 @@ export default function NewExpense() {
 
   const create = useMutation({
     mutationFn: (body: object) => postJson<{ id: number }>('/expenses', body),
-    onSuccess: async () => {
-      // El gasto cambia la proyección: se vuelve a pedir al volver a la pantalla principal
-      await queryClient.invalidateQueries({ queryKey: ['projection'] });
+    onSuccess: () => {
+      // El gasto cambia la proyección: se marca vieja y el inicio (que sigue montado bajo el modal) la
+      // vuelve a pedir. No se espera a que termine: el modal se cierra ya y el inicio muestra "refrescando".
+      void queryClient.invalidateQueries({ queryKey: ['projection'] });
       if (router.canGoBack()) router.back();
       else router.replace('/');
     },

@@ -16,6 +16,7 @@ import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, formatDay, formatMonth } from '@/dates';
 import { formatCop } from '@/money';
+import { useTabBarClearance } from '@/navigation';
 import { colors, fonts, light, type } from '@/theme/tokens';
 
 /** Lo que se mandó a simular: el resultado se explica contra esto (p. ej. cuánto cupo queda). */
@@ -26,6 +27,7 @@ interface Request {
 }
 
 export default function Simulate() {
+  const clearance = useTabBarClearance();
   const [cardId, setCardId] = useState<number | null>(null);
   const [amountCents, setAmountCents] = useState<number | null>(null);
   const [installments, setInstallments] = useState('1');
@@ -58,7 +60,10 @@ export default function Simulate() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+      keyboardShouldPersistTaps="handled"
+    >
       <Label>Tarjeta</Label>
       <QueryState
         inline

@@ -13,10 +13,12 @@ import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { daysBetween, formatDay, STALE_DAYS, today } from '@/dates';
 import { formatCop } from '@/money';
+import { useTabBarClearance } from '@/navigation';
 import { colors, light, type } from '@/theme/tokens';
 
 export default function Balances() {
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
+  const clearance = useTabBarClearance();
 
   return (
     <QueryState
@@ -25,7 +27,10 @@ export default function Balances() {
       emptyText="Todavía no tienes cuentas: créalas primero."
     >
       {(data) => (
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+          keyboardShouldPersistTaps="handled"
+        >
           {data.map((account) => (
             <AccountCard key={account.id} account={account} />
           ))}

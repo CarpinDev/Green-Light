@@ -13,6 +13,7 @@ import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, formatDay, formatMonth, STALE_DAYS } from '@/dates';
 import { formatCop } from '@/money';
+import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
 
 export default function Home() {
@@ -20,6 +21,8 @@ export default function Home() {
     queryKey: ['projection'],
     queryFn: () => getJson<ProjectionResponse>('/projection?months=6'),
   });
+
+  const clearance = useTabBarClearance();
 
   return (
     <QueryState
@@ -43,7 +46,7 @@ export default function Home() {
 
         return (
           <ScrollView
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
             refreshControl={
               <RefreshControl
                 refreshing={projection.isRefetching}
@@ -53,16 +56,6 @@ export default function Home() {
             }
           >
             <Text style={styles.asOf}>Saldo al {formatDay(asOf)}</Text>
-
-            <Link href="/expenses/new" asChild>
-              <Button label="Registrar gasto" />
-            </Link>
-            <Link href="/simulate" asChild>
-              <Button label="¿Puedo comprar esto?" variant="secondary" />
-            </Link>
-            <Link href="/balances" asChild>
-              <Button label="Confirmar saldos" variant="secondary" />
-            </Link>
 
             {daysSinceBalance > STALE_DAYS && (
               <Banner action={{ label: 'Confirmar saldo', href: '/balances' }}>

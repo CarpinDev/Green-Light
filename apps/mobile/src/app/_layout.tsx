@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { ApiError } from '@/api/client';
+import { CancelButton } from '@/components/cancel-button';
 import { colors, fonts } from '@/theme/tokens';
 
 // La splash se queda hasta que las fuentes carguen: sin esto, la app parpadea con la fuente del sistema
@@ -53,9 +54,13 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.bg },
         }}
       >
-        <Stack.Screen name="expenses/new" options={{ title: 'Registrar gasto' }} />
-        <Stack.Screen name="simulate" options={{ title: '¿Puedo comprar esto?' }} />
-        <Stack.Screen name="balances" options={{ title: 'Confirmar saldos' }} />
+        {/* Las pestañas traen su propio encabezado: el del Stack sobraría */}
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        {/* El formulario de gasto se abre encima de las pestañas, como modal */}
+        <Stack.Screen
+          name="expenses/new"
+          options={{ presentation: 'modal', title: 'Nuevo gasto', headerLeft: () => <CancelButton /> }}
+        />
       </Stack>
     </QueryClientProvider>
   );
