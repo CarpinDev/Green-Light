@@ -15,7 +15,12 @@ export default function Home() {
     queryFn: () => getJson<ProjectionResponse>('/projection?months=6'),
   });
 
-  if (projection.isPending) return <Centered><ActivityIndicator size="large" /></Centered>;
+  if (projection.isPending)
+    return (
+      <Centered>
+        <ActivityIndicator size="large" />
+      </Centered>
+    );
 
   if (projection.isError) {
     return (

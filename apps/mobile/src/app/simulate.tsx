@@ -182,9 +182,7 @@ function OptionCard({
 function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPurchase: MonthSummary[] }) {
   const now = currentMonth();
   const base = new Map(without.map((m) => [m.month, m]));
-  const rows = withPurchase
-    .filter((m) => m.month >= now)
-    .map((after) => ({ before: base.get(after.month), after }));
+  const rows = withPurchase.filter((m) => m.month >= now).map((after) => ({ before: base.get(after.month), after }));
 
   const changed = rows.filter((r) => r.before !== undefined && r.before.light !== r.after.light).length;
 
@@ -204,7 +202,11 @@ function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPu
             <Text style={styles.month}>{formatMonth(after.month)}</Text>
             <View style={styles.monthColumns}>
               <MonthColumn title="Sin la compra" month={before} />
-              <MonthColumn title="Con la compra" month={after} diff={before && after.closingBalance - before.closingBalance} />
+              <MonthColumn
+                title="Con la compra"
+                month={after}
+                diff={before && after.closingBalance - before.closingBalance}
+              />
             </View>
           </View>
         );
@@ -261,7 +263,14 @@ const styles = StyleSheet.create({
   optionSelected: { borderColor: '#1f6feb' },
   optionTitle: { fontSize: 16, fontWeight: '700' },
   comparison: { gap: 8 },
-  monthRow: { backgroundColor: '#fff', borderRadius: 12, padding: 12, gap: 6, borderWidth: 2, borderColor: 'transparent' },
+  monthRow: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    gap: 6,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
   monthRowChanged: { borderColor: '#d64545', backgroundColor: '#fff1f1' },
   month: { fontSize: 16, fontWeight: '700', textTransform: 'capitalize' },
   monthColumns: { flexDirection: 'row', gap: 12 },
