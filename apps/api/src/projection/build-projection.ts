@@ -72,13 +72,53 @@ export interface ProjectionResult {
   alerts: Engine.Alert[];
 }
 
+/** Lo que armó projectionInput: la entrada del motor y los datos que otros módulos reusan. */
+export interface PreparedProjection {
+  input: Engine.ProjectionInput;
+  daysSinceBalance: number;
+  openingBalanceCents: Engine.Cents;
+  staleAccounts: number[];
+  /** Cada tarjeta con sus propias compras y abonos (ids del motor), incluida la que se dejó fuera. */
+  cards: { card: Engine.CreditCard; purchases: Engine.CardPurchase[]; payments: Engine.CapitalPayment[] }[];
+  fixedExpenses: Engine.FixedExpense[];
+}
+
 /**
- * Arma la entrada del motor desde las entidades y llama a project(). Pura: sin base de datos.
+ * Arma la entrada del motor desde las entidades. Pura: sin base de datos.
  * Cada tarjeta y cada préstamo recibe solo sus propias tasas, compras y abonos.
  * `today` entra como parámetro para que siga siendo pura y se pueda probar.
- * Si el último saldo tiene más de MAX_BALANCE_AGE_DAYS días, responde 409.
+ * Valida el saldo: sin ninguno es 400, y si el último tiene más de MAX_BALANCE_AGE_DAYS días, 409.
+ * Con `withoutCardId` deja fuera los eventos de esa tarjeta (el simulador los agrega con y sin la compra).
  */
+export function projectionInput(
+  facts: ProjectionFacts,
+  months: number,
+  today: Engine.IsoDate,
+  withoutCardId?: number,
+): Engine.ProjectionInput {
+  return prepareProjection(facts, months, today, withoutCardId).input;
+}
+
+/** buildProjection: arma la entrada, proyecta y revisa los umbrales de alerta. */
 export function buildProjection(facts: ProjectionFacts, months: number, today: Engine.IsoDate): ProjectionResult {
+  const prepared = prepareProjection(facts, months, today);
+  const projected = project(prepared.input, months);
+  return {
+    asOf: prepared.input.asOf,
+    daysSinceBalance: prepared.daysSinceBalance,
+    openingBalanceCents: prepared.openingBalanceCents,
+    staleAccounts: prepared.staleAccounts,
+    months: projected,
+    alerts: alertsOf(prepared, projected, toEngineSettings(facts.settings)),
+  };
+}
+
+export function prepareProjection(
+  facts: ProjectionFacts,
+  months: number,
+  today: Engine.IsoDate,
+  withoutCardId?: number,
+): PreparedProjection {
   const start = startingPoint(facts.balances);
   const daysSinceBalance = Math.max(0, daysBetween(start.asOf, today));
   if (daysSinceBalance > MAX_BALANCE_AGE_DAYS) {
@@ -101,15 +141,16 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
 
   // Cada tarjeta con sus propias compras y abonos: sirven para los eventos y para el cupo usado
   const cards = facts.cards.map((card) => ({
+    productId: card.productId,
     card: toEngineCard(card, ratesOf(card.productId)),
     purchases: facts.expenses.filter((e) => e.sourceProductId === card.productId).map(toCardPurchase),
     payments: facts.capitalPayments.filter((p) => p.productId === card.productId).map(toCardCapitalPayment),
   }));
 
   const debtEvents: Engine.CashEvent[] = [
-    ...cards.flatMap(({ card, purchases, payments }) =>
-      cardEvents(card, purchases, payments, fixedExpenses, start.asOf, to),
-    ),
+    ...cards
+      .filter((c) => c.productId !== withoutCardId)
+      .flatMap(({ card, purchases, payments }) => cardEvents(card, purchases, payments, fixedExpenses, start.asOf, to)),
     ...facts.loans.flatMap((loan) =>
       loanEvents(
         toEngineLoan(loan, ratesOf(loan.productId)),
@@ -120,8 +161,8 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
     ),
   ];
 
-  const projected = project(
-    {
+  return {
+    input: {
       asOf: start.asOf,
       openingBalance: start.openingBalanceCents,
       recurringIncomes: facts.recurringIncomes.map(toRecurringIncome),
@@ -131,27 +172,27 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
       extraEvents: debtEvents,
       yellowBelowIncomePct: facts.settings.yellowBelowIncomePct,
     },
-    months,
-  );
-
-  // El cupo usado cuenta también los cargos de los gastos fijos con tarjeta que ya se hicieron
-  const { debtToIncomePct, cardUtilizationPct } = toEngineSettings(facts.settings);
-  const alerts = [
-    ...projected.map((month) => debtToIncomeAlert(month, debtToIncomePct)),
-    ...cards.map(({ card, purchases, payments }) => {
-      const all = [...purchases, ...fixedExpensesAsPurchases(card, fixedExpenses, start.asOf, start.asOf)];
-      return cardUtilizationAlert(card, all, planCard(card, all, payments).rows, start.asOf, cardUtilizationPct);
-    }),
-  ].filter((alert) => alert !== undefined);
-
-  return {
-    asOf: start.asOf,
     daysSinceBalance,
     openingBalanceCents: start.openingBalanceCents,
     staleAccounts: start.staleAccounts,
-    months: projected,
-    alerts,
+    cards: cards.map(({ card, purchases, payments }) => ({ card, purchases, payments })),
+    fixedExpenses,
   };
+}
+
+/** Deuda sobre ingreso por mes y cupo usado por tarjeta; el cupo cuenta los cargos fijos ya hechos. */
+function alertsOf(
+  { input, cards, fixedExpenses }: PreparedProjection,
+  projected: readonly Engine.MonthSummary[],
+  { debtToIncomePct, cardUtilizationPct }: Engine.Settings,
+): Engine.Alert[] {
+  return [
+    ...projected.map((month) => debtToIncomeAlert(month, debtToIncomePct)),
+    ...cards.map(({ card, purchases, payments }) => {
+      const all = [...purchases, ...fixedExpensesAsPurchases(card, fixedExpenses, input.asOf, input.asOf)];
+      return cardUtilizationAlert(card, all, planCard(card, all, payments).rows, input.asOf, cardUtilizationPct);
+    }),
+  ].filter((alert) => alert !== undefined);
 }
 
 /** Último saldo de cada cuenta; se proyecta desde el más reciente y se avisa de los más viejos. */
