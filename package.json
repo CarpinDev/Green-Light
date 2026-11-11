@@ -2,7 +2,7 @@
   "name": "greenlight",
   "private": true,
   "engines": {
-    "node": ">=20.19"
+    "node": ">=24"
   },
   "workspaces": ["apps/*", "packages/*"]
 }
