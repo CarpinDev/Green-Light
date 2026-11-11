@@ -1,5 +1,16 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
-import { cardEvents, daysBetween, endOfMonth, loanEvents, project, shiftMonths } from '@greenlight/engine';
+import {
+  cardEvents,
+  cardUtilizationAlert,
+  daysBetween,
+  debtToIncomeAlert,
+  endOfMonth,
+  fixedExpensesAsPurchases,
+  loanEvents,
+  planCard,
+  project,
+  shiftMonths,
+} from '@greenlight/engine';
 import type * as Engine from '@greenlight/engine';
 import type { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import type { OneOffIncome } from '../incomes/entities/one-off-income.entity';
@@ -16,6 +27,7 @@ import {
   toCardPurchase,
   toCashExpense,
   toEngineCard,
+  toEngineSettings,
   toEngineLoan,
   toFixedExpense,
   toLoanPrepayment,
@@ -53,6 +65,11 @@ export interface ProjectionResult {
   /** Cuentas (product id) cuyo último saldo es más viejo que `asOf`: conviene actualizarlas. */
   staleAccounts: number[];
   months: Engine.MonthSummary[];
+  /**
+   * Avisos, no errores: deuda sobre ingreso por mes y cupo usado por tarjeta (en `asOf`), cada uno
+   * solo si supera su umbral de settings. Sin avisos, la lista va vacía.
+   */
+  alerts: Engine.Alert[];
 }
 
 /**
@@ -82,16 +99,16 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
   // Un gasto con tarjeta es una compra; desde una cuenta sale del disponible ese día
   const cashExpenses = facts.expenses.filter((e) => !cardIds.has(e.sourceProductId)).map(toCashExpense);
 
+  // Cada tarjeta con sus propias compras y abonos: sirven para los eventos y para el cupo usado
+  const cards = facts.cards.map((card) => ({
+    card: toEngineCard(card, ratesOf(card.productId)),
+    purchases: facts.expenses.filter((e) => e.sourceProductId === card.productId).map(toCardPurchase),
+    payments: facts.capitalPayments.filter((p) => p.productId === card.productId).map(toCardCapitalPayment),
+  }));
+
   const debtEvents: Engine.CashEvent[] = [
-    ...facts.cards.flatMap((card) =>
-      cardEvents(
-        toEngineCard(card, ratesOf(card.productId)),
-        facts.expenses.filter((e) => e.sourceProductId === card.productId).map(toCardPurchase),
-        facts.capitalPayments.filter((p) => p.productId === card.productId).map(toCardCapitalPayment),
-        fixedExpenses,
-        start.asOf,
-        to,
-      ),
+    ...cards.flatMap(({ card, purchases, payments }) =>
+      cardEvents(card, purchases, payments, fixedExpenses, start.asOf, to),
     ),
     ...facts.loans.flatMap((loan) =>
       loanEvents(
@@ -103,24 +120,37 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
     ),
   ];
 
+  const projected = project(
+    {
+      asOf: start.asOf,
+      openingBalance: start.openingBalanceCents,
+      recurringIncomes: facts.recurringIncomes.map(toRecurringIncome),
+      oneOffIncomes: facts.oneOffIncomes.map(toOneOffIncome),
+      fixedExpenses,
+      cashExpenses,
+      extraEvents: debtEvents,
+      yellowBelowIncomePct: facts.settings.yellowBelowIncomePct,
+    },
+    months,
+  );
+
+  // El cupo usado cuenta también los cargos de los gastos fijos con tarjeta que ya se hicieron
+  const { debtToIncomePct, cardUtilizationPct } = toEngineSettings(facts.settings);
+  const alerts = [
+    ...projected.map((month) => debtToIncomeAlert(month, debtToIncomePct)),
+    ...cards.map(({ card, purchases, payments }) => {
+      const all = [...purchases, ...fixedExpensesAsPurchases(card, fixedExpenses, start.asOf, start.asOf)];
+      return cardUtilizationAlert(card, all, planCard(card, all, payments).rows, start.asOf, cardUtilizationPct);
+    }),
+  ].filter((alert) => alert !== undefined);
+
   return {
     asOf: start.asOf,
     daysSinceBalance,
     openingBalanceCents: start.openingBalanceCents,
     staleAccounts: start.staleAccounts,
-    months: project(
-      {
-        asOf: start.asOf,
-        openingBalance: start.openingBalanceCents,
-        recurringIncomes: facts.recurringIncomes.map(toRecurringIncome),
-        oneOffIncomes: facts.oneOffIncomes.map(toOneOffIncome),
-        fixedExpenses,
-        cashExpenses,
-        extraEvents: debtEvents,
-        yellowBelowIncomePct: facts.settings.yellowBelowIncomePct,
-      },
-      months,
-    ),
+    months: projected,
+    alerts,
   };
 }
 
