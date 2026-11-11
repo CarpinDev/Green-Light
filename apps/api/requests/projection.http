@@ -1,0 +1,23 @@
+### GET /projection: ¿llego a fin de mes? (extensión REST Client de VS Code)
+### Usa los datos que ya creaste con los otros .http: al menos una cuenta con un saldo confirmado
+### (accounts.http). Mientras más tengas (tarjetas, compras, préstamo, ingresos, gastos fijos), más
+### completa la proyección. Cada mes trae su semáforo: green, yellow o red.
+@host = http://localhost:3001
+
+### 1. Tres meses (el valor por defecto) -> 200 con asOf, openingBalanceCents, staleAccounts y months
+GET {{host}}/projection
+
+### 2. Seis meses
+GET {{host}}/projection?months=6
+
+### 3. Un solo mes
+GET {{host}}/projection?months=1
+
+### 4. months = 0 -> 400
+GET {{host}}/projection?months=0
+
+### 5. months = 25 -> 400
+GET {{host}}/projection?months=25
+
+### 6. months que no es número -> 400
+GET {{host}}/projection?months=abc
