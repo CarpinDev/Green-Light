@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 
-import { ApiError, getJson, postJson } from '@/api/client';
+import { getJson, postJson } from '@/api/client';
+import { errorText } from '@/api/errors';
 import type { Category, Product } from '@/api/types';
+import { Label } from '@/components/label';
+import { Options } from '@/components/options';
 import { today } from '@/dates';
 import { parsePesos } from '@/money';
 
@@ -139,52 +142,14 @@ export default function NewExpense() {
       </Pressable>
 
       {formError !== null && <Text style={styles.error}>{formError}</Text>}
-      {create.isError && <Text style={styles.error}>{messageOf(create.error)}</Text>}
+      {create.isError && <Text style={styles.error}>{errorText(create.error)}</Text>}
     </ScrollView>
-  );
-}
-
-function messageOf(error: Error): string {
-  return error instanceof ApiError ? error.message : 'No hay conexión con la API. ¿Está corriendo?';
-}
-
-function Label({ children }: { children: React.ReactNode }) {
-  return <Text style={styles.label}>{children}</Text>;
-}
-
-function Options({
-  items,
-  selected,
-  onSelect,
-}: {
-  items: { id: number; label: string }[];
-  selected: number | null;
-  onSelect: (id: number) => void;
-}) {
-  return (
-    <View style={styles.options}>
-      {items.map((item) => (
-        <Pressable
-          key={item.id}
-          onPress={() => onSelect(item.id)}
-          style={[styles.option, item.id === selected && styles.optionSelected]}
-        >
-          <Text style={item.id === selected ? styles.optionTextSelected : styles.optionText}>{item.label}</Text>
-        </Pressable>
-      ))}
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 8, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  label: { fontSize: 14, fontWeight: '600', marginTop: 8 },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, fontSize: 16, backgroundColor: '#fff' },
-  options: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  option: { borderWidth: 1, borderColor: '#ccc', borderRadius: 999, paddingHorizontal: 14, paddingVertical: 8, backgroundColor: '#fff' },
-  optionSelected: { backgroundColor: '#1f6feb', borderColor: '#1f6feb' },
-  optionText: { color: '#222' },
-  optionTextSelected: { color: '#fff', fontWeight: '600' },
   button: { backgroundColor: '#1f6feb', borderRadius: 8, padding: 14, alignItems: 'center', marginTop: 16 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontWeight: '700', fontSize: 16 },

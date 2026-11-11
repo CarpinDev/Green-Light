@@ -65,3 +65,28 @@ export interface Category {
   id: number;
   name: string;
 }
+
+/** Una opción de plazo de POST /simulations: la misma compra a 1, 3, 6 o 12 cuotas. */
+export interface InstallmentOption {
+  installments: number;
+  firstPayment: number;
+  totalInterest: number;
+  /** Capital más todos los intereses: lo que de verdad pagas por la compra. */
+  totalCost: number;
+}
+
+/** Respuesta de POST /simulations (no guarda nada). */
+export interface SimulationResponse extends InstallmentOption {
+  asOf: string;
+  daysSinceBalance: number;
+  options: InstallmentOption[];
+  /** Las cuotas del plazo elegido; todavía no se muestran. */
+  rows: unknown[];
+  /** Cupo libre el día de la compra, antes de hacerla. */
+  availableCredit: number;
+  /** La compra no cabe en el cupo. Solo avisa: la decisión es tuya. */
+  exceedsLimit: boolean;
+  /** Tu proyección sin la compra y con ella, mes a mes. */
+  without: MonthSummary[];
+  with: MonthSummary[];
+}

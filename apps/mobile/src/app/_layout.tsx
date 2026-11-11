@@ -17,6 +17,7 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <Stack screenOptions={{ title: 'GreenLight' }}>
         <Stack.Screen name="expenses/new" options={{ title: 'Registrar gasto' }} />
+        <Stack.Screen name="simulate" options={{ title: '¿Puedo comprar esto?' }} />
       </Stack>
     </QueryClientProvider>
   );
