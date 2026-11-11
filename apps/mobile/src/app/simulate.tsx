@@ -28,8 +28,14 @@ export default function Simulate() {
   const cards = (products.data ?? []).filter((p) => p.kind === 'credit_card');
 
   // POST /simulations no guarda nada: no hay nada que invalidar, la proyección sigue igual
+  // El último resultado bueno vive en el estado: mientras llega el siguiente, la mutación pasa a
+  // pending y su data se borra, y sin esto el resultado desaparecería (y la página saltaría arriba)
+  const [last, setLast] = useState<{ result: SimulationResponse; amountCents: number } | null>(null);
   const simulate = useMutation({
     mutationFn: (body: Request) => postJson<SimulationResponse>('/simulations', body),
+    onSuccess: (result, body) => setLast({ result, amountCents: body.amountCents }),
+    // Un resultado viejo junto a un error sería de otra consulta: mejor quitarlo
+    onError: () => setLast(null),
   });
 
   /** Valida el formulario y simula con `cuotas` (las del campo, o las de la opción que se tocó). */
@@ -92,13 +98,8 @@ export default function Simulate() {
       {formError !== null && <Text style={styles.error}>{formError}</Text>}
       {simulate.isError && <Text style={styles.error}>{errorText(simulate.error)}</Text>}
 
-      {simulate.isSuccess && simulate.variables && (
-        <Result
-          result={simulate.data}
-          amountCents={simulate.variables.amountCents}
-          busy={simulate.isPending}
-          onPickOption={run}
-        />
+      {last !== null && (
+        <Result result={last.result} amountCents={last.amountCents} busy={simulate.isPending} onPickOption={run} />
       )}
     </ScrollView>
   );
@@ -116,7 +117,8 @@ function Result({
   onPickOption: (installments: number) => void;
 }) {
   return (
-    <View style={styles.result}>
+    // Atenuado mientras llega el resultado nuevo: se ve que está desactualizado, pero no desaparece
+    <View style={[styles.result, busy && styles.resultBusy]}>
       <Text style={styles.muted}>Con tu saldo al {formatDay(result.asOf)}</Text>
 
       <View style={styles.section}>
@@ -202,7 +204,7 @@ function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPu
             <Text style={styles.month}>{formatMonth(after.month)}</Text>
             <View style={styles.monthColumns}>
               <MonthColumn title="Sin la compra" month={before} />
-              <MonthColumn title="Con la compra" month={after} />
+              <MonthColumn title="Con la compra" month={after} diff={before && after.closingBalance - before.closingBalance} />
             </View>
           </View>
         );
@@ -211,12 +213,27 @@ function Comparison({ without, withPurchase }: { without: MonthSummary[]; withPu
   );
 }
 
-function MonthColumn({ title, month }: { title: string; month: MonthSummary | undefined }) {
+function MonthColumn({
+  title,
+  month,
+  diff,
+}: {
+  title: string;
+  month: MonthSummary | undefined;
+  /** Cuánto cambia el cierre por la compra (centavos, con signo): una compra puede comerse el colchón sin cambiar el color. */
+  diff?: number;
+}) {
   if (month === undefined) return null;
   return (
     <View style={styles.column}>
       <Text style={styles.muted}>{title}</Text>
       <Text style={styles.closing}>{formatCop(month.closingBalance)}</Text>
+      {diff !== undefined && diff !== 0 && (
+        <Text style={diff < 0 ? styles.diffDown : styles.diffUp}>
+          {diff < 0 ? '−' : '+'}
+          {formatCop(Math.abs(diff))}
+        </Text>
+      )}
       <View style={[styles.badge, { backgroundColor: LIGHT_COLOR[month.light] }]}>
         <Text style={styles.badgeText}>{LIGHT_LABEL[month.light]}</Text>
       </View>
@@ -233,6 +250,9 @@ const styles = StyleSheet.create({
   error: { color: '#d64545' },
   muted: { color: '#666', fontSize: 13 },
   result: { marginTop: 16, gap: 16 },
+  resultBusy: { opacity: 0.5 },
+  diffDown: { color: '#d64545', fontSize: 13, fontWeight: '600' },
+  diffUp: { color: '#2e9e5b', fontSize: 13, fontWeight: '600' },
   section: { gap: 6 },
   sectionTitle: { fontSize: 18, fontWeight: '700' },
   alert: { color: '#d64545', fontWeight: '700' },
