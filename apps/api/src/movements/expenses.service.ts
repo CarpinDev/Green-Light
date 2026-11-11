@@ -88,5 +88,4 @@ export class ExpensesService {
       throw new BadRequestException('Un gasto desde una cuenta no puede ser deuda inicial: solo aplica a tarjetas');
     }
   }
-
 }

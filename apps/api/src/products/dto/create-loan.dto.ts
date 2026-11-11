@@ -1,16 +1,6 @@
 import type { AmortizationMethod } from '@greenlight/engine';
 import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Matches,
-  Max,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Matches, Max, Min, ValidateNested } from 'class-validator';
 import { IsIsoDate } from '../../common/validators';
 import { AMORTIZATION_METHODS } from '../amortization';
 import type { CreateLoanInput } from '../loans.service';

@@ -75,7 +75,8 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
 
   // Un abono a algo que no es tarjeta ni préstamo no debería existir: el service lo impide
   const orphan = facts.capitalPayments.find((p) => !cardIds.has(p.productId) && !loanIds.has(p.productId));
-  if (orphan) throw new Error(`el abono ${orphan.id} es al producto ${orphan.productId}, que no es tarjeta ni préstamo`);
+  if (orphan)
+    throw new Error(`el abono ${orphan.id} es al producto ${orphan.productId}, que no es tarjeta ni préstamo`);
 
   const fixedExpenses = facts.fixedExpenses.map(toFixedExpense);
   // Un gasto con tarjeta es una compra; desde una cuenta sale del disponible ese día
@@ -124,21 +125,28 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
 }
 
 /** Último saldo de cada cuenta; se proyecta desde el más reciente y se avisa de los más viejos. */
-function startingPoint(balances: readonly AccountBalance[]): Pick<ProjectionResult, 'asOf' | 'openingBalanceCents' | 'staleAccounts'> {
+function startingPoint(
+  balances: readonly AccountBalance[],
+): Pick<ProjectionResult, 'asOf' | 'openingBalanceCents' | 'staleAccounts'> {
   const latest = new Map<number, AccountBalance>();
   for (const b of balances) {
     const current = latest.get(b.productId);
     if (current === undefined || b.asOf > current.asOf) latest.set(b.productId, b);
   }
   if (latest.size === 0) {
-    throw new BadRequestException('No hay ningún saldo confirmado: registra el saldo de una cuenta para poder proyectar');
+    throw new BadRequestException(
+      'No hay ningún saldo confirmado: registra el saldo de una cuenta para poder proyectar',
+    );
   }
 
   const rows = [...latest.values()];
-  const asOf = rows.reduce((max, b) => (b.asOf > max ? b.asOf : max), rows[0]!.asOf);
+  const asOf = rows.reduce((max, b) => (b.asOf > max ? b.asOf : max), rows[0].asOf);
   return {
     asOf,
     openingBalanceCents: rows.reduce((sum, b) => sum + b.balanceCents, 0),
-    staleAccounts: rows.filter((b) => b.asOf < asOf).map((b) => b.productId).sort((a, b) => a - b),
+    staleAccounts: rows
+      .filter((b) => b.asOf < asOf)
+      .map((b) => b.productId)
+      .sort((a, b) => a - b),
   };
 }

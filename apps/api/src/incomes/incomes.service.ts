@@ -49,7 +49,8 @@ export class IncomesService {
 
   async createRecurringIncome(input: CreateRecurringIncomeInput): Promise<RecurringIncome> {
     assertDateRange(input.startDate, input.endDate);
-    if (input.destinationAccountId !== undefined) await assertAccountExists(this.dataSource, input.destinationAccountId);
+    if (input.destinationAccountId !== undefined)
+      await assertAccountExists(this.dataSource, input.destinationAccountId);
 
     return this.dataSource.getRepository(RecurringIncome).save({
       name: input.name,
@@ -63,7 +64,8 @@ export class IncomesService {
 
   async createOneOffIncome(input: CreateOneOffIncomeInput): Promise<OneOffIncome> {
     if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'income');
-    if (input.destinationAccountId !== undefined) await assertAccountExists(this.dataSource, input.destinationAccountId);
+    if (input.destinationAccountId !== undefined)
+      await assertAccountExists(this.dataSource, input.destinationAccountId);
 
     return this.dataSource.getRepository(OneOffIncome).save({
       date: input.date,

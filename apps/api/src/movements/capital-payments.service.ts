@@ -33,7 +33,9 @@ export class CapitalPaymentsService {
 
     if (input.expenseId !== undefined) {
       if (product.kind === 'loan') {
-        throw new BadRequestException('Un abono a un préstamo no puede apuntar a una compra: los préstamos no tienen compras');
+        throw new BadRequestException(
+          'Un abono a un préstamo no puede apuntar a una compra: los préstamos no tienen compras',
+        );
       }
       await this.assertPurchaseOf(product.id, input.expenseId, input.date);
     }

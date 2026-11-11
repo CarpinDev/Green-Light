@@ -37,7 +37,9 @@ describe('CreateRecurringIncomeDto y CreateFixedExpenseDto', () => {
 
 describe('CreateOneOffIncomeDto', () => {
   it('acepta un ingreso puntual y rechaza monto 0', async () => {
-    await expect(validate(CreateOneOffIncomeDto, { date: '2026-06-20', amountCents: 50_000_000 })).resolves.toBeDefined();
+    await expect(
+      validate(CreateOneOffIncomeDto, { date: '2026-06-20', amountCents: 50_000_000 }),
+    ).resolves.toBeDefined();
     await expect(validate(CreateOneOffIncomeDto, { date: '2026-06-20', amountCents: 0 })).rejects.toThrow();
   });
 });

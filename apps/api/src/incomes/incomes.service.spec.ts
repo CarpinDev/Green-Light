@@ -72,8 +72,17 @@ describe('IncomesService', () => {
     const bonus = { date: '2026-06-20', amountCents: 50_000_000 };
 
     it('guarda el ingreso con su categoría de ingreso y su cuenta', async () => {
-      await service.createOneOffIncome({ ...bonus, description: 'Prima', categoryId: SALARIO, destinationAccountId: AHORROS });
-      expect(db.rows(OneOffIncome)[0]).toMatchObject({ description: 'Prima', categoryId: SALARIO, destinationAccountId: AHORROS });
+      await service.createOneOffIncome({
+        ...bonus,
+        description: 'Prima',
+        categoryId: SALARIO,
+        destinationAccountId: AHORROS,
+      });
+      expect(db.rows(OneOffIncome)[0]).toMatchObject({
+        description: 'Prima',
+        categoryId: SALARIO,
+        destinationAccountId: AHORROS,
+      });
     });
 
     it('con una categoría de gasto: 400 (la regla inversa de la de gastos)', async () => {

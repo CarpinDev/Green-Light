@@ -1,15 +1,6 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
 import type Decimal from 'decimal.js';
-import {
-  Check,
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
 import { Product } from '../../products/entities/product.entity';

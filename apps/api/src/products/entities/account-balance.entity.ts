@@ -1,12 +1,5 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
-import {
-  Column,
-  Entity,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-  Unique,
-} from 'typeorm';
+import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Account } from './account.entity';
 

@@ -60,7 +60,9 @@ describe('SettingsService', () => {
   });
 
   it('si un umbral es inválido no se guarda ninguno de los otros', async () => {
-    await expect(service.update({ yellowBelowIncomePct: '0.2', debtToIncomePct: '2' })).rejects.toThrow(BadRequestException);
+    await expect(service.update({ yellowBelowIncomePct: '0.2', debtToIncomePct: '2' })).rejects.toThrow(
+      BadRequestException,
+    );
     await expect(service.get()).resolves.toMatchObject({ yellowBelowIncomePct: '0.1' });
   });
 

@@ -16,10 +16,7 @@ export class AccountsController {
 
   /** Confirma un saldo nuevo. 404 si el id no es una cuenta; 409 si ya hay uno en esa fecha. */
   @Post('accounts/:id/balances')
-  async confirmBalance(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: ConfirmBalanceDto,
-  ): Promise<{ id: number }> {
+  async confirmBalance(@Param('id', ParseIntPipe) id: number, @Body() dto: ConfirmBalanceDto): Promise<{ id: number }> {
     const { id: balanceId } = await this.accounts.confirmBalance(id, dto);
     return { id: balanceId };
   }

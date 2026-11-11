@@ -1,12 +1,5 @@
 import type { AmortizationMethod, Cents, IsoDate } from '@greenlight/engine';
-import {
-  Check,
-  Column,
-  Entity,
-  JoinColumn,
-  OneToOne,
-  PrimaryColumn,
-} from 'typeorm';
+import { Check, Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { AMORTIZATION_METHODS } from '../amortization';
 import { Product } from './product.entity';

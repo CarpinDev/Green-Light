@@ -16,15 +16,7 @@ import { LoansService } from './loans.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([
-      Product,
-      ProductRate,
-      CreditCard,
-      Loan,
-      Account,
-      AccountBalance,
-      StatementCheck,
-    ]),
+    TypeOrmModule.forFeature([Product, ProductRate, CreditCard, Loan, Account, AccountBalance, StatementCheck]),
   ],
   controllers: [CardsController, LoansController, AccountsController],
   providers: [CardsService, LoansService, AccountsService],

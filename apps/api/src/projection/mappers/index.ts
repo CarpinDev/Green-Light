@@ -148,8 +148,6 @@ export function toEngineSettings(settings: Settings): Engine.Settings {
 function assertRatesOf(productId: number, rates: readonly ProductRate[]): void {
   const foreign = rates.find((r) => r.productId !== productId);
   if (foreign) {
-    throw new Error(
-      `la tasa ${foreign.id} es del producto ${foreign.productId}, no del producto ${productId}`,
-    );
+    throw new Error(`la tasa ${foreign.id} es del producto ${foreign.productId}, no del producto ${productId}`);
   }
 }

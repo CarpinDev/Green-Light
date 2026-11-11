@@ -22,22 +22,43 @@ export class ProjectionService {
 
   async project(months: number): Promise<ProjectionResult> {
     const db = this.dataSource;
-    const [balances, cards, loans, rates, expenses, capitalPayments, recurringIncomes, oneOffIncomes, fixedExpenses, settings] =
-      await Promise.all([
-        db.getRepository(AccountBalance).find(),
-        db.getRepository(CreditCard).find(),
-        db.getRepository(Loan).find(),
-        db.getRepository(ProductRate).find(),
-        db.getRepository(Expense).find(),
-        db.getRepository(CapitalPayment).find(),
-        db.getRepository(RecurringIncome).find(),
-        db.getRepository(OneOffIncome).find(),
-        db.getRepository(FixedExpense).find(),
-        db.getRepository(Settings).findOneByOrFail({ id: SETTINGS_ID }),
-      ]);
+    const [
+      balances,
+      cards,
+      loans,
+      rates,
+      expenses,
+      capitalPayments,
+      recurringIncomes,
+      oneOffIncomes,
+      fixedExpenses,
+      settings,
+    ] = await Promise.all([
+      db.getRepository(AccountBalance).find(),
+      db.getRepository(CreditCard).find(),
+      db.getRepository(Loan).find(),
+      db.getRepository(ProductRate).find(),
+      db.getRepository(Expense).find(),
+      db.getRepository(CapitalPayment).find(),
+      db.getRepository(RecurringIncome).find(),
+      db.getRepository(OneOffIncome).find(),
+      db.getRepository(FixedExpense).find(),
+      db.getRepository(Settings).findOneByOrFail({ id: SETTINGS_ID }),
+    ]);
 
     return buildProjection(
-      { balances, cards, loans, rates, expenses, capitalPayments, recurringIncomes, oneOffIncomes, fixedExpenses, settings },
+      {
+        balances,
+        cards,
+        loans,
+        rates,
+        expenses,
+        capitalPayments,
+        recurringIncomes,
+        oneOffIncomes,
+        fixedExpenses,
+        settings,
+      },
       months,
       isoDateOf(),
     );

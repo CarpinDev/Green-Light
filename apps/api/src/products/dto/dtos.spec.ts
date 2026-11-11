@@ -6,8 +6,7 @@ import { CreateLoanDto } from './create-loan.dto';
 // Las reglas de forma del cuerpo, con el mismo ValidationPipe que usa main.ts. Datos ficticios.
 
 const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
-const validate = (metatype: new () => object, body: unknown) =>
-  pipe.transform(body, { type: 'body', metatype });
+const validate = (metatype: new () => object, body: unknown) => pipe.transform(body, { type: 'body', metatype });
 
 const loan = {
   name: 'Libre inversión',

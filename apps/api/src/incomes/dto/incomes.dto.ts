@@ -1,18 +1,6 @@
-import {
-  IsInt,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  Max,
-  MaxLength,
-  Min,
-} from 'class-validator';
+import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { IsIsoDate } from '../../common/validators';
-import type {
-  CreateFixedExpenseInput,
-  CreateOneOffIncomeInput,
-  CreateRecurringIncomeInput,
-} from '../incomes.service';
+import type { CreateFixedExpenseInput, CreateOneOffIncomeInput, CreateRecurringIncomeInput } from '../incomes.service';
 
 export class CreateRecurringIncomeDto implements CreateRecurringIncomeInput {
   @IsString()
