@@ -17,7 +17,10 @@ export class FakeDb {
   private nextId = 1;
 
   seed<T extends object>(Entity: new () => T, rows: Partial<T>[]): void {
-    this.tables.set(Entity, rows.map((r) => Object.assign(new Entity(), r) as unknown as Row));
+    this.tables.set(
+      Entity,
+      rows.map((r) => Object.assign(new Entity(), r) as unknown as Row),
+    );
   }
 
   rows<T>(Entity: new () => T): T[] {

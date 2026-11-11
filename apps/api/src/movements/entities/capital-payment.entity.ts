@@ -1,14 +1,5 @@
 import type { Cents, IsoDate, PrepaymentMode } from '@greenlight/engine';
-import {
-  Check,
-  Column,
-  CreateDateColumn,
-  Entity,
-  Index,
-  JoinColumn,
-  ManyToOne,
-  PrimaryGeneratedColumn,
-} from 'typeorm';
+import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Product } from '../../products/entities/product.entity';
 import { PREPAYMENT_MODES } from '../prepayment-mode';

@@ -57,7 +57,9 @@ describe('LoansService.create', () => {
   });
 
   it('pasa la cuota del banco, el seguro y el método cuando vienen', async () => {
-    await service.create(input({ fixedPaymentCents: 91_679_993, insuranceCents: 1_200_000, method: 'constant_capital' }));
+    await service.create(
+      input({ fixedPaymentCents: 91_679_993, insuranceCents: 1_200_000, method: 'constant_capital' }),
+    );
     expect(db.rows(Loan)[0]).toMatchObject({
       fixedPaymentCents: 91_679_993,
       insuranceCents: 1_200_000,

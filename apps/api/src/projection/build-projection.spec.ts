@@ -172,7 +172,14 @@ describe('buildProjection: las mismas cifras que el motor', () => {
 describe('buildProjection: cómo reparte los datos', () => {
   it('un gasto desde una cuenta sale del disponible ese día; uno anterior al saldo ya está contado', () => {
     const cash = (id: number, date: string, amount: number) =>
-      make(Expense, { id, date, amountCents: pesos(amount), sourceProductId: AHORROS, installments: null, description: '' });
+      make(Expense, {
+        id,
+        date,
+        amountCents: pesos(amount),
+        sourceProductId: AHORROS,
+        installments: null,
+        description: '',
+      });
     const base = facts();
     const { months } = buildProjection(
       facts({ expenses: [...base.expenses, cash(11, '2026-03-05', 999_999), cash(12, '2026-03-15', 100_000)] }),
@@ -186,19 +193,30 @@ describe('buildProjection: cómo reparte los datos', () => {
     // verde con el 10 % (umbral 300.000), amarillo con el 30 % (umbral 900.000)
     const base = facts();
     const big = make(Expense, {
-      id: 13, date: '2026-03-31', amountCents: pesos(4_000_000), sourceProductId: AHORROS, installments: null, description: '',
+      id: 13,
+      date: '2026-03-31',
+      amountCents: pesos(4_000_000),
+      sourceProductId: AHORROS,
+      installments: null,
+      description: '',
     });
     const withBig = facts({ expenses: [...base.expenses, big] });
     expect(buildProjection(withBig, 1).months[0]?.closingBalance).toBe(pesos(800_000));
     expect(buildProjection(withBig, 1).months[0]?.light).toBe('green');
-    const strict = { ...withBig, settings: make(Settings, { ...base.settings, yellowBelowIncomePct: new Decimal('0.30') }) };
+    const strict = {
+      ...withBig,
+      settings: make(Settings, { ...base.settings, yellowBelowIncomePct: new Decimal('0.30') }),
+    };
     expect(buildProjection(strict, 1).months[0]?.light).toBe('yellow');
   });
 
   it('cada tarjeta y cada préstamo recibe solo sus tasas, compras y abonos', () => {
     // Una segunda tarjeta sin compras no debe recibir la compra A ni el abono de VISA
     const other = make(CreditCard, { ...facts().cards[0]!, productId: 9 });
-    const withTwo = facts({ cards: [...facts().cards, other], rates: [...facts().rates, rateRow(3, 9, '2025-12-01', '0.03')] });
+    const withTwo = facts({
+      cards: [...facts().cards, other],
+      rates: [...facts().rates, rateRow(3, 9, '2025-12-01', '0.03')],
+    });
     // Solo le cobra a ABRIL su cuota de manejo (30.000 del corte de marzo), nada de la compra A
     expect(buildProjection(withTwo, 3).months[1]?.closingBalance).toBe(638_520_007 - pesos(30_000));
   });
@@ -237,7 +255,12 @@ describe('buildProjection: frescura del saldo', () => {
 
   it('cuando hay un saldo más nuevo, el viejo deja de ser el punto de partida', () => {
     const base = facts();
-    const fresh = make(AccountBalance, { id: 9, productId: AHORROS, asOf: '2026-04-20', balanceCents: pesos(1_000_000) });
+    const fresh = make(AccountBalance, {
+      id: 9,
+      productId: AHORROS,
+      asOf: '2026-04-20',
+      balanceCents: pesos(1_000_000),
+    });
     const result = buildAt(facts({ balances: [...base.balances, fresh] }), 3, '2026-04-25');
     expect(result).toMatchObject({ asOf: '2026-04-20', daysSinceBalance: 5 });
   });

@@ -1,9 +1,5 @@
 import { Body, Controller, Post } from '@nestjs/common';
-import {
-  CreateFixedExpenseDto,
-  CreateOneOffIncomeDto,
-  CreateRecurringIncomeDto,
-} from './dto/incomes.dto';
+import { CreateFixedExpenseDto, CreateOneOffIncomeDto, CreateRecurringIncomeDto } from './dto/incomes.dto';
 import { IncomesService } from './incomes.service';
 
 /** Cada POST responde 201 con solo el id. */

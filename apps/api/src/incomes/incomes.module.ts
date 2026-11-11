@@ -7,9 +7,7 @@ import { IncomesController } from './incomes.controller';
 import { IncomesService } from './incomes.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([RecurringIncome, OneOffIncome, FixedExpense]),
-  ],
+  imports: [TypeOrmModule.forFeature([RecurringIncome, OneOffIncome, FixedExpense])],
   controllers: [IncomesController],
   providers: [IncomesService],
   exports: [IncomesService],

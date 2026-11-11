@@ -19,7 +19,9 @@ export class CategoriesService {
       return await this.dataSource.getRepository(Category).save({ name: input.name, kind: input.kind });
     } catch (err) {
       if (isUniqueViolation(err)) {
-        throw new ConflictException(`Ya existe la categoría "${input.name}" de ${input.kind === 'expense' ? 'gasto' : 'ingreso'}`);
+        throw new ConflictException(
+          `Ya existe la categoría "${input.name}" de ${input.kind === 'expense' ? 'gasto' : 'ingreso'}`,
+        );
       }
       throw err;
     }

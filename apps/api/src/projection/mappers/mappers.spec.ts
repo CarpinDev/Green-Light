@@ -28,8 +28,7 @@ import {
 // Datos ficticios.
 
 /** Crea una entidad como la devolvería TypeORM (los transformers ya aplicados). */
-const make = <T extends object>(Entity: new () => T, fields: Partial<T>): T =>
-  Object.assign(new Entity(), fields);
+const make = <T extends object>(Entity: new () => T, fields: Partial<T>): T => Object.assign(new Entity(), fields);
 
 const D = (v: string) => new Decimal(v);
 
@@ -37,10 +36,7 @@ const rate = (productId: number, effectiveFrom: string, ea: string, mv: string) 
   make(ProductRate, { id: 1, productId, effectiveFrom, ea: D(ea), mv: D(mv), source: 'ea' });
 
 describe('toRateHistory', () => {
-  const rates = [
-    rate(7, '2026-03-01', '0.2600', '0.019514'),
-    rate(7, '2026-01-01', '0.2899', '0.021432916942'),
-  ];
+  const rates = [rate(7, '2026-03-01', '0.2600', '0.019514'), rate(7, '2026-01-01', '0.2899', '0.021432916942')];
 
   it('arma el historial sin importar el orden en que lleguen las filas', () => {
     const history = toRateHistory(rates);
@@ -92,9 +88,7 @@ describe('toEngineCard', () => {
   });
 
   it('rechaza tasas de otro producto (el service las filtró mal)', () => {
-    expect(() => toEngineCard(card, [rate(8, '2026-01-01', '0.2899', '0.021432916942')])).toThrow(
-      /producto/i,
-    );
+    expect(() => toEngineCard(card, [rate(8, '2026-01-01', '0.2899', '0.021432916942')])).toThrow(/producto/i);
   });
 });
 

@@ -40,8 +40,15 @@ class FakeDb {
       const type = entity.constructor;
       if (type === this.failOn) throw new Error('la base se cayó');
       const list = staged.get(type) ?? [];
-      if (type === Product && list.some((p) => p.kind === entity.kind && p.bank === entity.bank && p.last4 === entity.last4)) {
-        throw new QueryFailedError('INSERT INTO "product" ...', [], Object.assign(new Error('duplicate key value'), { code: '23505' }));
+      if (
+        type === Product &&
+        list.some((p) => p.kind === entity.kind && p.bank === entity.bank && p.last4 === entity.last4)
+      ) {
+        throw new QueryFailedError(
+          'INSERT INTO "product" ...',
+          [],
+          Object.assign(new Error('duplicate key value'), { code: '23505' }),
+        );
       }
       if (type !== CreditCard && entity.id === undefined) entity.id = this.nextId++;
       staged.set(type, [...list, entity]);
@@ -77,7 +84,12 @@ describe('CardsService.create', () => {
 
     const [product] = db.rows(Product);
     expect(product).toMatchObject({ kind: 'credit_card', name: 'Visa Ficticia', bank: 'Banco Ejemplo', last4: '4321' });
-    expect(db.rows(CreditCard)[0]).toMatchObject({ productId: product.id, creditLimitCents: 500_000_000, cutDay: 15, dueDay: 5 });
+    expect(db.rows(CreditCard)[0]).toMatchObject({
+      productId: product.id,
+      creditLimitCents: 500_000_000,
+      cutDay: 15,
+      dueDay: 5,
+    });
     const [rate] = db.rows(ProductRate);
     expect(rate).toMatchObject({ productId: product.id, effectiveFrom: '2026-01-01', source: 'ea' });
     expect(rate.ea.equals(new Decimal('0.2899'))).toBe(true);
@@ -98,9 +110,9 @@ describe('CardsService.create', () => {
   });
 
   it('una tasa inválida es un 400 y no toca la base', async () => {
-    await expect(service.create(input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } }))).rejects.toThrow(
-      BadRequestException,
-    );
+    await expect(
+      service.create(input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } })),
+    ).rejects.toThrow(BadRequestException);
     expect(db.rows(Product)).toHaveLength(0);
   });
 

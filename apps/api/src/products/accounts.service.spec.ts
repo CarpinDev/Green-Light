@@ -86,7 +86,11 @@ describe('AccountsService', () => {
     it('agrega el saldo confirmado y devuelve su id', async () => {
       const saved = await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 300_000_000 });
       expect(saved.id).toBeDefined();
-      expect(db.rows(AccountBalance)[0]).toMatchObject({ productId: accountId, asOf: '2026-04-01', balanceCents: 300_000_000 });
+      expect(db.rows(AccountBalance)[0]).toMatchObject({
+        productId: accountId,
+        asOf: '2026-04-01',
+        balanceCents: 300_000_000,
+      });
     });
 
     it('acepta un saldo negativo', async () => {
