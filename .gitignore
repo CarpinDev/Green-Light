@@ -4,6 +4,8 @@ node_modules
 build
 coverage
 
+.expo/
+
 # Logs
 logs
 *.log
