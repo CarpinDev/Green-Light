@@ -1,18 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 
 import { getJson } from '@/api/client';
 import { isStaleBalance } from '@/api/errors';
-import type { MonthSummary, ProjectionResponse } from '@/api/types';
+import type { Product, ProjectionResponse } from '@/api/types';
 import { Banner } from '@/components/banner';
 import { Button } from '@/components/button';
-import { Card } from '@/components/card';
-import { LightBadge } from '@/components/light-badge';
+import { HeroCard } from '@/components/home/hero-card';
+import { MonthBars } from '@/components/home/month-bars';
+import { StatPair } from '@/components/home/stat-pair';
+import { UpcomingList } from '@/components/home/upcoming-list';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
-import { currentMonth, formatDay, formatMonth, STALE_DAYS } from '@/dates';
-import { formatCop } from '@/money';
+import { currentMonth as thisMonth, formatDayShort, STALE_DAYS, today } from '@/dates';
+import { alertMessage, chartBars, currentMonth, incomeShare, upcomingMovements, visibleMonths } from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
 
@@ -21,7 +23,8 @@ export default function Home() {
     queryKey: ['projection'],
     queryFn: () => getJson<ProjectionResponse>('/projection?months=6'),
   });
-
+  // Los nombres de las tarjetas para las alertas. Si no llegan, las alertas salen sin nombre: no bloquea el inicio
+  const products = useQuery({ queryKey: ['products'], queryFn: () => getJson<Product[]>('/products') });
   const clearance = useTabBarClearance();
 
   return (
@@ -39,10 +42,13 @@ export default function Home() {
         )
       }
     >
-      {({ asOf, daysSinceBalance, staleAccounts, months }) => {
-        // El primer mes proyectado puede ya haber pasado: se muestra solo desde el mes actual
-        const now = currentMonth();
-        const visible = months.filter((m) => m.month >= now);
+      {({ asOf, daysSinceBalance, staleAccounts, months, alerts }) => {
+        const visible = visibleMonths(months, thisMonth());
+        const current = currentMonth(months, thisMonth());
+        const movements = upcomingMovements(
+          visible.flatMap((m) => m.events),
+          today(),
+        );
 
         return (
           <ScrollView
@@ -55,7 +61,9 @@ export default function Home() {
               />
             }
           >
-            <Text style={styles.asOf}>Saldo al {formatDay(asOf)}</Text>
+            <Text style={styles.caption}>
+              Saldo al {formatDayShort(asOf)} · {daysAgo(daysSinceBalance)}
+            </Text>
 
             {daysSinceBalance > STALE_DAYS && (
               <Banner action={{ label: 'Confirmar saldo', href: '/balances' }}>
@@ -71,11 +79,21 @@ export default function Home() {
               </Banner>
             )}
 
-            {visible.length === 0 ? (
-              <Text style={styles.muted}>No hay meses proyectados desde el mes actual.</Text>
+            {current === undefined ? (
+              <Text style={styles.caption}>No hay meses proyectados desde el mes actual.</Text>
             ) : (
-              visible.map((month) => <MonthCard key={month.month} month={month} />)
+              <>
+                <HeroCard month={current} share={incomeShare(current)} />
+                <StatPair income={current.income} outflow={current.outflow} />
+                <MonthBars bars={chartBars(visible)} />
+              </>
             )}
+
+            {alerts.map((alert) => (
+              <Banner key={`${alert.kind}-${alert.refId}`}>{alertMessage(alert, products.data ?? [])}</Banner>
+            ))}
+
+            <UpcomingList events={movements} />
           </ScrollView>
         );
       }}
@@ -83,22 +101,10 @@ export default function Home() {
   );
 }
 
-function MonthCard({ month }: { month: MonthSummary }) {
-  return (
-    <Card style={styles.card}>
-      <View style={styles.cardHeader}>
-        <Text style={styles.month}>{formatMonth(month.month)}</Text>
-        <LightBadge light={month.light} />
-      </View>
-      <Text style={styles.label}>Cierra con</Text>
-      <Text style={styles.closing}>{formatCop(month.closingBalance)}</Text>
-      {month.lowestBalanceDate !== undefined && (
-        <Text style={styles.muted}>
-          Lo más bajo: {formatCop(month.lowestBalance)} el {formatDay(month.lowestBalanceDate)}
-        </Text>
-      )}
-    </Card>
-  );
+/** "hoy", "hace 1 día", "hace 5 días". */
+function daysAgo(days: number): string {
+  if (days <= 0) return 'hoy';
+  return days === 1 ? 'hace 1 día' : `hace ${days} días`;
 }
 
 /** Un 409 no es un error genérico: es el saldo viejo, y la solución es confirmarlo. */
@@ -108,11 +114,5 @@ function titleOf(error: Error): string {
 
 const styles = StyleSheet.create({
   content: { padding: 16, gap: 12, maxWidth: 640, width: '100%', alignSelf: 'center' },
-  asOf: { ...type.bodyMedium },
-  muted: { ...type.caption, color: colors.textMuted },
-  card: { gap: 4 },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  month: { ...type.subtitle, textTransform: 'capitalize' },
-  label: { ...type.captionSmall, color: colors.textMuted, marginTop: 8 },
-  closing: { ...type.title },
+  caption: { ...type.caption, color: colors.textMuted },
 });

@@ -34,3 +34,37 @@ export function daysBetween(from: string, to: string): number {
 export function today(now: Date = new Date()): string {
   return `${currentMonth(now)}-${String(now.getDate()).padStart(2, '0')}`;
 }
+
+const MONTH_NAMES = [
+  'enero',
+  'febrero',
+  'marzo',
+  'abril',
+  'mayo',
+  'junio',
+  'julio',
+  'agosto',
+  'septiembre',
+  'octubre',
+  'noviembre',
+  'diciembre',
+];
+
+const monthNumber = (iso: string) => Number(iso.split('-')[1] ?? 1);
+
+/** "2026-11" -> "noviembre". Sin año: para frases como "Cierras noviembre con". */
+export function formatMonthName(month: string): string {
+  return MONTH_NAMES[monthNumber(month) - 1] ?? '';
+}
+
+/** "2026-11" -> "Nov". Tres letras, para las etiquetas de una gráfica. */
+export function formatMonthShort(month: string): string {
+  const name = formatMonthName(month);
+  return name.charAt(0).toUpperCase() + name.slice(1, 3);
+}
+
+/** "2026-11-28" -> "28 nov". Sin año: para fechas cercanas. */
+export function formatDayShort(iso: string): string {
+  const day = Number(iso.split('-')[2] ?? 1);
+  return `${day} ${formatMonthName(iso).slice(0, 3)}`;
+}

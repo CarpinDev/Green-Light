@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { currentMonth, daysBetween, today } from '@/dates';
+import { currentMonth, daysBetween, formatDayShort, formatMonthName, formatMonthShort, today } from '@/dates';
 
 describe('today', () => {
   it('usa el día local: a las 11:30 pm sigue siendo el mismo día (toISOString daría el de UTC)', () => {
@@ -46,5 +46,22 @@ describe('daysBetween', () => {
 
   it('si la fecha final es anterior da negativo', () => {
     expect(daysBetween('2026-10-09', '2026-10-02')).toBe(-7);
+  });
+});
+
+describe('formatos cortos', () => {
+  it('formatMonthName: solo el nombre del mes', () => {
+    expect(formatMonthName('2026-11')).toBe('noviembre');
+    expect(formatMonthName('2026-01')).toBe('enero');
+  });
+
+  it('formatMonthShort: tres letras con mayúscula inicial', () => {
+    expect(formatMonthShort('2026-11')).toBe('Nov');
+    expect(formatMonthShort('2027-09')).toBe('Sep');
+  });
+
+  it('formatDayShort: día y mes corto, sin año ni cero a la izquierda', () => {
+    expect(formatDayShort('2026-11-28')).toBe('28 nov');
+    expect(formatDayShort('2026-03-05')).toBe('5 mar');
   });
 });
