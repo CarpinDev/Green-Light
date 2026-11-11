@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { rateFromMv } from '@greenlight/engine';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
@@ -10,12 +10,17 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { Loan } from '../products/entities/loan.entity';
 import { ProductRate } from '../products/entities/product-rate.entity';
 import { Settings } from '../settings/entities/settings.entity';
-import { type ProjectionFacts, buildProjection } from './build-projection';
+import { MAX_BALANCE_AGE_DAYS, type ProjectionFacts, buildProjection as buildAt } from './build-projection';
 
 // Va en apps/api/src/projection/. buildProjection es PURA: recibe las filas que el service ya
 // leyó de la base y arma todo para project() del motor. El service solo carga y la llama.
 // Es el escenario de "proyección completa con deudas" de debt-events.test.ts del motor, con
 // las mismas cifras, pero entrando desde las entidades. Datos ficticios.
+
+// "Hoy" para las pruebas de cifras: dos días después del saldo (2026-03-10), así el saldo está fresco.
+// Las pruebas de frescura, más abajo, usan buildAt con otras fechas.
+const TODAY = '2026-03-12';
+const buildProjection = (f: ProjectionFacts, months: number) => buildAt(f, months, TODAY);
 
 const make = <T extends object>(Entity: new () => T, fields: Partial<T>): T => Object.assign(new Entity(), fields);
 const pesos = (n: number) => n * 100;
@@ -196,5 +201,44 @@ describe('buildProjection: cómo reparte los datos', () => {
     const withTwo = facts({ cards: [...facts().cards, other], rates: [...facts().rates, rateRow(3, 9, '2025-12-01', '0.03')] });
     // Solo le cobra a ABRIL su cuota de manejo (30.000 del corte de marzo), nada de la compra A
     expect(buildProjection(withTwo, 3).months[1]?.closingBalance).toBe(638_520_007 - pesos(30_000));
+  });
+});
+
+describe('buildProjection: frescura del saldo', () => {
+  // El saldo más reciente es del 2026-03-10; el de NOMINA (2026-03-01) es más viejo
+  const at = (today: string) => () => buildAt(facts(), 3, today);
+
+  it('daysSinceBalance son los días entre el saldo más reciente y hoy', () => {
+    expect(buildAt(facts(), 3, '2026-03-12').daysSinceBalance).toBe(2);
+    expect(buildAt(facts(), 3, '2026-03-10').daysSinceBalance).toBe(0);
+  });
+
+  it('un saldo con fecha de hoy o futura cuenta 0 días, no un número negativo', () => {
+    expect(buildAt(facts(), 3, '2026-03-01').daysSinceBalance).toBe(0);
+  });
+
+  it('hasta 31 días todavía proyecta: la app solo muestra el aviso', () => {
+    expect(MAX_BALANCE_AGE_DAYS).toBe(31);
+    const result = buildAt(facts(), 3, '2026-04-10'); // 31 días después del 2026-03-10
+    expect(result.daysSinceBalance).toBe(31);
+    expect(result.months).toHaveLength(3);
+  });
+
+  it('con más de 31 días responde 409 con la fecha del saldo', () => {
+    expect(at('2026-04-11')).toThrow(ConflictException); // 32 días
+    expect(at('2026-04-11')).toThrow(/2026-03-10/);
+    expect(at('2026-04-11')).toThrow(/confírmalo/i);
+  });
+
+  it('el límite mira el saldo más reciente de todos, no el de la cuenta más vieja', () => {
+    // NOMINA tiene 35 días el 2026-04-05, pero AHORROS (2026-03-10) tiene 26: sí proyecta
+    expect(at('2026-04-05')()).toMatchObject({ daysSinceBalance: 26, staleAccounts: [NOMINA] });
+  });
+
+  it('cuando hay un saldo más nuevo, el viejo deja de ser el punto de partida', () => {
+    const base = facts();
+    const fresh = make(AccountBalance, { id: 9, productId: AHORROS, asOf: '2026-04-20', balanceCents: pesos(1_000_000) });
+    const result = buildAt(facts({ balances: [...base.balances, fresh] }), 3, '2026-04-25');
+    expect(result).toMatchObject({ asOf: '2026-04-20', daysSinceBalance: 5 });
   });
 });
