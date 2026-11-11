@@ -49,7 +49,8 @@ export default function NewExpense() {
 
   const submit = () => {
     const amountCents = parsePesos(amount);
-    if (amountCents === null || amountCents === 0) return setFormError('Escribe un monto válido, solo números (ej. 120.000).');
+    if (amountCents === null || amountCents === 0)
+      return setFormError('Escribe un monto válido, solo números (ej. 120.000).');
     if (!DATE_FORMAT.test(date)) return setFormError('La fecha va como AAAA-MM-DD (ej. 2026-03-12).');
     if (selected === undefined) return setFormError('Elige de dónde sale el gasto.');
 
@@ -84,7 +85,13 @@ export default function NewExpense() {
       />
 
       <Label>Fecha</Label>
-      <TextInput style={styles.input} value={date} onChangeText={setDate} placeholder="AAAA-MM-DD" autoCapitalize="none" />
+      <TextInput
+        style={styles.input}
+        value={date}
+        onChangeText={setDate}
+        placeholder="AAAA-MM-DD"
+        autoCapitalize="none"
+      />
 
       <Label>De dónde sale</Label>
       {products.isPending ? (
