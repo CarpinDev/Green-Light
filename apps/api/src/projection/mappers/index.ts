@@ -64,6 +64,8 @@ export function toCardPurchase(expense: Expense): Engine.CardPurchase {
     installments: expense.installments,
     ...(expense.promoEa !== null &&
       expense.promoMv !== null && { promoRate: { ea: expense.promoEa, mv: expense.promoMv } }),
+    // La deuda inicial ya venía cobrando interés: su primer corte lleva el mes completo, no es una compra nueva
+    ...(expense.isOpeningDebt && { firstPeriodInterest: 'full_month' as const }),
   };
 }
 

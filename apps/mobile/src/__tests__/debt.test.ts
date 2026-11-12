@@ -10,7 +10,7 @@ import {
   validateGroup,
   validateGroups,
 } from '@/products/debt';
-import { barHeights, checkVerdict, comparableCut, planBars } from '@/products/plan';
+import { barHeights, checkVerdict, comparableCut, pendingStatementCut, planBars } from '@/products/plan';
 
 const group = (overrides: Partial<DebtGroupDraft> = {}): DebtGroupDraft => ({
   ...emptyGroup('g'),
@@ -108,6 +108,16 @@ describe('groupBody y openingDebtBody', () => {
     });
     expect(openingDebtBody([group(), group({ installments: '99' })])).toBeNull();
     expect(openingDebtBody([])).toBeNull();
+  });
+
+  it('statementPaid solo viaja cuando es true', () => {
+    expect(openingDebtBody([group()])).not.toHaveProperty('statementPaid');
+    expect(openingDebtBody([group()], false)).not.toHaveProperty('statementPaid');
+    expect(openingDebtBody([group()], true)).toEqual({
+      items: [{ amountCents: 190_000_000, installments: 2 }],
+      statementPaid: true,
+    });
+    expect(openingDebtBody([], true)).toBeNull();
   });
 });
 
@@ -207,5 +217,19 @@ describe('checkVerdict', () => {
   it('si el banco dice 0 la diferencia es infinita: no inventa un porcentaje', () => {
     const verdict = checkVerdict(check({ difference: 100, relativeDifference: 'Infinity', withinTolerance: false }));
     expect(verdict.headline).toContain('sin porcentaje');
+  });
+});
+
+describe('pendingStatementCut', () => {
+  const cuts = [cut('2026-11-14', '2026-12-04', 1), cut('2026-12-14', '2027-01-04', 1)];
+
+  it('hoy entre el corte y su pago: ese extracto', () => {
+    expect(pendingStatementCut(cuts, '2026-11-20')?.cutDate).toBe('2026-11-14');
+  });
+
+  it('antes del corte (el primero aún no llega) o el mismo día: no hay extracto por pagar', () => {
+    expect(pendingStatementCut(cuts, '2026-11-12')).toBeNull();
+    expect(pendingStatementCut(cuts, '2026-11-14')).toBeNull();
+    expect(pendingStatementCut([], '2026-11-20')).toBeNull();
   });
 });

@@ -34,6 +34,12 @@ export interface CardPurchase {
   installments: number;
   /** Tasa fija de promoción; gana sobre la de la tarjeta durante toda la compra. */
   promoRate?: Rate;
+  /**
+   * Cómo se cobra el interés de su primera cuota; gana sobre el de la tarjeta. Sirve para la deuda que la
+   * tarjeta ya venía cobrando (no es una compra nueva): su primer corte debe cobrar el mes completo
+   * (`full_month`) aunque la tarjeta prorratee o no cobre el primer periodo.
+   */
+  firstPeriodInterest?: FirstPeriodInterest;
 }
 
 /** Abono extraordinario a capital. Sin `purchaseId` queda sin asignar y lo reparte `planCard`. */
@@ -100,7 +106,7 @@ export function planPurchase(
     rates.map((r) => r.mv),
     card.minPaymentMethod,
     {
-      firstPeriodRate: firstPeriodRate(card.firstPeriodInterest, firstRate, purchase.date, firstCut),
+      firstPeriodRate: firstPeriodRate(purchase.firstPeriodInterest ?? card.firstPeriodInterest, firstRate, purchase.date, firstCut),
       prepayments: [...grouped.values()].map((g) => ({
         afterPeriod: g.afterPeriod,
         amount: g.amount,

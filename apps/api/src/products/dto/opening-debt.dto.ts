@@ -1,5 +1,15 @@
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsOptional, Max, Min, ValidateNested } from 'class-validator';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { PromoDto } from '../../movements/dto/create-expense.dto';
 import type { OpeningDebtInput, OpeningDebtItemInput } from '../opening-debt.service';
 
@@ -31,4 +41,9 @@ export class OpeningDebtDto implements OpeningDebtInput {
   @ValidateNested({ each: true })
   @Type(() => OpeningDebtItemDto)
   items!: OpeningDebtItemDto[];
+
+  /** Si ya pagaste el extracto del último corte; entonces las cuotas que faltan no lo cuentan. */
+  @IsOptional()
+  @IsBoolean()
+  statementPaid?: boolean;
 }

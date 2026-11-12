@@ -70,10 +70,15 @@ export function groupBody(group: DebtGroupDraft): OpeningDebtItemBody | null {
 }
 
 /** El cuerpo de POST /cards/:id/opening-debt, o null si algún grupo no vale (validateGroups dice cuál). */
-export function openingDebtBody(groups: readonly DebtGroupDraft[]): { items: OpeningDebtItemBody[] } | null {
+export function openingDebtBody(
+  groups: readonly DebtGroupDraft[],
+  statementPaid = false,
+): { items: OpeningDebtItemBody[]; statementPaid?: true } | null {
   if (validateGroups(groups) !== null) return null;
   const items = groups.map(groupBody);
-  return items.every((item) => item !== null) ? { items: items as OpeningDebtItemBody[] } : null;
+  if (!items.every((item) => item !== null)) return null;
+  // statementPaid solo viaja cuando es true: sin él la API cuenta el extracto pendiente como el próximo pago
+  return { items: items as OpeningDebtItemBody[], ...(statementPaid && { statementPaid: true as const }) };
 }
 
 /** Los grupos que ya están guardados, como borradores para editarlos. La promo vuelve como E.A. en porcentaje. */

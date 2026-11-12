@@ -125,6 +125,11 @@ describe('OpeningDebtDto', () => {
     await expect(validate(OpeningDebtDto, { items: Array.from({ length: 30 }, () => item) })).resolves.toBeDefined();
   });
 
+  it('statementPaid es opcional y debe ser booleano', async () => {
+    await expect(validate(OpeningDebtDto, { items: [item], statementPaid: true })).resolves.toBeDefined();
+    await expect(validate(OpeningDebtDto, { items: [item], statementPaid: 'si' })).rejects.toThrow();
+  });
+
   it('rechaza 0 grupos, 31 grupos y que items no sea una lista', async () => {
     await expect(validate(OpeningDebtDto, { items: [] })).rejects.toThrow();
     await expect(validate(OpeningDebtDto, { items: Array.from({ length: 31 }, () => item) })).rejects.toThrow();

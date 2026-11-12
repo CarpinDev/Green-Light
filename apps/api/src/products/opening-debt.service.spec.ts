@@ -247,6 +247,46 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
   });
 
+  describe('la deuda inicial cobra el mes completo y cae en el extracto pendiente', () => {
+    // Corte el 14 y pago el 4 (Nu), con la tarjeta prorrateando el primer periodo
+    beforeEach(() => {
+      for (const c of db.rows(CreditCard)) Object.assign(c, { cutDay: 14, dueDay: 4 });
+      const original = plans.plan.bind(plans);
+      plans.plan = (...args) => {
+        asInDb();
+        return original(...args);
+      };
+    });
+    const group = { items: [{ amountCents: pesos(682_500), installments: 2, promo: { mv: '0.021' } }] };
+
+    it('cargada el 12 nov (2 días antes del corte) el pago del 4 dic lleva capital 341.250 + interés 14.332,50', async () => {
+      await debt.replace(VISA, group, '2026-11-12');
+      const { cuts } = await plans.plan(VISA, 3, '2026-11-12');
+      const dec = cuts.find((c) => c.dueDate === '2026-12-04');
+
+      expect(dec?.minimum.capital).toBe(pesos(341_250));
+      expect(dec?.minimum.interest).toBe(1_433_250);
+    });
+
+    it('cargada el 20 nov sin statementPaid también cae en el pago del 4 dic, no en el del 4 ene', async () => {
+      await debt.replace(VISA, group, '2026-11-20');
+      expect(openingOf(VISA)[0]?.date).toBe('2026-11-14');
+      const { cuts } = await plans.plan(VISA, 3, '2026-11-20');
+
+      expect(cuts[0]?.dueDate).toBe('2026-12-04');
+      expect(cuts[0]?.minimum.capital).toBe(pesos(341_250));
+      expect(cuts[1]?.minimum.capital).toBe(pesos(341_250));
+    });
+
+    it('con statementPaid la deuda cae en el siguiente corte', async () => {
+      await debt.replace(VISA, { ...group, statementPaid: true }, '2026-11-20');
+      expect(openingOf(VISA)[0]?.date).toBe('2026-11-20');
+      const { cuts } = await plans.plan(VISA, 3, '2026-11-20');
+      expect(cuts.find((c) => c.dueDate === '2026-12-04')?.minimum.capital).toBe(0);
+      expect(cuts.find((c) => c.dueDate === '2027-01-04')?.minimum.capital).toBe(pesos(341_250));
+    });
+  });
+
   describe('controller: cuts', () => {
     const controller = new CardDebtController(
       {} as OpeningDebtService,

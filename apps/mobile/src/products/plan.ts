@@ -42,6 +42,15 @@ export function comparableCut(cuts: readonly PlanCut[], today: string): PlanCut 
   return first !== undefined && first.cutDate <= today ? first : null;
 }
 
+/**
+ * El extracto que hoy está entre su corte y su pago: el primer corte del plan, si ya cerró. La API ya filtra
+ * los cortes con el pago vencido, así que no hay que repetir aquí las fechas de la tarjeta. Null si no hay.
+ */
+export function pendingStatementCut(cuts: readonly PlanCut[], today: string): PlanCut | null {
+  const first = cuts[0];
+  return first !== undefined && first.cutDate < today ? first : null;
+}
+
 export interface CheckVerdict {
   within: boolean;
   /** "Coincide: la diferencia es de ..." */

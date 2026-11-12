@@ -65,6 +65,11 @@ function Compare({ cardId, cuts }: { cardId: number; cuts: readonly PlanCut[] })
             <Text style={styles.strong}>{formatCop(cut.minimum.total)}</Text>.
           </Text>
 
+          <Text style={styles.muted}>
+            Usa el pago mínimo del extracto ya cerrado (el PDF). Algunos bancos muestran en la app un mínimo estimado
+            sin intereses, y ese no sirve para comparar.
+          </Text>
+
           <Label>Mínimo que dice tu banco</Label>
           <MoneyInput value={bankCents} onChangeCents={setBankCents} placeholder="$ 0" />
           <Button

@@ -1,10 +1,12 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Cents } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { isoDateOf } from '../common/dates';
 import { CapitalPayment } from '../movements/entities/capital-payment.entity';
 import { Expense } from '../movements/entities/expense.entity';
 import { expenseValues } from '../movements/expenses.service';
+import { CreditCard } from './entities/credit-card.entity';
+import { openingDebtDate } from './opening-debt-date';
 import { Product } from './entities/product.entity';
 import { assertCardProduct } from './product-checks';
 import type { RateInput } from './resolve-rate';
@@ -19,6 +21,8 @@ export interface OpeningDebtItemInput {
 
 export interface OpeningDebtInput {
   items: OpeningDebtItemInput[];
+  /** Si ya pagaste el extracto del último corte (con pago pendiente); entonces no cuenta como "próximo pago". */
+  statementPaid?: boolean;
 }
 
 /** Un grupo ya guardado, con la tasa de su promoción como texto (son decimales exactos). */
@@ -62,20 +66,25 @@ export class OpeningDebtService {
    * nuevos, todo o nada. Si un abono a capital apunta a uno de los anteriores no se puede borrar: 409.
    */
   async replace(cardId: number, input: OpeningDebtInput, today = isoDateOf()): Promise<{ ids: number[] }> {
-    // Las filas se arman antes de abrir la transacción: una tasa mala es un 400 sin haber tocado nada
-    const rows = input.items.map((item) =>
-      expenseValues({
-        date: today,
-        amountCents: item.amountCents,
-        sourceProductId: cardId,
-        installments: item.installments,
-        ...(item.promo !== undefined && { promo: item.promo }),
-        isOpeningDebt: true,
-      }),
-    );
-
     return this.dataSource.transaction(async (manager) => {
       assertCardProduct(await manager.findOneBy(Product, { id: cardId }), cardId);
+      const card = await manager.findOneBy(CreditCard, { productId: cardId });
+      if (!card) throw new NotFoundException(`La tarjeta ${cardId} no tiene datos de tarjeta`);
+
+      // Cada grupo son "las cuotas que faltan, contando la del próximo pago". Si el extracto del último corte
+      // aún no vence (y no lo has pagado), la deuda se guarda con la fecha de ese corte para que caiga en él.
+      const date = openingDebtDate(today, card.cutDay, card.dueDay, input.statementPaid ?? false);
+      // Las filas se arman antes de borrar nada: una tasa mala es un 400 y la transacción no cambia nada
+      const rows = input.items.map((item) =>
+        expenseValues({
+          date,
+          amountCents: item.amountCents,
+          sourceProductId: cardId,
+          installments: item.installments,
+          ...(item.promo !== undefined && { promo: item.promo }),
+          isOpeningDebt: true,
+        }),
+      );
 
       const previous = await manager.find(Expense, { where: { sourceProductId: cardId, isOpeningDebt: true } });
       if (previous.length > 0) {
