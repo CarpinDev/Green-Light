@@ -47,24 +47,28 @@ export function balanceTexts(p: {
   };
 }
 
-/** "Proyección a fin de noviembre". */
-export function projectionTitle(month: Pick<MonthSummary, 'month'>): string {
-  return `Proyección a fin de ${formatMonthName(month.month)}`;
+/** "Restante real a fin de noviembre". */
+export function remainingTitle(month: Pick<MonthSummary, 'month'>): string {
+  return `Restante real a fin de ${formatMonthName(month.month)}`;
+}
+
+/** "Te queda el 35 % del ingreso". El porcentaje sale del restante real (ver `incomeShare`); sin ingreso, no hay línea. */
+export function shareLine(share: number | null): string | null {
+  return share === null ? null : `Te queda el ${share} % del ingreso`;
 }
 
 /**
- * Las líneas de detalle de la proyección: qué parte del ingreso queda (si hay ingreso de referencia) y el punto
- * más bajo del mes (si el mínimo no es el saldo inicial). Puede no haber ninguna.
+ * El flujo de caja (la proyección) en una sola línea gris: "Flujo de caja a fin de noviembre: $780.000 · lo más
+ * bajo: −$1.920.000 el 12 nov". Cuenta cuándo SALE la plata, por eso difiere del restante real.
  */
-export function projectionDetails(
-  month: Pick<MonthSummary, 'lowestBalance' | 'lowestBalanceDate'>,
-  share: number | null,
-): string[] {
-  return [
-    share !== null && `Te queda el ${share} % del ingreso`,
-    month.lowestBalanceDate !== undefined &&
-      `lo más bajo: ${formatCop(month.lowestBalance)} el ${formatDayShort(month.lowestBalanceDate)}`,
-  ].filter((part): part is string => part !== false);
+export function cashFlowLine(
+  month: Pick<MonthSummary, 'month' | 'closingBalance' | 'lowestBalance' | 'lowestBalanceDate'>,
+): string {
+  const lowest =
+    month.lowestBalanceDate === undefined
+      ? ''
+      : ` · lo más bajo: ${formatCop(month.lowestBalance)} el ${formatDayShort(month.lowestBalanceDate)}`;
+  return `Flujo de caja a fin de ${formatMonthName(month.month)}: ${formatCop(month.closingBalance)}${lowest}`;
 }
 
 const byDate = (a: CashEvent, b: CashEvent) => a.date.localeCompare(b.date);

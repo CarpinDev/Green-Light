@@ -111,21 +111,19 @@ function cardLabel(refId: string | undefined, cards: readonly CardName[]): strin
 }
 
 /**
- * El semáforo del restante real, con la misma regla del de los meses (`classify` del motor): rojo si es negativo;
- * amarillo si el punto más bajo del mes fue negativo o queda menos que el umbral del ingreso de referencia; si no,
- * verde. Sin el umbral (la consulta de ajustes no llegó) solo hay rojo, amarillo por el punto más bajo y verde.
+ * El semáforo del restante real (el protagonista de Inicio): rojo si es negativo; amarillo si queda menos que el
+ * umbral de ajustes sobre el ingreso de referencia del mes (el mismo umbral del semáforo de los meses); si no,
+ * verde. Sin el umbral (la consulta de ajustes no llegó) solo hay rojo y verde. No mira el punto más bajo del
+ * mes: eso es del flujo de caja, y el semáforo de las barras de los meses (`MonthSummary.light`) no cambia.
  */
-export function remainingLight(
+export function realRemainingLight(
   remainingCents: number,
-  month: Pick<MonthSummary, 'lowestBalance' | 'referenceIncome'>,
+  month: Pick<MonthSummary, 'referenceIncome'>,
   yellowBelowIncomePct: string | null,
 ): Light {
   if (remainingCents < 0) return 'red';
   const pct = yellowBelowIncomePct === null ? 0 : Number(yellowBelowIncomePct);
-  if (month.lowestBalance < 0 || remainingCents < month.referenceIncome * (Number.isFinite(pct) ? pct : 0)) {
-    return 'yellow';
-  }
-  return 'green';
+  return remainingCents < month.referenceIncome * (Number.isFinite(pct) ? pct : 0) ? 'yellow' : 'green';
 }
 
 /** Un evento de pago de tarjeta con su corte (los demás no lo traen). */

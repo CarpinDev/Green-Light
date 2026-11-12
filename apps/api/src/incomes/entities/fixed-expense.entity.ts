@@ -47,4 +47,12 @@ export class FixedExpense {
   @ManyToOne(() => Account, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'account_id' })
   account!: Account | null;
+
+  /** El registro que lo reemplazó por un cambio de monto. Con valor, no se reactiva (se edita el vigente). */
+  @Column({ type: 'int', nullable: true }) replacedById!: number | null;
+
+  // SET NULL: si se borra el sucesor, este vuelve a poder reactivarse
+  @ManyToOne(() => FixedExpense, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'replaced_by_id' })
+  replacedBy!: FixedExpense | null;
 }

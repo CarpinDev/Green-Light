@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { definedOnly } from '../common/defined-only';
@@ -86,6 +86,10 @@ interface RecurringBase {
   dayOfMonth: number;
   startDate: IsoDate;
   endDate: IsoDate | null;
+  /** El registro que lo reemplazó por un cambio de monto; null si no lo reemplazaron. */
+  replacedById: number | null;
+  /** Se puede reactivar: tiene fecha de fin y no lo reemplazó un cambio de monto. */
+  canReactivate: boolean;
   /** upcoming: empieza después de hoy; active: rige hoy (el fin, si hay, es hoy o después); ended: ya terminó. */
   status: MonthlyStatus;
 }
@@ -239,6 +243,38 @@ export class IncomesService {
     return this.changeAmount(FixedExpense, 'El gasto fijo', id, input);
   }
 
+  /** Quita el fin de un ingreso recurrente terminado. 409 si lo reemplazó un cambio de monto. */
+  async reactivateRecurringIncome(id: number): Promise<RecurringIncomeSummary> {
+    await this.reactivate(RecurringIncome, 'El ingreso recurrente', id);
+    return this.summaryOf(await this.listRecurringIncomes(), id, 'El ingreso recurrente');
+  }
+
+  /** Quita el fin de un gasto fijo terminado. 409 si lo reemplazó un cambio de monto. */
+  async reactivateFixedExpense(id: number): Promise<FixedExpenseSummary> {
+    await this.reactivate(FixedExpense, 'El gasto fijo', id);
+    return this.summaryOf(await this.listFixedExpenses(), id, 'El gasto fijo');
+  }
+
+  /**
+   * Un terminado a mano se reactiva quitándole el fin; uno reemplazado por un cambio de monto no (se superpondría
+   * con su sucesor). Sin fin ya no hay nada que hacer: devuelve lo mismo (idempotente).
+   */
+  private async reactivate(Entity: MonthlyClass, label: string, id: number): Promise<void> {
+    const repository = this.dataSource.getRepository(Entity);
+    const current = await repository.findOneBy({ id });
+    if (!current) throw notFound(label, id);
+    if ((current.replacedById ?? null) !== null) throw new ConflictException(REPLACED_MESSAGE);
+    if ((current.endDate ?? null) === null) return;
+
+    await repository.save({ ...current, endDate: null });
+  }
+
+  private summaryOf<T extends { id: number }>(list: readonly T[], id: number, label: string): T {
+    const found = list.find((r) => r.id === id);
+    if (!found) throw notFound(label, id);
+    return found;
+  }
+
   /** Borrado real, para lo que se creó por error: no deja historia. Para terminar uno, se le pone endDate. */
   async removeRecurringIncome(id: number): Promise<void> {
     const { affected } = await this.dataSource.getRepository(RecurringIncome).delete({ id });
@@ -275,16 +311,22 @@ export class IncomesService {
         );
       }
 
+      // Uno ya reemplazado no se vuelve a cambiar: el vigente es su sucesor
+      if ((current.replacedById ?? null) !== null) throw new ConflictException(REPLACED_MESSAGE);
+
       const originalEnd = current.endDate ?? null;
-      // Una copia sin id: guardarla crea una fila nueva en vez de actualizar la actual
-      const copy = Object.fromEntries(Object.entries(current).filter(([key]) => key !== 'id'));
-      await manager.save(Entity, { ...current, endDate: dayBefore(input.effectiveFrom) });
+      // Una copia sin id (ni marca de reemplazo): guardarla crea una fila nueva en vez de actualizar la actual
+      const copy = Object.fromEntries(
+        Object.entries(current).filter(([key]) => key !== 'id' && key !== 'replacedById'),
+      );
       const created = await manager.save(Entity, {
         ...copy,
         endDate: originalEnd,
         amountCents: input.amountCents,
         startDate: input.effectiveFrom,
       });
+      // El viejo termina el día anterior y queda marcado como reemplazado: así no se puede reactivar y contar doble
+      await manager.save(Entity, { ...current, endDate: dayBefore(input.effectiveFrom), replacedById: created.id });
       return { id: created.id };
     });
   }
@@ -303,6 +345,8 @@ function assertOneSource(cardId: number | null | undefined, accountId: number | 
   }
 }
 
+const REPLACED_MESSAGE = 'Este registro se reemplazó por un cambio de monto; edita el vigente';
+
 function notFound(label: string, id: number): NotFoundException {
   return new NotFoundException(`${label} ${id} no existe`);
 }
@@ -316,6 +360,8 @@ function baseOf(r: MonthlyEntity, today: IsoDate): RecurringBase {
     dayOfMonth: r.dayOfMonth,
     startDate: r.startDate,
     endDate,
+    replacedById: r.replacedById ?? null,
+    canReactivate: endDate !== null && (r.replacedById ?? null) === null,
     status: statusOf(r.startDate, endDate, today),
   };
 }

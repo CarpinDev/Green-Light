@@ -28,4 +28,12 @@ export class RecurringIncome {
   @ManyToOne(() => Account, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'destination_account_id' })
   destinationAccount!: Account | null;
+
+  /** El registro que lo reemplazó por un cambio de monto. Con valor, no se reactiva (se edita el vigente). */
+  @Column({ type: 'int', nullable: true }) replacedById!: number | null;
+
+  // SET NULL: si se borra el sucesor, este vuelve a poder reactivarse
+  @ManyToOne(() => RecurringIncome, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'replaced_by_id' })
+  replacedBy!: RecurringIncome | null;
 }
