@@ -3,10 +3,13 @@ import { describe, expect, it } from '@jest/globals';
 import type { Alert, CashEvent, MonthSummary, Product } from '@/api/types';
 import {
   alertMessage,
+  balanceTexts,
   barGeometry,
   chartBars,
   firstVisibleMonth,
   incomeShare,
+  projectionDetails,
+  projectionTitle,
   upcomingIncomes,
   upcomingMovements,
   upcomingPayments,
@@ -256,5 +259,52 @@ describe('alertMessage', () => {
   it('la deuda sobre el ingreso nombra el mes', () => {
     const alert: Alert = { kind: 'debt_to_income', refId: '2026-12', value: '0.42', threshold: '0.40' };
     expect(alertMessage(alert, products)).toMatch(/^En diciembre tus pagos.*42 %.*40 %/);
+  });
+});
+
+describe('balanceTexts', () => {
+  const base = {
+    currentBalanceCents: 5_000_000,
+    today: '2026-11-12',
+    asOf: '2026-11-10',
+    openingBalanceCents: 8_000_000,
+  };
+
+  it('dice la fecha de hoy y el último saldo confirmado', () => {
+    const texts = balanceTexts(base);
+    expect(texts.negative).toBe(false);
+    expect(texts.asOfLine).toMatch(/^Saldo al 12 nov · último saldo confirmado: .*80\.000.* el 10 nov$/);
+  });
+
+  it('si el saldo se confirmó hoy, dice "hoy"', () => {
+    expect(balanceTexts({ ...base, asOf: '2026-11-12' }).asOfLine).toMatch(/80\.000.* hoy$/);
+  });
+
+  it('negativo solo por debajo de cero', () => {
+    expect(balanceTexts({ ...base, currentBalanceCents: -1 }).negative).toBe(true);
+    expect(balanceTexts({ ...base, currentBalanceCents: 0 }).negative).toBe(false);
+  });
+});
+
+describe('projectionTitle y projectionDetails', () => {
+  it('el título nombra el mes', () => {
+    expect(projectionTitle({ month: '2026-11' })).toBe('Proyección a fin de noviembre');
+  });
+
+  it('con ingreso y punto más bajo: las dos líneas', () => {
+    const lines = projectionDetails({ lowestBalance: -192_000_000, lowestBalanceDate: '2026-11-12' }, 35);
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toBe('Te queda el 35 % del ingreso');
+    expect(lines[1]).toMatch(/^lo más bajo: .*1\.920\.000.* el 12 nov$/);
+  });
+
+  it('sin ingreso de referencia no hay línea del porcentaje; sin fecha del mínimo, tampoco la del más bajo', () => {
+    expect(projectionDetails({ lowestBalance: 0, lowestBalanceDate: '2026-11-12' }, null)).toHaveLength(1);
+    expect(projectionDetails({ lowestBalance: 0 }, 50)).toEqual(['Te queda el 50 % del ingreso']);
+    expect(projectionDetails({ lowestBalance: 0 }, null)).toEqual([]);
+  });
+
+  it('un 0 % es una línea válida (no se confunde con "sin ingreso")', () => {
+    expect(projectionDetails({ lowestBalance: 0 }, 0)).toEqual(['Te queda el 0 % del ingreso']);
   });
 });

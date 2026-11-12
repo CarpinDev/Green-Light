@@ -46,6 +46,10 @@ export interface ProjectionResponse {
   /** Días entre `asOf` y hoy. */
   daysSinceBalance: number;
   openingBalanceCents: number;
+  /** Hoy según la API: con esta fecha se calculó el saldo actual. */
+  today: string;
+  /** Lo que tienes hoy: el último saldo confirmado más los movimientos que ya pasaron. */
+  currentBalanceCents: number;
   /** Ids de las cuentas cuyo último saldo es más viejo que `asOf`. */
   staleAccounts: number[];
   months: MonthSummary[];

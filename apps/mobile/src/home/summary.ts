@@ -2,7 +2,8 @@
 // muestran. Sin React y sin la fecha de hoy escondida: la fecha llega como parámetro, y por eso se prueba.
 
 import type { Alert, CashEvent, CashEventKind, Light, MonthSummary, Product } from '@/api/types';
-import { formatMonthName } from '@/dates';
+import { formatDayShort, formatMonthName } from '@/dates';
+import { formatCop } from '@/money';
 
 /** Los meses desde `now` (YYYY-MM): el primer mes proyectado puede ya haber pasado. */
 export function visibleMonths(months: readonly MonthSummary[], now: string): MonthSummary[] {
@@ -23,6 +24,47 @@ export function incomeShare(month: Pick<MonthSummary, 'closingBalance' | 'refere
   if (month.referenceIncome <= 0) return null;
   const pct = Math.round((month.closingBalance / month.referenceIncome) * 100);
   return Math.min(100, Math.max(0, pct));
+}
+
+export interface BalanceTexts {
+  /** El saldo de hoy está por debajo de cero. */
+  negative: boolean;
+  /** "Saldo al 12 nov · último saldo confirmado: $80.000 el 10 nov" */
+  asOfLine: string;
+}
+
+/** Los textos del saldo de hoy; el color y el ícono de "negativo" los decide la pantalla con `negative`. */
+export function balanceTexts(p: {
+  currentBalanceCents: number;
+  today: string;
+  asOf: string;
+  openingBalanceCents: number;
+}): BalanceTexts {
+  const when = p.asOf === p.today ? 'hoy' : `el ${formatDayShort(p.asOf)}`;
+  return {
+    negative: p.currentBalanceCents < 0,
+    asOfLine: `Saldo al ${formatDayShort(p.today)} · último saldo confirmado: ${formatCop(p.openingBalanceCents)} ${when}`,
+  };
+}
+
+/** "Proyección a fin de noviembre". */
+export function projectionTitle(month: Pick<MonthSummary, 'month'>): string {
+  return `Proyección a fin de ${formatMonthName(month.month)}`;
+}
+
+/**
+ * Las líneas de detalle de la proyección: qué parte del ingreso queda (si hay ingreso de referencia) y el punto
+ * más bajo del mes (si el mínimo no es el saldo inicial). Puede no haber ninguna.
+ */
+export function projectionDetails(
+  month: Pick<MonthSummary, 'lowestBalance' | 'lowestBalanceDate'>,
+  share: number | null,
+): string[] {
+  return [
+    share !== null && `Te queda el ${share} % del ingreso`,
+    month.lowestBalanceDate !== undefined &&
+      `lo más bajo: ${formatCop(month.lowestBalance)} el ${formatDayShort(month.lowestBalanceDate)}`,
+  ].filter((part): part is string => part !== false);
 }
 
 const byDate = (a: CashEvent, b: CashEvent) => a.date.localeCompare(b.date);

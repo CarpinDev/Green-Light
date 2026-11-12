@@ -22,6 +22,7 @@ import type { CreditCard } from '../products/entities/credit-card.entity';
 import type { Loan } from '../products/entities/loan.entity';
 import type { ProductRate } from '../products/entities/product-rate.entity';
 import type { Settings } from '../settings/entities/settings.entity';
+import { currentBalance } from './current-balance';
 import {
   toCardCapitalPayment,
   toCardPurchase,
@@ -62,6 +63,10 @@ export interface ProjectionResult {
   daysSinceBalance: number;
   /** Suma del último saldo confirmado de cada cuenta. */
   openingBalanceCents: Engine.Cents;
+  /** La fecha de hoy con la que se calculó (la app la muestra sin depender del reloj del celular). */
+  today: Engine.IsoDate;
+  /** Lo que tienes hoy: el último saldo confirmado más los movimientos que ya pasaron desde entonces. */
+  currentBalanceCents: Engine.Cents;
   /** Cuentas (product id) cuyo último saldo es más viejo que `asOf`: conviene actualizarlas. */
   staleAccounts: number[];
   months: Engine.MonthSummary[];
@@ -107,6 +112,8 @@ export function buildProjection(facts: ProjectionFacts, months: number, today: E
     asOf: prepared.input.asOf,
     daysSinceBalance: prepared.daysSinceBalance,
     openingBalanceCents: prepared.openingBalanceCents,
+    today,
+    currentBalanceCents: currentBalance(prepared.openingBalanceCents, projected, today),
     staleAccounts: prepared.staleAccounts,
     months: projected,
     alerts: alertsOf(prepared, projected, toEngineSettings(facts.settings)),

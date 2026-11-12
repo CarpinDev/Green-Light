@@ -14,7 +14,7 @@ import { RecentMovements } from '@/components/movements/recent-movements';
 import { UpcomingTeaser } from '@/components/movements/upcoming-teaser';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
-import { currentMonth, formatDayShort, STALE_DAYS, today } from '@/dates';
+import { currentMonth, STALE_DAYS, today } from '@/dates';
 import { alertMessage, chartBars, firstVisibleMonth, incomeShare, upcomingEvents, visibleMonths } from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
@@ -43,7 +43,16 @@ export default function Home() {
         )
       }
     >
-      {({ asOf, daysSinceBalance, staleAccounts, months, alerts }) => {
+      {({
+        asOf,
+        daysSinceBalance,
+        staleAccounts,
+        months,
+        alerts,
+        today: apiToday,
+        currentBalanceCents,
+        openingBalanceCents,
+      }) => {
         const visible = visibleMonths(months, currentMonth());
         const current = firstVisibleMonth(months, currentMonth());
         const next = upcomingEvents(months, currentMonth(), today())[0];
@@ -59,10 +68,6 @@ export default function Home() {
               />
             }
           >
-            <Text style={styles.caption}>
-              Saldo al {formatDayShort(asOf)} · {daysAgo(daysSinceBalance)}
-            </Text>
-
             {daysSinceBalance > STALE_DAYS && (
               <Banner action={{ label: 'Confirmar saldo', href: '/products' }}>
                 Tu último saldo tiene {daysSinceBalance} días: confírmalo para que la proyección sea fiable.
@@ -81,7 +86,11 @@ export default function Home() {
               <Text style={styles.caption}>No hay meses proyectados desde el mes actual.</Text>
             ) : (
               <>
-                <HeroCard month={current} share={incomeShare(current)} />
+                <HeroCard
+                  balance={{ currentBalanceCents, today: apiToday, asOf, openingBalanceCents }}
+                  month={current}
+                  share={incomeShare(current)}
+                />
                 <StatPair income={current.income} outflow={current.outflow} />
                 <MonthBars bars={chartBars(visible)} />
               </>
@@ -98,12 +107,6 @@ export default function Home() {
       }}
     </QueryState>
   );
-}
-
-/** "hoy", "hace 1 día", "hace 5 días". */
-function daysAgo(days: number): string {
-  if (days <= 0) return 'hoy';
-  return days === 1 ? 'hace 1 día' : `hace ${days} días`;
 }
 
 /** Un 409 no es un error genérico: es el saldo viejo, y la solución es confirmarlo. */

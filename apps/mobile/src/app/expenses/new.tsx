@@ -6,7 +6,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
-import type { Category, Product } from '@/api/types';
+import type { Category, Product, ProjectionResponse } from '@/api/types';
+import { Banner } from '@/components/banner';
 import { Button } from '@/components/button';
 import { ChoiceButtons } from '@/components/choice-buttons';
 import { DateField } from '@/components/date-field';
@@ -18,6 +19,8 @@ import { QueryState } from '@/components/query-state';
 import { SelectCard } from '@/components/select-card';
 import { Text } from '@/components/text';
 import { isValidDate, today, yesterday } from '@/dates';
+import { type Overdraft, overdraftCheck } from '@/expenses/overdraft';
+import { formatCop } from '@/money';
 import { colors, space, type } from '@/theme/tokens';
 
 type DateChoice = 'today' | 'yesterday' | 'other';
@@ -56,6 +59,9 @@ export default function NewExpense() {
   const [description, setDescription] = useState('');
   // El error de forma de la propia pantalla; el de la API sale de la mutación
   const [formError, setFormError] = useState<string | null>(null);
+  // Si el gasto dejaría el saldo en negativo: se pide confirmar antes de enviarlo
+  const [overdraft, setOverdraft] = useState<Overdraft | null>(null);
+  const [pendingBody, setPendingBody] = useState<object | null>(null);
 
   const products = useQuery({ queryKey: ['products'], queryFn: () => getJson<Product[]>('/products') });
   const categories = useQuery({
@@ -94,14 +100,37 @@ export default function NewExpense() {
     }
 
     setFormError(null);
-    create.mutate({
+    const body = {
       date,
       amountCents,
       sourceProductId: selected.id,
       ...(categoryId !== null && { categoryId }),
       ...(description.trim() !== '' && { description: description.trim() }),
       ...(cuotas !== undefined && { installments: cuotas }),
+    };
+
+    // El saldo de hoy sale de la proyección que ya tiene Inicio en caché: no se pide otra vez, y si no está, no se estorba
+    const projection = queryClient.getQueryData<ProjectionResponse>(['projection']);
+    const warning = overdraftCheck({
+      amountCents,
+      fromCard: isCard,
+      balanceCents: projection?.currentBalanceCents ?? null,
+      date,
+      today: projection?.today ?? today(),
+      asOf: projection?.asOf ?? date,
     });
+    if (warning !== null) {
+      setOverdraft(warning);
+      setPendingBody(body);
+      return;
+    }
+    create.mutate(body);
+  };
+
+  // Cualquier cambio del formulario invalida el aviso: se vuelve a revisar al guardar
+  const clearOverdraft = () => {
+    setOverdraft(null);
+    setPendingBody(null);
   };
 
   return (
@@ -112,7 +141,10 @@ export default function NewExpense() {
           <MoneyInput
             large
             value={amountCents}
-            onChangeCents={setAmountCents}
+            onChangeCents={(cents) => {
+              clearOverdraft();
+              setAmountCents(cents);
+            }}
             placeholder="$ 0"
             style={styles.amount}
           />
@@ -134,7 +166,10 @@ export default function NewExpense() {
                   title={p.name}
                   detail={p.kind === 'credit_card' ? `····${p.last4} · tarjeta` : `····${p.last4}`}
                   selected={p.id === productId}
-                  onPress={() => setProductId(p.id)}
+                  onPress={() => {
+                    clearOverdraft();
+                    setProductId(p.id);
+                  }}
                 />
               ))}
             </View>
@@ -157,7 +192,14 @@ export default function NewExpense() {
         )}
 
         <Label>Cuándo</Label>
-        <Pills items={DATE_ITEMS} selected={dateChoice} onSelect={setDateChoice} />
+        <Pills
+          items={DATE_ITEMS}
+          selected={dateChoice}
+          onSelect={(choice) => {
+            clearOverdraft();
+            setDateChoice(choice);
+          }}
+        />
         {dateChoice === 'other' && <DateField value={otherDate} onChange={setOtherDate} />}
 
         <Label>Categoría (opcional)</Label>
@@ -185,11 +227,26 @@ export default function NewExpense() {
       <View style={[styles.footer, { paddingBottom: Math.max(bottom, space.lg) }]}>
         {formError !== null && <Text style={styles.error}>{formError}</Text>}
         {create.isError && <Text style={styles.error}>{errorText(create.error)}</Text>}
-        <Button
-          label={create.isPending ? 'Registrando…' : 'Registrar gasto'}
-          loading={create.isPending}
-          onPress={submit}
-        />
+        {overdraft !== null && pendingBody !== null ? (
+          <>
+            <Banner>
+              Este gasto es mayor que tu saldo de hoy ({formatCop(overdraft.balanceCents)}). Te dejaría en{' '}
+              {formatCop(overdraft.resultCents)}. ¿Es correcto?
+            </Banner>
+            <Button
+              label={create.isPending ? 'Registrando…' : 'Sí, guardar'}
+              loading={create.isPending}
+              onPress={() => create.mutate(pendingBody)}
+            />
+            <Button label="Corregir" variant="secondary" disabled={create.isPending} onPress={clearOverdraft} />
+          </>
+        ) : (
+          <Button
+            label={create.isPending ? 'Registrando…' : 'Registrar gasto'}
+            loading={create.isPending}
+            onPress={submit}
+          />
+        )}
       </View>
     </View>
   );
