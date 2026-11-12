@@ -7,11 +7,11 @@ describe('incomeAlreadyInBalance', () => {
     expect(incomeAlreadyInBalance('2026-11-12', null)).toBe(false);
   });
 
-  it('la misma fecha del saldo ya está dentro: true', () => {
-    expect(incomeAlreadyInBalance('2026-11-10', '2026-11-10')).toBe(true);
+  it('la misma fecha del saldo cuenta (se registró después de confirmarlo): false', () => {
+    expect(incomeAlreadyInBalance('2026-11-10', '2026-11-10')).toBe(false);
   });
 
-  it('un día después del saldo sí mueve la proyección: false', () => {
+  it('un día después del saldo también mueve la proyección: false', () => {
     expect(incomeAlreadyInBalance('2026-11-11', '2026-11-10')).toBe(false);
   });
 

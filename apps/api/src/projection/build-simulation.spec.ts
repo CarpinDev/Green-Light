@@ -1,7 +1,8 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import type { MonthSummary } from '@greenlight/engine';
 import { CreditCard } from '../products/entities/credit-card.entity';
-import { PRESTAMO, VISA, facts, make, pesos, rateRow } from '../testing/projection-facts';
+import { Expense } from '../movements/entities/expense.entity';
+import { AHORROS, PRESTAMO, VISA, at, facts, make, pesos, rateRow } from '../testing/projection-facts';
 import { buildProjection } from './build-projection';
 import { type SimulationCandidate, buildSimulation as buildAt } from './build-simulation';
 
@@ -141,5 +142,28 @@ describe('buildSimulation: errores', () => {
 
   it('con un saldo de más de 31 días es 409, igual que la proyección', () => {
     expect(() => buildAt(facts(), tv, 3, '2026-04-11')).toThrow(ConflictException);
+  });
+});
+
+describe('buildSimulation: lo registrado el mismo día del saldo', () => {
+  it('el gasto del día del saldo registrado después también baja la proyección de base (without y with)', () => {
+    const base = facts();
+    const sameDay = make(Expense, {
+      id: 11,
+      date: '2026-03-10',
+      amountCents: pesos(100_000),
+      sourceProductId: AHORROS,
+      installments: null,
+      description: '',
+      createdAt: at('2026-03-10', 15), // después del saldo (2 p. m.)
+    });
+    const withExpense = facts({ expenses: [...base.expenses, sameDay] });
+
+    const plain = buildSimulation(tv).without[0]?.closingBalance;
+    const outcome = buildSimulation(tv, 3, withExpense);
+    expect(outcome.without[0]?.closingBalance).toBe((plain ?? 0) - pesos(100_000));
+    expect(outcome.without[0]?.closingBalance).toBe(buildProjection(withExpense, 3, TODAY).months[0]?.closingBalance);
+    // Marzo no cambia con la compra a cuotas (se paga en abril): con y sin la compra parten igual
+    expect(outcome.with[0]?.closingBalance).toBe(outcome.without[0]?.closingBalance);
   });
 });

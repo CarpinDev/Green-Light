@@ -23,12 +23,13 @@ export function projectionAsOf(accounts: readonly AccountBalances[]): string | n
 }
 
 /**
- * ¿Un ingreso con esta fecha ya está dentro del saldo de partida? La proyección solo suma lo posterior a
- * `asOf`, así que con fecha igual o anterior no la mueve. Sin saldo (null) no hay de dónde partir: false.
+ * ¿Un ingreso con esta fecha ya está dentro del saldo de partida? La proyección no suma lo anterior a
+ * `asOf`. El mismo día sí cuenta: lo que se registra ahora llegó después de confirmar el saldo (la API lo
+ * desempata con la hora de registro). Sin saldo (null) no hay de dónde partir: false.
  * (YYYY-MM-DD se compara como texto.)
  */
 export function incomeAlreadyInBalance(date: string, asOf: string | null): boolean {
-  return asOf !== null && date <= asOf;
+  return asOf !== null && date < asOf;
 }
 
 /**

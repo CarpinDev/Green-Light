@@ -1,5 +1,5 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Category } from '../../movements/entities/category.entity';
 import { Account } from '../../products/entities/account.entity';
@@ -28,4 +28,7 @@ export class OneOffIncome {
   @ManyToOne(() => Account, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'destination_account_id' })
   destinationAccount!: Account | null;
+
+  /** Cuándo se registró: la proyección la compara con la del saldo para los ingresos del mismo día. */
+  @CreateDateColumn({ type: 'timestamptz' }) createdAt!: Date;
 }

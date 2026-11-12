@@ -18,6 +18,12 @@ export const make = <T extends object>(Entity: new () => T, fields: Partial<T>):
   Object.assign(new Entity(), fields);
 export const pesos = (n: number) => n * 100;
 
+/** Una hora de registro de prueba: el día (YYYY-MM-DD) y la hora UTC. */
+export const at = (date: string, hour: number) => new Date(`${date}T${String(hour).padStart(2, '0')}:00:00Z`);
+
+/** Cuándo se confirmó el saldo que fija asOf en `facts()`. */
+export const BALANCE_CREATED_AT = at('2026-03-10', 14);
+
 export const VISA = 1;
 export const PRESTAMO = 2;
 export const AHORROS = 3;
@@ -31,10 +37,29 @@ export const rateRow = (id: number, productId: number, effectiveFrom: string, mv
 export const facts = (overrides: Partial<ProjectionFacts> = {}): ProjectionFacts => ({
   balances: [
     // AHORROS: dos saldos confirmados; manda el último
-    make(AccountBalance, { id: 1, productId: AHORROS, asOf: '2026-02-01', balanceCents: 999 }),
-    make(AccountBalance, { id: 2, productId: AHORROS, asOf: '2026-03-10', balanceCents: pesos(2_000_000) }),
+    make(AccountBalance, {
+      id: 1,
+      productId: AHORROS,
+      asOf: '2026-02-01',
+      balanceCents: 999,
+      createdAt: at('2026-02-01', 9),
+    }),
+    // El saldo que fija asOf se confirmó el 10 de marzo a las 2 p. m. (UTC): lo de ese día registrado antes ya está dentro
+    make(AccountBalance, {
+      id: 2,
+      productId: AHORROS,
+      asOf: '2026-03-10',
+      balanceCents: pesos(2_000_000),
+      createdAt: BALANCE_CREATED_AT,
+    }),
     // NOMINA: su último saldo es más viejo que el de AHORROS
-    make(AccountBalance, { id: 3, productId: NOMINA, asOf: '2026-03-01', balanceCents: 0 }),
+    make(AccountBalance, {
+      id: 3,
+      productId: NOMINA,
+      asOf: '2026-03-01',
+      balanceCents: 0,
+      createdAt: at('2026-03-01', 9),
+    }),
   ],
   cards: [
     make(CreditCard, {

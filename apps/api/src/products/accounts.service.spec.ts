@@ -169,7 +169,8 @@ describe('AccountsService', () => {
 
       expect(db.rows(AccountBalance)).toHaveLength(1);
       expect(db.rows(AccountBalance)[0]).toMatchObject({ asOf: '2026-04-01', balanceCents: 2 });
-      expect(second.id).toBe(first.id);
+      // Es una fila nueva, no la misma actualizada: así su createdAt (la hora que usa la proyección) avanza
+      expect(second.id).not.toBe(first.id);
     });
 
     it('reemplazar el saldo de un día no toca el de otro día ni el de otra cuenta', async () => {
@@ -180,7 +181,10 @@ describe('AccountsService', () => {
 
       await service.confirmBalance(accountId, { asOf: '2026-04-01', balanceCents: 11 });
 
-      const byKey = db.rows(AccountBalance).map((b) => `${b.productId}|${b.asOf}|${b.balanceCents}`);
+      const byKey = db
+        .rows(AccountBalance)
+        .map((b) => `${b.productId}|${b.asOf}|${b.balanceCents}`)
+        .sort();
       expect(byKey).toEqual([`${accountId}|2026-04-01|11`, `${accountId}|2026-04-02|20`, `${other}|2026-04-01|30`]);
     });
 

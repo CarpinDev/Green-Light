@@ -137,7 +137,14 @@ export function prepareProjection(
 
   const fixedExpenses = facts.fixedExpenses.map(toFixedExpense);
   // Un gasto con tarjeta es una compra; desde una cuenta sale del disponible ese día
-  const cashExpenses = facts.expenses.filter((e) => !cardIds.has(e.sourceProductId)).map(toCashExpense);
+  // Lo del día del saldo cuenta solo si se registró después de confirmarlo (el motor recibe el booleano).
+  // Fuera de esto, a propósito: los abonos a capital y los recurrentes (salario, fijos) de ese día siguen
+  // dándose por incluidos en el saldo.
+  const afterBalance = (date: Engine.IsoDate, createdAt: Date) =>
+    date === start.asOf && createdAt > start.balanceCreatedAt;
+  const cashExpenses = facts.expenses
+    .filter((e) => !cardIds.has(e.sourceProductId))
+    .map((e) => toCashExpense(e, afterBalance(e.date, e.createdAt)));
 
   // Cada tarjeta con sus propias compras y abonos: sirven para los eventos y para el cupo usado
   const cards = facts.cards.map((card) => ({
@@ -166,7 +173,7 @@ export function prepareProjection(
       asOf: start.asOf,
       openingBalance: start.openingBalanceCents,
       recurringIncomes: facts.recurringIncomes.map(toRecurringIncome),
-      oneOffIncomes: facts.oneOffIncomes.map(toOneOffIncome),
+      oneOffIncomes: facts.oneOffIncomes.map((i) => toOneOffIncome(i, afterBalance(i.date, i.createdAt))),
       fixedExpenses,
       cashExpenses,
       extraEvents: debtEvents,
@@ -195,10 +202,14 @@ function alertsOf(
   ].filter((alert) => alert !== undefined);
 }
 
-/** Último saldo de cada cuenta; se proyecta desde el más reciente y se avisa de los más viejos. */
+/**
+ * Último saldo de cada cuenta; se proyecta desde el más reciente y se avisa de los más viejos.
+ * `balanceCreatedAt` es la hora de registro del saldo que fija `asOf` (si dos cuentas comparten esa
+ * fecha, la del más reciente): lo registrado ese día antes de esa hora ya está dentro del saldo.
+ */
 function startingPoint(
   balances: readonly AccountBalance[],
-): Pick<ProjectionResult, 'asOf' | 'openingBalanceCents' | 'staleAccounts'> {
+): Pick<ProjectionResult, 'asOf' | 'openingBalanceCents' | 'staleAccounts'> & { balanceCreatedAt: Date } {
   const latest = new Map<number, AccountBalance>();
   for (const b of balances) {
     const current = latest.get(b.productId);
@@ -212,8 +223,12 @@ function startingPoint(
 
   const rows = [...latest.values()];
   const asOf = rows.reduce((max, b) => (b.asOf > max ? b.asOf : max), rows[0].asOf);
+  const balanceCreatedAt = rows
+    .filter((b) => b.asOf === asOf)
+    .reduce((latest, b) => (b.createdAt > latest ? b.createdAt : latest), new Date(0));
   return {
     asOf,
+    balanceCreatedAt,
     openingBalanceCents: rows.reduce((sum, b) => sum + b.balanceCents, 0),
     staleAccounts: rows
       .filter((b) => b.asOf < asOf)
