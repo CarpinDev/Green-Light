@@ -101,6 +101,30 @@ describe('buildProjection: la cuenta de un gasto fijo es solo información de or
   });
 });
 
+describe('buildProjection: un gasto fijo terminado y reactivado', () => {
+  const rent = (endDate: string | null) =>
+    make(FixedExpense, {
+      id: 42,
+      name: 'Arriendo',
+      amountCents: pesos(900_000),
+      dayOfMonth: 3,
+      startDate: '2026-01-01',
+      endDate,
+      cardId: null,
+      accountId: null,
+    });
+  const rentEvents = (endDate: string | null) =>
+    buildProjection(facts({ fixedExpenses: [rent(endDate)] }), 4)
+      .months.flatMap((m) => m.events)
+      .filter((e) => e.kind === 'fixed_expense')
+      .map((e) => e.date);
+
+  it('terminado el 12 de marzo no cuenta en abril; reactivado (sin fin), vuelve a contar cada mes', () => {
+    expect(rentEvents('2026-03-12')).toEqual([]);
+    expect(rentEvents(null)).toEqual(['2026-04-03', '2026-05-03', '2026-06-03']);
+  });
+});
+
 describe('buildProjection: los pagos de tarjeta traen su corte', () => {
   it('cutDate y fullPayment llegan en los eventos y sobreviven al JSON tal cual', () => {
     const events = buildProjection(facts(), 4).months.flatMap((m) => m.events);

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import type { CashEvent, MonthSummary } from '@/api/types';
-import { monthCommitments, remainingLight } from '@/home/commitments';
+import { monthCommitments, realRemainingLight } from '@/home/commitments';
 import { eventTitle, upcomingByMonth } from '@/home/summary';
 
 // Hoy es 1 de noviembre. Nu: corte el 14 y pago el 4. Rappi: corte el 20 y pago el 2. Datos ficticios.
@@ -152,26 +152,41 @@ describe('monthCommitments', () => {
   });
 });
 
-describe('remainingLight', () => {
-  const m = { lowestBalance: 100, referenceIncome: 10_000_000 };
+describe('realRemainingLight', () => {
+  const m = { referenceIncome: 10_000_000 };
 
-  it('rojo si es negativo', () => {
-    expect(remainingLight(-1, m, '0.10')).toBe('red');
+  it('negativo: rojo', () => {
+    expect(realRemainingLight(-1, m, '0.10')).toBe('red');
   });
 
-  it('amarillo si queda menos que el umbral del ingreso de referencia, o si el mes tocó negativo', () => {
-    expect(remainingLight(999_999, m, '0.10')).toBe('yellow');
-    expect(remainingLight(5_000_000, { ...m, lowestBalance: -1 }, '0.10')).toBe('yellow');
+  it('justo bajo el umbral del ingreso de referencia: amarillo', () => {
+    expect(realRemainingLight(999_999, m, '0.10')).toBe('yellow');
+    expect(realRemainingLight(0, m, '0.10')).toBe('yellow');
   });
 
-  it('verde si queda igual o más que el umbral', () => {
-    expect(remainingLight(1_000_000, m, '0.10')).toBe('green');
+  it('holgado (en el umbral o más): verde', () => {
+    expect(realRemainingLight(1_000_000, m, '0.10')).toBe('green');
+    expect(realRemainingLight(8_000_000, m, '0.10')).toBe('green');
   });
 
-  it('sin el umbral solo hay rojo, amarillo por el punto más bajo y verde', () => {
-    expect(remainingLight(1, m, null)).toBe('green');
-    expect(remainingLight(0, m, null)).toBe('green');
-    expect(remainingLight(1, { ...m, lowestBalance: -5 }, null)).toBe('yellow');
+  it('la proyección está en verde pero el restante real, en rojo (el pago de Nu lo tumba)', () => {
+    // Cierre del mes: 800.000 y el semáforo de la proyección es verde; Nu debe 1.083.568 y vence en diciembre
+    const projected = { closingBalance: 800_000, referenceIncome: 5_000_000 };
+    const months = [
+      month('2026-11', { ...projected, light: 'green' }),
+      month('2026-12', { events: [card(NU, '2026-11-14', '2026-12-04', 1_083_568)] }),
+    ];
+    const { realRemainingCents } = monthCommitments(months, '2026-11', TODAY, cards);
+
+    expect(months[0]?.light).toBe('green');
+    expect(realRemainingCents).toBe(800_000 - 1_083_568);
+    expect(realRemainingLight(realRemainingCents, projected, '0.10')).toBe('red');
+  });
+
+  it('sin el umbral solo hay rojo y verde', () => {
+    expect(realRemainingLight(1, m, null)).toBe('green');
+    expect(realRemainingLight(0, m, null)).toBe('green');
+    expect(realRemainingLight(-1, m, null)).toBe('red');
   });
 });
 

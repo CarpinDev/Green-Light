@@ -40,6 +40,13 @@ export class IncomesController {
     return this.incomes.updateRecurringIncome(id, dto);
   }
 
+  /** Quita la fecha de fin. 200 con el registro; 409 si lo reemplazó un cambio de monto. */
+  @Post('recurring-incomes/:id/reactivate')
+  @HttpCode(200)
+  reactivateRecurringIncome(@Param('id', ParseIntPipe) id: number): Promise<RecurringIncomeSummary> {
+    return this.incomes.reactivateRecurringIncome(id);
+  }
+
   @Post('recurring-incomes/:id/amount-changes')
   changeRecurringIncomeAmount(
     @Param('id', ParseIntPipe) id: number,
@@ -77,6 +84,12 @@ export class IncomesController {
     @Body() dto: UpdateFixedExpenseDto,
   ): Promise<{ id: number }> {
     return this.incomes.updateFixedExpense(id, dto);
+  }
+
+  @Post('fixed-expenses/:id/reactivate')
+  @HttpCode(200)
+  reactivateFixedExpense(@Param('id', ParseIntPipe) id: number): Promise<FixedExpenseSummary> {
+    return this.incomes.reactivateFixedExpense(id);
   }
 
   @Post('fixed-expenses/:id/amount-changes')

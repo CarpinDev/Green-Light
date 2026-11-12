@@ -16,7 +16,7 @@ import { UpcomingTeaser } from '@/components/movements/upcoming-teaser';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, STALE_DAYS, today } from '@/dates';
-import { monthCommitments, remainingLight } from '@/home/commitments';
+import { monthCommitments, realRemainingLight } from '@/home/commitments';
 import { alertMessage, chartBars, firstVisibleMonth, incomeShare, upcomingEvents, visibleMonths } from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
@@ -99,17 +99,18 @@ export default function Home() {
                 <HeroCard
                   balance={{ currentBalanceCents, today: apiToday, asOf, openingBalanceCents }}
                   month={current}
-                  share={incomeShare(current)}
-                />
-                <CommitmentsCard
-                  month={current}
-                  commitments={commitments}
-                  light={remainingLight(
+                  remainingCents={commitments.realRemainingCents}
+                  light={realRemainingLight(
                     commitments.realRemainingCents,
                     current,
                     settings.data?.yellowBelowIncomePct ?? null,
                   )}
+                  share={incomeShare({
+                    closingBalance: commitments.realRemainingCents,
+                    referenceIncome: current.referenceIncome,
+                  })}
                 />
+                <CommitmentsCard month={current} commitments={commitments} />
                 <StatPair income={current.income} outflow={current.outflow} />
                 <MonthBars bars={chartBars(visible)} />
               </>

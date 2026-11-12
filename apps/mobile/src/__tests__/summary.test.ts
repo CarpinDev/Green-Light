@@ -8,8 +8,9 @@ import {
   chartBars,
   firstVisibleMonth,
   incomeShare,
-  projectionDetails,
-  projectionTitle,
+  cashFlowLine,
+  remainingTitle,
+  shareLine,
   upcomingIncomes,
   upcomingMovements,
   upcomingPayments,
@@ -286,25 +287,36 @@ describe('balanceTexts', () => {
   });
 });
 
-describe('projectionTitle y projectionDetails', () => {
-  it('el título nombra el mes', () => {
-    expect(projectionTitle({ month: '2026-11' })).toBe('Proyección a fin de noviembre');
+describe('remainingTitle, shareLine y cashFlowLine', () => {
+  it('el título del restante real nombra el mes', () => {
+    expect(remainingTitle({ month: '2026-11' })).toBe('Restante real a fin de noviembre');
   });
 
-  it('con ingreso y punto más bajo: las dos líneas', () => {
-    const lines = projectionDetails({ lowestBalance: -192_000_000, lowestBalanceDate: '2026-11-12' }, 35);
-    expect(lines).toHaveLength(2);
-    expect(lines[0]).toBe('Te queda el 35 % del ingreso');
-    expect(lines[1]).toMatch(/^lo más bajo: .*1\.920\.000.* el 12 nov$/);
+  it('la línea del porcentaje; sin ingreso de referencia no hay; 0 % es válido', () => {
+    expect(shareLine(35)).toBe('Te queda el 35 % del ingreso');
+    expect(shareLine(0)).toBe('Te queda el 0 % del ingreso');
+    expect(shareLine(null)).toBeNull();
   });
 
-  it('sin ingreso de referencia no hay línea del porcentaje; sin fecha del mínimo, tampoco la del más bajo', () => {
-    expect(projectionDetails({ lowestBalance: 0, lowestBalanceDate: '2026-11-12' }, null)).toHaveLength(1);
-    expect(projectionDetails({ lowestBalance: 0 }, 50)).toEqual(['Te queda el 50 % del ingreso']);
-    expect(projectionDetails({ lowestBalance: 0 }, null)).toEqual([]);
+  it('el flujo de caja, con lo más bajo cuando hay fecha', () => {
+    const line = cashFlowLine({
+      month: '2026-11',
+      closingBalance: 78_000_000,
+      lowestBalance: -192_000_000,
+      lowestBalanceDate: '2026-11-12',
+    });
+    expect(line).toMatch(/^Flujo de caja a fin de noviembre: .*780\.000 · lo más bajo: .*1\.920\.000.* el 12 nov$/);
   });
 
-  it('un 0 % es una línea válida (no se confunde con "sin ingreso")', () => {
-    expect(projectionDetails({ lowestBalance: 0 }, 0)).toEqual(['Te queda el 0 % del ingreso']);
+  it('sin fecha del punto más bajo, solo el flujo de caja', () => {
+    expect(cashFlowLine({ month: '2026-11', closingBalance: 5_000_000, lowestBalance: 0 })).toMatch(
+      /^Flujo de caja a fin de noviembre: [^·]*$/,
+    );
+  });
+
+  it('la barra usa el restante real: incomeShare sobre el restante, no sobre el cierre', () => {
+    // Cierre proyectado 700.000 de un ingreso de 1.000.000 (70 %), pero el restante real es 200.000 (20 %)
+    expect(incomeShare({ closingBalance: 200_000, referenceIncome: 1_000_000 })).toBe(20);
+    expect(incomeShare({ closingBalance: -50_000, referenceIncome: 1_000_000 })).toBe(0);
   });
 });

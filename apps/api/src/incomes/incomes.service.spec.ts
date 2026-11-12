@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Category } from '../movements/entities/category.entity';
 import { Account } from '../products/entities/account.entity';
 import { Product } from '../products/entities/product.entity';
@@ -448,6 +448,144 @@ describe('IncomesService', () => {
       await expect(
         service.changeRecurringIncomeAmount(99, { amountCents: 350, effectiveFrom: '2026-07-01' }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('reemplazo por cambio de monto y reactivar', () => {
+    const TODAY = '2026-06-15';
+    const REPLACED = 'Este registro se reemplazó por un cambio de monto; edita el vigente';
+
+    beforeEach(() => {
+      db.seed(FixedExpense, [
+        {
+          id: 1,
+          name: 'Arriendo',
+          amountCents: 1200,
+          dayOfMonth: 1,
+          startDate: '2026-01-01',
+          endDate: null,
+          replacedById: null,
+        },
+        // Terminado a mano el 12 de junio
+        {
+          id: 2,
+          name: 'Gym',
+          amountCents: 100,
+          dayOfMonth: 5,
+          startDate: '2026-01-01',
+          endDate: '2026-06-12',
+          replacedById: null,
+        },
+      ]);
+      db.seed(RecurringIncome, [
+        {
+          id: 1,
+          name: 'Salario',
+          amountCents: 300,
+          dayOfMonth: 30,
+          startDate: '2026-01-01',
+          endDate: '2026-06-12',
+          replacedById: null,
+        },
+      ]);
+    });
+
+    it('el cambio de monto marca el viejo como reemplazado por el nuevo', async () => {
+      const { id } = await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      const [old, created] = db.rows(FixedExpense).filter((r) => r.name === 'Arriendo');
+
+      expect(old).toMatchObject({ endDate: '2026-06-30', replacedById: id });
+      // El sucesor nace sin marca: es el vigente
+      expect(created?.replacedById ?? null).toBeNull();
+    });
+
+    it('lo mismo con un ingreso recurrente, y el listado lo refleja', async () => {
+      db.seed(RecurringIncome, [
+        {
+          id: 1,
+          name: 'Salario',
+          amountCents: 300,
+          dayOfMonth: 30,
+          startDate: '2026-01-01',
+          endDate: null,
+          replacedById: null,
+        },
+      ]);
+      const { id } = await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2026-07-01' });
+      const list = await service.listRecurringIncomes({}, TODAY);
+
+      expect(list.map((r) => [r.id, r.replacedById, r.canReactivate])).toEqual([
+        [1, id, false], // reemplazado: no se reactiva
+        [id, null, false], // vigente y sin fin: nada que reactivar
+      ]);
+    });
+
+    it('no se cambia el monto de uno ya reemplazado: el vigente es su sucesor', async () => {
+      await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      await expect(
+        service.changeFixedExpenseAmount(1, { amountCents: 1400, effectiveFrom: '2026-05-01' }),
+      ).rejects.toThrow(REPLACED);
+    });
+
+    it('reactivar uno terminado a mano: vuelve a active, sin endDate', async () => {
+      expect((await service.listFixedExpenses({}, TODAY)).find((r) => r.id === 2)).toMatchObject({
+        status: 'ended',
+        canReactivate: true,
+      });
+
+      const result = await service.reactivateFixedExpense(2);
+
+      expect(result).toMatchObject({ id: 2, status: 'active', endDate: null, canReactivate: false });
+      expect(db.rows(FixedExpense).find((r) => r.id === 2)?.endDate).toBeNull();
+    });
+
+    it('un ingreso recurrente también', async () => {
+      const result = await service.reactivateRecurringIncome(1);
+      expect(result).toMatchObject({ id: 1, endDate: null });
+      expect(db.rows(RecurringIncome)[0]?.endDate).toBeNull();
+    });
+
+    it('quita también un fin futuro ("termina el 30 nov")', async () => {
+      db.seed(FixedExpense, [
+        {
+          id: 5,
+          name: 'Moto',
+          amountCents: 1,
+          dayOfMonth: 1,
+          startDate: '2026-01-01',
+          endDate: '2026-11-30',
+          replacedById: null,
+        },
+      ]);
+      const result = await service.reactivateFixedExpense(5);
+      expect(result).toMatchObject({ endDate: null, status: 'active' });
+    });
+
+    it('reactivar uno reemplazado es 409 y no cambia nada', async () => {
+      await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      await expect(service.reactivateFixedExpense(1)).rejects.toThrow(ConflictException);
+      await expect(service.reactivateFixedExpense(1)).rejects.toThrow(REPLACED);
+      expect(db.rows(FixedExpense).find((r) => r.id === 1)?.endDate).toBe('2026-06-30');
+    });
+
+    it('es idempotente: sin fecha de fin devuelve el registro tal cual', async () => {
+      const first = await service.reactivateFixedExpense(1);
+      const again = await service.reactivateFixedExpense(1);
+      expect(again).toEqual(first);
+      expect(again.endDate).toBeNull();
+    });
+
+    it('404 si no existe', async () => {
+      await expect(service.reactivateFixedExpense(99)).rejects.toThrow(NotFoundException);
+      await expect(service.reactivateRecurringIncome(99)).rejects.toThrow(NotFoundException);
+    });
+
+    it('si se borra el sucesor, el viejo vuelve a poder reactivarse (SET NULL de la base)', async () => {
+      await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      // Lo que hace Postgres con ON DELETE SET NULL
+      await service.removeFixedExpense(db.rows(FixedExpense).find((r) => r.startDate === '2026-07-01')?.id ?? 0);
+      for (const row of db.rows(FixedExpense)) row.replacedById = null;
+      await expect(service.reactivateFixedExpense(1)).resolves.toMatchObject({ endDate: null });
     });
   });
 

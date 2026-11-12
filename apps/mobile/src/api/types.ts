@@ -130,7 +130,7 @@ export interface CardSummary {
 export type MonthlyStatus = 'upcoming' | 'active' | 'ended';
 
 /** Lo que comparten un ingreso recurrente y un gasto fijo (GET /recurring-incomes y /fixed-expenses). */
-interface MonthlyItem {
+export interface MonthlyItem {
   id: number;
   name: string;
   amountCents: number;
@@ -139,6 +139,10 @@ interface MonthlyItem {
   startDate: string;
   /** null: no termina. */
   endDate: string | null;
+  /** El registro que lo reemplazó por un cambio de monto; null si no lo reemplazaron. */
+  replacedById: number | null;
+  /** Tiene fecha de fin y no lo reemplazó un cambio de monto: se puede reactivar. */
+  canReactivate: boolean;
   /** upcoming: empieza después de hoy; active: rige hoy; ended: ya terminó. */
   status: MonthlyStatus;
 }

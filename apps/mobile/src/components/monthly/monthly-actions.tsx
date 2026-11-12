@@ -7,13 +7,14 @@ import { deleteJson, patchJson, postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DateField } from '@/components/date-field';
 import { Label } from '@/components/label';
 import { MoneyInput } from '@/components/money-input';
 import { Text } from '@/components/text';
-import { formatDay, isValidDate, today } from '@/dates';
+import { isValidDate, today } from '@/dates';
 import { listKey, MONTHLY, type MonthlyItem, type MonthlyKind } from '@/monthly/kinds';
-import { terminationDate } from '@/monthly/logic';
+import { monthlyControls, reactivateMessage, terminateMessage, terminationDate } from '@/monthly/logic';
 import { formatCop } from '@/money';
 import { colors, space, type } from '@/theme/tokens';
 
@@ -36,6 +37,7 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
   const [newAmount, setNewAmount] = useState<number | null>(null);
   const [effectiveFrom, setEffectiveFrom] = useState(today());
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [dialog, setDialog] = useState<'terminate' | 'reactivate' | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
   const done = () => {
@@ -55,10 +57,16 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
     mutationFn: (endDate: string) => patchJson<{ id: number }>(url, { endDate }),
     onSuccess: done,
   });
+  const reactivate = useMutation({
+    mutationFn: () => postJson<{ id: number }>(`${url}/reactivate`, {}),
+    onSuccess: done,
+  });
   const remove = useMutation({ mutationFn: () => deleteJson(url), onSuccess: done });
 
-  const busy = changeAmount.isPending || setEnd.isPending || remove.isPending;
-  const error = changeAmount.error ?? setEnd.error ?? remove.error;
+  const busy = changeAmount.isPending || setEnd.isPending || reactivate.isPending || remove.isPending;
+  const error = changeAmount.error ?? setEnd.error ?? reactivate.error ?? remove.error;
+  const controls = monthlyControls(item);
+  const end = terminationDate(item.startDate);
 
   const submitChange = () => {
     if (newAmount === null || newAmount === 0) return setFormError('Escribe el monto nuevo.');
@@ -69,17 +77,9 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
 
   return (
     <View style={styles.wrap}>
-      {item.status === 'upcoming' && <Text style={styles.status}>Empieza el {formatDay(item.startDate)}.</Text>}
-      {item.status === 'active' && item.endDate !== null && (
-        <Text style={styles.status}>Termina el {formatDay(item.endDate)}.</Text>
-      )}
-      {item.status === 'ended' && item.endDate !== null && (
-        <Text style={styles.status}>
-          Terminó el {formatDay(item.endDate)}. Un {text.noun} terminado no se reactiva: para retomarlo, crea uno nuevo.
-        </Text>
-      )}
+      {controls.note !== null && <Text style={styles.status}>{controls.note}</Text>}
 
-      {item.status !== 'ended' && (
+      {controls.changeAmount && (
         <Card style={styles.card}>
           <Text style={type.subtitle}>Cambiar monto</Text>
           <Text style={styles.muted}>
@@ -107,14 +107,49 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
         </Card>
       )}
 
-      {item.status === 'active' && (
+      {controls.reactivate && (
         <Button
-          label={setEnd.isPending ? 'Terminando…' : 'Terminar'}
-          variant="secondary"
+          label={reactivate.isPending ? 'Reactivando…' : 'Reactivar'}
+          variant="primary"
           disabled={busy}
-          onPress={() => setEnd.mutate(terminationDate(item.startDate))}
+          onPress={() => setDialog('reactivate')}
         />
       )}
+
+      {controls.terminate && (
+        <Button
+          label={setEnd.isPending ? 'Terminando…' : 'Terminar'}
+          variant="danger"
+          disabled={busy}
+          onPress={() => setDialog('terminate')}
+        />
+      )}
+
+      {/* Pedir confirmación evita terminar uno por error: deja de contar en la proyección desde esa fecha */}
+      <ConfirmDialog
+        visible={dialog === 'terminate'}
+        title={`¿Terminar este ${text.noun}?`}
+        confirmLabel="Terminar"
+        confirmVariant="danger"
+        loading={setEnd.isPending}
+        error={setEnd.isError ? errorText(setEnd.error) : null}
+        onConfirm={() => setEnd.mutate(end)}
+        onCancel={() => setDialog(null)}
+      >
+        <Text style={type.body}>{terminateMessage(item, end, kind === 'income' ? 'suma' : 'resta')}</Text>
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        visible={dialog === 'reactivate'}
+        title={`¿Reactivar este ${text.noun}?`}
+        confirmLabel="Reactivar"
+        loading={reactivate.isPending}
+        error={reactivate.isError ? errorText(reactivate.error) : null}
+        onConfirm={() => reactivate.mutate()}
+        onCancel={() => setDialog(null)}
+      >
+        <Text style={type.body}>{reactivateMessage(item)}</Text>
+      </ConfirmDialog>
 
       {confirmingDelete ? (
         <Card style={styles.card}>

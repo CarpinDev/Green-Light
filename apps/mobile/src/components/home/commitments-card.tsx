@@ -1,27 +1,24 @@
 import { StyleSheet, View } from 'react-native';
 
-import type { Light, MonthSummary } from '@/api/types';
+import type { MonthSummary } from '@/api/types';
 import { Card } from '@/components/card';
 import { Text } from '@/components/text';
 import { formatDayShort, formatMonthName } from '@/dates';
 import type { Commitment, MonthCommitments } from '@/home/commitments';
 import { formatCop } from '@/money';
-import { colors, light as lights, space, type } from '@/theme/tokens';
+import { colors, space, type } from '@/theme/tokens';
 
 interface CommitmentsCardProps {
   month: Pick<MonthSummary, 'month'>;
   commitments: MonthCommitments;
-  /** El semáforo del restante real. */
-  light: Light;
 }
 
 /**
- * Lo que ya debes este mes (tarjetas por corte, gastos fijos y cuotas de préstamo) y cuánta plata te queda de
- * verdad libre después de eso.
+ * Lo que ya debes este mes (tarjetas por corte, gastos fijos y cuotas de préstamo). El restante real, que sale de
+ * restar esto, es el número grande de la tarjeta principal; aquí solo se explica por qué difiere del flujo de caja.
  */
-export function CommitmentsCard({ month, commitments, light }: CommitmentsCardProps) {
+export function CommitmentsCard({ month, commitments }: CommitmentsCardProps) {
   const name = formatMonthName(month.month);
-  const remainingColor = lights[light].bg;
 
   return (
     <Card style={styles.card}>
@@ -40,21 +37,9 @@ export function CommitmentsCard({ month, commitments, light }: CommitmentsCardPr
         </View>
       )}
 
-      <View style={styles.divider} />
-
-      <View style={styles.remaining}>
-        <Text style={styles.muted}>Restante real a fin de {name}</Text>
-        <Text
-          style={[styles.remainingAmount, { color: remainingColor }]}
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          accessibilityLabel={`Restante real a fin de ${name}: ${formatCop(commitments.realRemainingCents)}`}
-        >
-          {formatCop(commitments.realRemainingCents)}
-        </Text>
-      </View>
       <Text style={styles.muted}>
-        Incluye pagos de tarjeta ya cortados que vencen el próximo mes; por eso es menor que la proyección.
+        El restante real incluye los pagos de tarjeta ya cortados que vencen el próximo mes; por eso es menor que el
+        flujo de caja.
       </Text>
     </Card>
   );
@@ -101,7 +86,4 @@ const styles = StyleSheet.create({
   amount: type.bodyMedium,
   small: { ...type.captionSmall, color: colors.textMuted },
   muted: { ...type.caption, color: colors.textMuted },
-  divider: { height: 1, backgroundColor: colors.border },
-  remaining: { gap: space.xs },
-  remainingAmount: { ...type.title },
 });
