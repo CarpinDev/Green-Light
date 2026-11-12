@@ -5,6 +5,7 @@ import { CreateLoanDto } from './create-loan.dto';
 import { OpeningDebtDto } from './opening-debt.dto';
 import { RateDto } from './rate.dto';
 import { UpdateCardDto } from './update-card.dto';
+import { UpdateLoanDto } from './update-loan.dto';
 
 // Las reglas de forma del cuerpo, con el mismo ValidationPipe que usa main.ts. Datos ficticios.
 
@@ -30,6 +31,15 @@ describe('CreateLoanDto', () => {
     await expect(validate(CreateLoanDto, { ...loan, fixedPaymentCents: 0 })).rejects.toThrow();
     await expect(validate(CreateLoanDto, { ...loan, fixedPaymentCents: -5 })).rejects.toThrow();
     await expect(validate(CreateLoanDto, { ...loan, fixedPaymentCents: 91_679_993 })).resolves.toBeDefined();
+  });
+
+  it('acepta la cuota total del extracto y el seguro por porcentaje como texto', async () => {
+    await expect(validate(CreateLoanDto, { ...loan, installmentTotalCents: 2_656_738 })).resolves.toBeDefined();
+    await expect(validate(CreateLoanDto, { ...loan, insuranceRatePct: '0.2344' })).resolves.toBeDefined();
+    await expect(validate(CreateLoanDto, { ...loan, installmentTotalCents: 0 })).rejects.toThrow();
+    await expect(validate(CreateLoanDto, { ...loan, insuranceRatePct: '0,2344' })).rejects.toThrow();
+    await expect(validate(CreateLoanDto, { ...loan, insuranceRatePct: '0.23441' })).rejects.toThrow();
+    await expect(validate(CreateLoanDto, { ...loan, insuranceRatePct: 0.2344 })).rejects.toThrow();
   });
 
   it('rechaza plazo 0, centavos con decimales, fecha imposible y campos de más', async () => {
@@ -151,5 +161,28 @@ describe('OpeningDebtDto', () => {
     await expect(validate(OpeningDebtDto, { items: [{ ...item, promo: { ea: 0 } }] })).rejects.toThrow();
     await expect(validate(OpeningDebtDto, { items: [{ ...item, promo: { ea: 'abc' } }] })).rejects.toThrow();
     await expect(validate(OpeningDebtDto, { items: [{ ...item, color: 'azul' }] })).rejects.toThrow();
+  });
+});
+
+describe('UpdateLoanDto', () => {
+  it('acepta nombre, banco, últimos 4, cuota (o null) y seguro', async () => {
+    await expect(validate(UpdateLoanDto, { name: 'Nu libre', bank: 'Nu', last4: '1234' })).resolves.toBeDefined();
+    await expect(validate(UpdateLoanDto, { fixedPaymentCents: 2_656_738 })).resolves.toBeDefined();
+    await expect(validate(UpdateLoanDto, { fixedPaymentCents: null })).resolves.toBeDefined();
+    await expect(validate(UpdateLoanDto, { insuranceCents: 0 })).resolves.toBeDefined();
+    await expect(validate(UpdateLoanDto, { insuranceRatePct: '0.2344' })).resolves.toBeDefined();
+    await expect(validate(UpdateLoanDto, { insuranceRatePct: null })).resolves.toBeDefined();
+  });
+
+  it('no acepta el capital, las cuotas ni la primera fecha: reescriben la historia de los abonos', async () => {
+    await expect(validate(UpdateLoanDto, { principalCents: 100 })).rejects.toThrow();
+    await expect(validate(UpdateLoanDto, { termMonths: 10 })).rejects.toThrow();
+    await expect(validate(UpdateLoanDto, { firstPaymentDate: '2026-12-01' })).rejects.toThrow();
+  });
+
+  it('valida la forma de lo que sí acepta', async () => {
+    await expect(validate(UpdateLoanDto, { last4: '12' })).rejects.toThrow();
+    await expect(validate(UpdateLoanDto, { name: '' })).rejects.toThrow();
+    await expect(validate(UpdateLoanDto, { fixedPaymentCents: 0 })).rejects.toThrow();
   });
 });

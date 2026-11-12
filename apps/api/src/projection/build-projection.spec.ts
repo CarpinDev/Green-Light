@@ -4,6 +4,7 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { AccountBalance } from '../products/entities/account-balance.entity';
 import { CapitalPayment } from '../movements/entities/capital-payment.entity';
 import { Expense } from '../movements/entities/expense.entity';
+import { Loan } from '../products/entities/loan.entity';
 import { Settings } from '../settings/entities/settings.entity';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
@@ -98,6 +99,35 @@ describe('buildProjection: la cuenta de un gasto fijo es solo información de or
     // Y sí descuenta el arriendo: sin él, los cierres serían otros
     const none = buildProjection(base, 6);
     expect(without.months.map((m) => m.closingBalance)).not.toEqual(none.months.map((m) => m.closingBalance));
+  });
+});
+
+describe('buildProjection: la cuota del banco y el seguro por porcentaje de un préstamo', () => {
+  const loanPayments = (overrides: Partial<Loan>) => {
+    const base = facts();
+    const loan = { ...base.loans[0], ...overrides };
+    return buildProjection({ ...base, loans: [loan] }, 4)
+      .months.flatMap((m) => m.events)
+      .filter((e) => e.kind === 'loan_payment')
+      .map((e) => -e.amount);
+  };
+
+  it('usa la cuota del banco: cambiarla cambia lo que sale cada mes', () => {
+    const calculated = loanPayments({ fixedPaymentCents: null, insuranceCents: 0 });
+    const bank = loanPayments({ fixedPaymentCents: pesos(1_000_000), insuranceCents: 0 });
+    expect(bank.every((p) => p === pesos(1_000_000))).toBe(true);
+    expect(calculated.every((p) => p !== pesos(1_000_000))).toBe(true);
+  });
+
+  it('con seguro por porcentaje, la cuota total baja cada mes (el seguro sigue al saldo)', () => {
+    const payments = loanPayments({
+      fixedPaymentCents: pesos(1_000_000),
+      insuranceCents: 0,
+      insuranceRate: new Decimal('0.002344'),
+    });
+    expect(payments.length).toBeGreaterThan(1);
+    for (let i = 1; i < payments.length; i++) expect(payments[i]).toBeLessThan(payments[i - 1] ?? 0);
+    expect(payments.every((p) => p > pesos(1_000_000))).toBe(true);
   });
 });
 

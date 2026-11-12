@@ -104,6 +104,13 @@ describe('toEngineLoan', () => {
   });
   const rates = [rate(9, '2026-01-01', '0.195618', '0.015')];
 
+  it('el seguro por porcentaje del saldo pasa como tasa; sin él, no viene', () => {
+    const byRate = make(Loan, { ...loan, insuranceCents: 0, insuranceRate: D('0.002344') });
+    expect(toEngineLoan(byRate, rates).insuranceRate?.toFixed()).toBe('0.002344');
+    expect('insuranceRate' in toEngineLoan({ ...loan, insuranceRate: null }, rates)).toBe(false);
+    expect('insuranceRate' in toEngineLoan(loan, rates)).toBe(false);
+  });
+
   it('pasa los campos con los nombres del motor', () => {
     expect(toEngineLoan(loan, rates)).toMatchObject({
       id: '9',

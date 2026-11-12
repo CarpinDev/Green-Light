@@ -15,11 +15,11 @@ import { invalidateProducts } from '@/products/invalidate';
 import { modeLabel, sourceLabel } from '@/products/payment';
 import { colors, space, type } from '@/theme/tokens';
 
-/** "Abonos registrados" de una tarjeta, con un botón para quitar uno mal puesto (con confirmación). */
-export function PaymentsList({ cardId }: { cardId: number }) {
+/** "Abonos registrados" de una tarjeta o un préstamo, con un botón para quitar uno mal puesto (con confirmación). */
+export function PaymentsList({ productId, base }: { productId: number; base: 'cards' | 'loans' }) {
   const payments = useQuery({
-    queryKey: ['cards', cardId, 'capital-payments'],
-    queryFn: () => getJson<CapitalPaymentItem[]>(`/cards/${cardId}/capital-payments`),
+    queryKey: [base, productId, 'capital-payments'],
+    queryFn: () => getJson<CapitalPaymentItem[]>(`/${base}/${productId}/capital-payments`),
   });
   const queryClient = useQueryClient();
   const [removing, setRemoving] = useState<CapitalPaymentItem | null>(null);
@@ -40,7 +40,9 @@ export function PaymentsList({ cardId }: { cardId: number }) {
         inline
         query={payments}
         errorTitle="No se pudieron cargar los abonos."
-        emptyText="Todavía no has abonado a esta tarjeta."
+        emptyText={
+          base === 'cards' ? 'Todavía no has abonado a esta tarjeta.' : 'Todavía no has abonado a este préstamo.'
+        }
       >
         {(data) => (
           <Card style={styles.list}>

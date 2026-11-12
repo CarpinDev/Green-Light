@@ -220,6 +220,69 @@ export interface CardPlan {
   cuts: PlanCut[];
 }
 
+/** Un préstamo de GET /loans: todo sale del cronograma, nada se guarda calculado. */
+export interface LoanSummary {
+  id: number;
+  name: string;
+  bank: string;
+  last4: string;
+  rate: { ea: string; mv: string } | null;
+  /** La próxima cuota completa (capital + interés + seguro); 0 si ya no quedan. */
+  installmentCents: number;
+  /** El seguro de la próxima cuota (con seguro por porcentaje baja cada mes). */
+  insuranceCents: number;
+  /** Capital que se debe hoy. */
+  balanceCents: number;
+  nextDueDate: string | null;
+  remainingInstallments: number;
+  /** La fecha de la última cuota. */
+  endDate: string | null;
+}
+
+export interface LoanScheduleRow {
+  period: number;
+  dueDate: string;
+  payment: number;
+  interest: number;
+  principal: number;
+  insurance: number;
+  total: number;
+  closingBalance: number;
+  prepayment: number;
+  /** Su fecha ya llegó: se da por pagada. */
+  paid: boolean;
+}
+
+/** Los datos con que se creó o editó el préstamo (para el formulario de edición). */
+export interface LoanTerms {
+  principalCents: number;
+  termMonths: number;
+  firstPaymentDate: string;
+  fixedPaymentCents: number | null;
+  insuranceCents: number;
+  /** "0.2344" (% mensual del saldo); null si el seguro es fijo. */
+  insuranceRatePct: string | null;
+}
+
+/** GET /loans/:id */
+export interface LoanDetail extends LoanSummary {
+  terms: LoanTerms;
+  schedule: LoanScheduleRow[];
+}
+
+/** Lo que cambia con un abono (POST /loans/:id/prepayment-preview). */
+export interface LoanEffect {
+  installmentCents: number;
+  remainingInstallments: number;
+  endDate: string | null;
+  balanceCents: number;
+}
+
+export interface LoanPrepaymentPreview {
+  before: LoanEffect;
+  after: LoanEffect;
+}
+
 /** Un abono de GET /cards/:id/capital-payments. `source` es null en los abonos de antes de registrar el origen. */
 export interface CapitalPaymentItem {
   id: number;

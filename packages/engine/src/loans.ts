@@ -1,5 +1,6 @@
+import Decimal from 'decimal.js';
 import { type IsoDate, dayOfMonth, shiftMonths } from './calendar';
-import type { Cents } from './money';
+import { type Cents, roundCents } from './money';
 import type { RateHistory } from './rates';
 import { type AmortizationMethod, type PrepaymentMode, type ScheduleRow, schedule } from './amortization';
 import { groupPrepayments } from './prepayment-periods';
@@ -14,8 +15,14 @@ export interface Loan {
   method: AmortizationMethod;
   /** Cuota que informa el banco; solo con cuota fija. Si falta, se calcula. */
   fixedPayment?: Cents;
-  /** Seguro que se cobra con cada cuota. */
+  /** Seguro fijo que se cobra con cada cuota. Si el seguro es un porcentaje del saldo, 0 y se usa `insuranceRate`. */
   insurance: Cents;
+  /**
+   * Seguro como tasa mensual sobre el saldo de capital al inicio del periodo (el de Rappi baja cada mes porque
+   * el saldo baja). Con ella, el seguro de cada fila es `round(openingBalance × insuranceRate)`. No puede venir
+   * junto con un `insurance` fijo. Va fuera de la cuota fija: no cambia el capital ni el interés.
+   */
+  insuranceRate?: Decimal;
 }
 
 export interface LoanPrepayment {
@@ -51,7 +58,8 @@ export function loanDueDates(loan: Loan): IsoDate[] {
 
 /**
  * Cronograma del préstamo. Cada cuota usa la tasa vigente al inicio de su periodo
- * (un mes antes de su fecha de pago), que es como el banco fija una tasa variable.
+ * (un mes antes de su fecha de pago), que es como el banco fija una tasa variable. Si la primera tasa registrada
+ * es posterior a ese inicio (un préstamo que ya venía en curso y se registró hoy), rige desde la primera cuota.
  */
 export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] = []): LoanRow[] {
   for (const p of prepayments) {
@@ -60,10 +68,17 @@ export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] 
     }
   }
 
+  if (loan.insuranceRate !== undefined && loan.insurance > 0) {
+    throw new Error(`el préstamo ${loan.id} trae seguro fijo y seguro por tasa a la vez: solo uno`);
+  }
+  if (loan.insuranceRate !== undefined && (!loan.insuranceRate.isFinite() || loan.insuranceRate.isNegative())) {
+    throw new RangeError(`tasa de seguro inválida: ${loan.insuranceRate.toString()}`);
+  }
+
   const dueDates = loanDueDates(loan);
   const day = dayOfMonth(loan.firstPaymentDate);
   const grouped = groupPrepayments(dueDates, prepayments);
-  const rates = dueDates.map((due) => loan.rates.rateOn(shiftMonths(due, -1, day)).mv);
+  const rates = dueDates.map((due) => loan.rates.rateOnOrFirst(shiftMonths(due, -1, day)).mv);
 
   const rows = schedule(loan.principal, loan.termMonths, rates, loan.method, {
     prepayments: [...grouped.values()].map((g) => ({ afterPeriod: g.afterPeriod, amount: g.amount, mode: g.mode })),
@@ -73,8 +88,13 @@ export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] 
   return rows.map((row, i) => {
     const dueDate = dueDates[i];
     if (dueDate === undefined) throw new Error(`no hay fecha de pago para la cuota ${i + 1}`);
-    // Si un abono liquidó la deuda, esa fila ya no paga cuota ni seguro
-    const insurance = row.payment > 0 ? loan.insurance : 0;
+    // Si un abono liquidó la deuda, esa fila ya no paga cuota ni seguro. El seguro por tasa se calcula sobre el
+    // saldo con el que arranca el periodo (ya sin el abono de ese periodo), así que un abono también lo baja
+    const fixedOrRate =
+      loan.insuranceRate === undefined
+        ? loan.insurance
+        : roundCents(new Decimal(row.openingBalance).times(loan.insuranceRate));
+    const insurance = row.payment > 0 ? fixedOrRate : 0;
     const paidOn = row.prepayment > 0 ? grouped.get(i)?.date : undefined;
     const external = Math.min(row.prepayment, grouped.get(i)?.externalAmount ?? 0);
     return {

@@ -33,6 +33,9 @@ const MONTHLY_MODALS = [
   { name: 'cards/new', title: 'Nueva tarjeta' },
   { name: 'cards/[id]/edit', title: 'Editar tarjeta' },
   { name: 'cards/[id]/payment', title: 'Abonar a la deuda' },
+  { name: 'loans/new', title: 'Nuevo préstamo' },
+  { name: 'loans/[id]/edit', title: 'Editar préstamo' },
+  { name: 'loans/[id]/payment', title: 'Abonar a capital' },
 ];
 
 export default function RootLayout() {
@@ -78,6 +81,7 @@ export default function RootLayout() {
         <Stack.Screen name="upcoming" options={{ title: 'Próximos' }} />
         <Stack.Screen name="cards/[id]/index" options={{ title: 'Tarjeta' }} />
         <Stack.Screen name="accounts/[id]" options={{ title: 'Cuenta' }} />
+        <Stack.Screen name="loans/[id]/index" options={{ title: 'Préstamo' }} />
         <Stack.Screen name="archived" options={{ title: 'Archivados' }} />
         {/* Ingresos recurrentes y gastos fijos: crear y editar, también como modales */}
         {MONTHLY_MODALS.map(({ name, title }) => (

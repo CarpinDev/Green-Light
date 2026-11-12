@@ -1,6 +1,8 @@
 import type { AmortizationMethod, Cents, IsoDate } from '@greenlight/engine';
 import { Check, Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
+import type Decimal from 'decimal.js';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
+import { decimalTransformer } from '../../common/transformers/decimal.transformer';
 import { AMORTIZATION_METHODS } from '../amortization';
 import { Product } from './product.entity';
 
@@ -10,6 +12,8 @@ import { Product } from './product.entity';
 @Check(`"term_months" >= 1`)
 @Check(`"fixed_payment_cents" IS NULL OR "fixed_payment_cents" > 0`)
 @Check(`"insurance_cents" >= 0`)
+// Un seguro fijo o uno por porcentaje del saldo, no los dos
+@Check(`NOT ("insurance_cents" > 0 AND "insurance_rate" IS NOT NULL)`)
 export class Loan {
   @PrimaryColumn() productId!: number;
 
@@ -32,6 +36,10 @@ export class Loan {
 
   @Column({ type: 'bigint', transformer: centsTransformer, default: 0 })
   insuranceCents!: Cents;
+
+  /** Seguro como fracción mensual del saldo (0,2344 % = 0.002344); null si el seguro es fijo. */
+  @Column({ type: 'numeric', precision: 9, scale: 6, nullable: true, transformer: decimalTransformer })
+  insuranceRate!: Decimal | null;
 
   @Column({
     type: 'enum',

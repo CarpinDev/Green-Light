@@ -225,3 +225,19 @@ describe('upcomingByMonth y eventTitle', () => {
     expect(eventTitle({ kind: 'card_payment', label: 'Pago (corte 2026-11-14)' })).toBe('Pago (corte 2026-11-14)');
   });
 });
+
+describe('monthCommitments: el nombre de un préstamo', () => {
+  const months = [month('2026-11', { events: [loan('2026-11-25', 2_658_600), loan('2026-11-26', 100)] })];
+
+  it('usa el nombre del préstamo en vez del texto del motor', () => {
+    const [first] = monthCommitments(months, '2026-11', TODAY, cards, [{ id: 3, name: 'Libre inversión Nu' }]).items;
+    expect(first?.label).toBe('Libre inversión Nu');
+  });
+
+  it('sin la consulta de préstamos, queda el texto del motor', () => {
+    expect(monthCommitments(months, '2026-11', TODAY, cards).items[0]?.label).toBe('Cuota 3 préstamo');
+    expect(monthCommitments(months, '2026-11', TODAY, cards, [{ id: 9, name: 'Otro' }]).items[0]?.label).toBe(
+      'Cuota 3 préstamo',
+    );
+  });
+});
