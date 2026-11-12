@@ -161,6 +161,55 @@ export interface SimulationResponse extends InstallmentOption {
   with: MonthSummary[];
 }
 
+/** El desglose de un pago de tarjeta (centavos). */
+export interface PaymentBreakdown {
+  capital: number;
+  interest: number;
+  fees: number;
+  total: number;
+}
+
+/** Un corte de GET /cards/:id/plan. */
+export interface PlanCut {
+  cutDate: string;
+  dueDate: string;
+  /** Lo que hay que pagar para quedar al día. */
+  minimum: PaymentBreakdown;
+  /** Lo que hay que pagar para saldar lo facturado en este corte. */
+  fullPayment: PaymentBreakdown;
+  /** El capital que falta por facturar después de este corte. */
+  remainingDebtCents: number;
+}
+
+/** Respuesta de GET /cards/:id/plan: los próximos pagos de la tarjeta. */
+export interface CardPlan {
+  cardId: number;
+  cuts: PlanCut[];
+}
+
+/** Un grupo de GET /cards/:id/opening-debt (la deuda que la tarjeta ya traía). */
+export interface OpeningDebtGroup {
+  id: number;
+  amountCents: number;
+  installments: number;
+  /** La tasa de la promoción, como texto ('0.2899'); null si paga la de la tarjeta. */
+  promo: { ea: string; mv: string; description: string } | null;
+}
+
+/** Respuesta de POST /statement-checks. */
+export interface StatementCheckResponse {
+  id: number;
+  check: {
+    calculatedMinimum: number;
+    bankMinimum: number;
+    /** calculado − banco: positiva si Green Light calcula más. */
+    difference: number;
+    /** |diferencia| / banco, como texto ('0.0123'). */
+    relativeDifference: string;
+    withinTolerance: boolean;
+  };
+}
+
 /** Un elemento de GET /movements: algo que ya pasó. El monto va en positivo; `direction` dice el signo. */
 export interface Movement {
   /** 'expense:12', 'income:5', 'capital:3', 'recurring:2:2026-11-01', 'fixed:4:2026-11-05' */

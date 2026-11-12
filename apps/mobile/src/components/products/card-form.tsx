@@ -15,12 +15,22 @@ import { Input } from '@/components/input';
 import { Label } from '@/components/label';
 import { MoneyInput } from '@/components/money-input';
 import { Pills } from '@/components/pills';
+import { DebtGroups } from '@/components/products/debt-groups';
 import { RateField } from '@/components/products/rate-field';
 import { RateUpdate } from '@/components/products/rate-update';
 import { Text } from '@/components/text';
 import { today } from '@/dates';
 import { formatCop } from '@/money';
-import { parseDay, parseInstallments, sanitizeLast4, isLast4 } from '@/products/logic';
+import {
+  debtTotal,
+  type DebtGroupDraft,
+  emptyGroup,
+  newGroupKey,
+  type OpeningDebtItemBody,
+  openingDebtBody,
+  validateGroups,
+} from '@/products/debt';
+import { parseDay, sanitizeLast4, isLast4 } from '@/products/logic';
 import { invalidateProducts } from '@/products/invalidate';
 import { FIRST_PERIOD_INTERESTS, helpOf, PAYMENT_METHODS, SINGLE_INSTALLMENT_HELP } from '@/products/options';
 import { percentToFraction, type RateKind } from '@/products/rates';
@@ -30,12 +40,6 @@ const YES_NO = [
   { value: 'yes', label: 'Sí' },
   { value: 'no', label: 'No' },
 ] as const;
-
-/** La deuda que la tarjeta ya traía al empezar a usar la app: lo que se debe y cuántas cuotas faltan. */
-interface OpeningDebt {
-  amountCents: number;
-  installments: number;
-}
 
 /** Crear una tarjeta (sin `card`) o editarla (con `card`). Banco y últimos 4 son su identidad: no se editan. */
 export function CardForm({ card }: { card?: CardSummary }) {
@@ -58,14 +62,13 @@ export function CardForm({ card }: { card?: CardSummary }) {
   const [firstPeriod, setFirstPeriod] = useState<FirstPeriodInterest>(card?.firstPeriodInterest ?? 'prorated');
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [hasDebt, setHasDebt] = useState(false);
-  const [debtAmount, setDebtAmount] = useState<number | null>(null);
-  const [debtInstallments, setDebtInstallments] = useState('');
+  const [groups, setGroups] = useState<DebtGroupDraft[]>(() => [emptyGroup(newGroupKey())]);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Crear la tarjeta y registrar su deuda son dos llamadas: si la segunda falla, la tarjeta ya existe.
-  // Se guarda su id y la deuda para poder reintentar solo la deuda, sin crear la tarjeta otra vez.
+  // Se guarda su id y el cuerpo de la deuda para poder reintentar solo la deuda, sin crear la tarjeta otra vez.
   const [createdId, setCreatedId] = useState<number | null>(null);
-  const [debt, setDebt] = useState<OpeningDebt | null>(null);
+  const [debt, setDebt] = useState<{ items: OpeningDebtItemBody[] } | null>(null);
 
   const close = () => {
     if (router.canGoBack()) router.back();
@@ -84,14 +87,8 @@ export function CardForm({ card }: { card?: CardSummary }) {
   });
 
   const saveDebt = useMutation({
-    mutationFn: ({ cardId, debt: d }: { cardId: number; debt: OpeningDebt }) =>
-      postJson<{ id: number }>('/expenses', {
-        date: today(),
-        amountCents: d.amountCents,
-        sourceProductId: cardId,
-        installments: d.installments,
-        isOpeningDebt: true,
-      }),
+    mutationFn: ({ cardId, debt: body }: { cardId: number; debt: { items: OpeningDebtItemBody[] } }) =>
+      postJson<{ ids: number[] }>(`/cards/${cardId}/opening-debt`, body),
     onSuccess: () => {
       invalidateProducts(queryClient);
       close();
@@ -130,12 +127,10 @@ export function CardForm({ card }: { card?: CardSummary }) {
     const fraction = percentToFraction(percent);
     if (fraction === null) return setFormError('Escribe la tasa como porcentaje menor a 100, por ejemplo 28,99.');
 
-    let opening: OpeningDebt | null = null;
+    let opening: { items: OpeningDebtItemBody[] } | null = null;
     if (hasDebt) {
-      const installments = parseInstallments(debtInstallments);
-      if (debtAmount === null || debtAmount === 0) return setFormError('Escribe cuánto debes en la tarjeta.');
-      if (installments === null) return setFormError('Las cuotas que te faltan van de 1 a 72.');
-      opening = { amountCents: debtAmount, installments };
+      opening = openingDebtBody(groups);
+      if (opening === null) return setFormError(validateGroups(groups));
     }
 
     setFormError(null);
@@ -177,7 +172,7 @@ export function CardForm({ card }: { card?: CardSummary }) {
           <Text style={styles.muted}>
             {saveDebt.isPending
               ? 'Registrando la deuda…'
-              : `Pero no se pudo registrar la deuda de ${formatCop(debt.amountCents)} a ${debt.installments} cuotas. Puedes reintentarla sin crear la tarjeta otra vez, o agregarla después desde un gasto con esa tarjeta.`}
+              : `Pero no se pudo registrar la deuda inicial (${debt.items.length} ${debt.items.length === 1 ? 'grupo' : 'grupos'}, ${formatCop(debtTotal(groups))}). Puedes reintentarla sin crear la tarjeta otra vez, o cargarla después desde el detalle de la tarjeta.`}
           </Text>
         </Card>
       </FormScreen>
@@ -293,21 +288,7 @@ export function CardForm({ card }: { card?: CardSummary }) {
         <>
           <Label>¿Ya tienes una deuda en esta tarjeta?</Label>
           <ChoiceButtons items={YES_NO} selected={hasDebt ? 'yes' : 'no'} onSelect={(v) => setHasDebt(v === 'yes')} />
-          {hasDebt && (
-            <>
-              <Label>Cuánto debes hoy</Label>
-              <MoneyInput value={debtAmount} onChangeCents={setDebtAmount} placeholder="$ 0" />
-              <Label>Cuotas que te faltan (1 a 72)</Label>
-              <Input
-                value={debtInstallments}
-                onChangeText={setDebtInstallments}
-                placeholder="12"
-                keyboardType="number-pad"
-                maxLength={2}
-              />
-              <Text style={styles.hint}>Se registra como una deuda inicial con la fecha de hoy.</Text>
-            </>
-          )}
+          {hasDebt && <DebtGroups groups={groups} onChange={setGroups} />}
         </>
       )}
 
