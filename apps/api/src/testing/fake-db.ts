@@ -1,4 +1,4 @@
-import { DataSource, EntityManager, QueryFailedError } from 'typeorm';
+import { DataSource, EntityManager, FindOperator, QueryFailedError } from 'typeorm';
 
 // Un DataSource falso para probar los services sin Postgres. Guarda en memoria y respeta lo que
 // importa de una transacción: si algo lanza, no queda nada escrito. Solo para pruebas.
@@ -9,6 +9,8 @@ type Table = Map<EntityClass, Row[]>;
 interface FindOptions {
   where?: Row;
   order?: Record<string, 'ASC' | 'DESC'>;
+  /** Como find({ take }): solo las primeras N, después de ordenar. */
+  take?: number;
 }
 
 export class FakeDb {
@@ -44,7 +46,7 @@ export class FakeDb {
       getRepository: (Entity: new () => object) => ({
         findOneBy: async (where: Row) => this.find(this.tables, Entity, where),
         find: async (options: FindOptions = {}) =>
-          this.findAll(this.tables, Entity, options.where ?? {}, options.order),
+          this.findAll(this.tables, Entity, options.where ?? {}, options.order, options.take),
         save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
         delete: async (where: Row) => this.remove(this.tables, Entity, where),
       }),
@@ -62,19 +64,35 @@ export class FakeDb {
     return { save, create, findOneBy, delete: del } as unknown as EntityManager;
   }
 
-  private findAll(tables: Table, Entity: EntityClass, where: Row, order: FindOptions['order'] = {}): Row[] {
-    const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
+  private findAll(
+    tables: Table,
+    Entity: EntityClass,
+    where: Row,
+    order: FindOptions['order'] = {},
+    take?: number,
+  ): Row[] {
+    // Igualdad, y LessThanOrEqual(x) para los rangos de fecha
+    const matches = (r: Row) =>
+      Object.entries(where).every(([k, v]) => {
+        if (v instanceof FindOperator && v.type === 'lessThanOrEqual') return String(r[k]) <= String(v.value);
+        return r[k] === v;
+      });
     const found = (tables.get(Entity) ?? []).filter(matches);
     // Como find({ order }): por cada columna, en el orden en que se pidieron
-    return found.sort((a, b) => {
+    const sorted = found.sort((a, b) => {
       for (const [column, direction] of Object.entries(order)) {
-        const x = String(a[column]);
-        const y = String(b[column]);
-        const cmp = x.localeCompare(y, 'es', { numeric: true });
+        const x = a[column];
+        const y = b[column];
+        // Las horas (Date) se comparan como números; el resto, como texto
+        const cmp =
+          x instanceof Date && y instanceof Date
+            ? x.getTime() - y.getTime()
+            : String(x).localeCompare(String(y), 'es', { numeric: true });
         if (cmp !== 0) return direction === 'DESC' ? -cmp : cmp;
       }
       return 0;
     });
+    return take === undefined ? sorted : sorted.slice(0, take);
   }
 
   /** Como repository.delete(criteria): borra lo que coincide y dice cuántas filas fueron. */

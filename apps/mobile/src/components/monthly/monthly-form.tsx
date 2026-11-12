@@ -77,6 +77,8 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
     onSuccess: () => {
       // El semáforo de Inicio se recalcula y la lista de Mensual se refresca
       void queryClient.invalidateQueries({ queryKey: ['projection'] });
+      // Lo programado también sale en los movimientos recientes
+      void queryClient.invalidateQueries({ queryKey: ['movements'] });
       void queryClient.invalidateQueries({ queryKey: listKey(kind) });
       if (router.canGoBack()) router.back();
       else router.replace('/monthly');

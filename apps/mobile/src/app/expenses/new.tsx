@@ -72,6 +72,7 @@ export default function NewExpense() {
       // El gasto cambia la proyección: se marca vieja y el inicio (que sigue montado bajo el modal) la
       // vuelve a pedir. No se espera a que termine: el modal se cierra ya y el inicio muestra "refrescando".
       void queryClient.invalidateQueries({ queryKey: ['projection'] });
+      void queryClient.invalidateQueries({ queryKey: ['movements'] });
       if (router.canGoBack()) router.back();
       else router.replace('/');
     },

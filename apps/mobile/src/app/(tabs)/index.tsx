@@ -10,18 +10,12 @@ import { Button } from '@/components/button';
 import { HeroCard } from '@/components/home/hero-card';
 import { MonthBars } from '@/components/home/month-bars';
 import { StatPair } from '@/components/home/stat-pair';
-import { UpcomingList } from '@/components/home/upcoming-list';
+import { RecentMovements } from '@/components/movements/recent-movements';
+import { UpcomingTeaser } from '@/components/movements/upcoming-teaser';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, formatDayShort, STALE_DAYS, today } from '@/dates';
-import {
-  alertMessage,
-  chartBars,
-  firstVisibleMonth,
-  incomeShare,
-  upcomingMovements,
-  visibleMonths,
-} from '@/home/summary';
+import { alertMessage, chartBars, firstVisibleMonth, incomeShare, upcomingEvents, visibleMonths } from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
 
@@ -52,10 +46,7 @@ export default function Home() {
       {({ asOf, daysSinceBalance, staleAccounts, months, alerts }) => {
         const visible = visibleMonths(months, currentMonth());
         const current = firstVisibleMonth(months, currentMonth());
-        const movements = upcomingMovements(
-          visible.flatMap((m) => m.events),
-          today(),
-        );
+        const next = upcomingEvents(months, currentMonth(), today())[0];
 
         return (
           <ScrollView
@@ -100,7 +91,8 @@ export default function Home() {
               <Banner key={`${alert.kind}-${alert.refId}`}>{alertMessage(alert, products.data ?? [])}</Banner>
             ))}
 
-            <UpcomingList events={movements} />
+            <RecentMovements />
+            <UpcomingTeaser next={next} />
           </ScrollView>
         );
       }}

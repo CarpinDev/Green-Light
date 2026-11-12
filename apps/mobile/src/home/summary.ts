@@ -114,3 +114,15 @@ export function alertMessage(alert: Alert, products: readonly Product[]): string
   }
   return `En ${formatMonthName(alert.refId)} tus pagos de deuda son el ${pct(alert.value)} % de tu ingreso; lo recomendable es no pasar del ${pct(alert.threshold)} %.`;
 }
+
+/**
+ * Todo lo que viene de `today` en adelante en el mes actual y el siguiente, por fecha (de la proyección).
+ * Un gasto con tarjeta no aparece el día de la compra: aparece como "Pago de tarjeta" el día del pago del extracto.
+ */
+export function upcomingEvents(months: readonly MonthSummary[], now: string, today: string): CashEvent[] {
+  return visibleMonths(months, now)
+    .slice(0, 2)
+    .flatMap((m) => m.events)
+    .filter((e) => e.date >= today)
+    .sort(byDate);
+}
