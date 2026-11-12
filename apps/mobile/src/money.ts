@@ -5,6 +5,34 @@ export function formatCop(cents: number): string {
   return cop.format(cents / 100);
 }
 
+/** El signo de menos que usa formatCop (el de Intl en es-CO), para que las etiquetas cortas se lean igual. */
+const MINUS = cop.format(-1).trim().charAt(0) || '-';
+
+/**
+ * Pesos para etiquetas estrechas (6 columnas en un celular): "$850", "$793 mil", "$1,16 M". Redondea, no trunca:
+ * 999.600 pesos son "$1 M", no "$1.000 mil". Los negativos llevan el signo de formatCop: "−$120 mil".
+ */
+export function formatCopShort(cents: number): string {
+  const text = shortAmount(Math.abs(cents) / 100);
+  return cents < 0 && text !== '$0' ? `${MINUS}${text}` : text;
+}
+
+function shortAmount(pesos: number): string {
+  const whole = Math.round(pesos);
+  if (whole < 1000) return `$${whole}`;
+
+  const thousands = Math.round(pesos / 1000);
+  if (thousands < 1000) return `$${thousands} mil`;
+
+  // Millones con 2 decimales, en centésimas enteras para no arrastrar ruido de float
+  const hundredths = Math.round(pesos / 10_000);
+  const integer = Math.floor(hundredths / 100);
+  const decimals = String(hundredths % 100)
+    .padStart(2, '0')
+    .replace(/0+$/, '');
+  return `$${decimals === '' ? integer : `${integer},${decimals}`} M`;
+}
+
 /** Pesos que escribió el usuario a centavos: "120.000" -> 12000000. Quita puntos y espacios; null si no son solo dígitos. */
 export function parsePesos(text: string): number | null {
   const digits = text.replace(/[.\s]/g, '');

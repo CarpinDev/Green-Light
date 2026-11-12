@@ -39,6 +39,27 @@ export function formatPercent(fraction: string): string {
   return `${rest === '' ? integer : `${integer},${rest}`} %`;
 }
 
+/**
+ * Para mostrar, no para guardar: "0.018769265122" -> "1,88 %". Redondea (mitad hacia arriba) a `decimals`
+ * decimales sobre el texto, sin float, y quita los ceros que sobren: "0.25" -> "25 %". Usa formatPercent
+ * donde se necesite la tasa exacta.
+ */
+export function formatPercentShort(fraction: string, decimals = 2): string {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec(fraction.trim());
+  if (match === null) return fraction;
+  const [, whole = '0', fractionDigits = ''] = match;
+
+  // En porcentaje el punto corre dos lugares: se trabaja con un entero en la escala 10^-decimals
+  const digits = fractionDigits.padEnd(2 + decimals + 1, '0');
+  let scaled = BigInt(whole + digits.slice(0, 2 + decimals));
+  if (digits.charCodeAt(2 + decimals) >= 53) scaled += 1n; // el siguiente dígito es 5 o más
+
+  const text = scaled.toString().padStart(decimals + 1, '0');
+  const integer = text.slice(0, text.length - decimals);
+  const rest = text.slice(text.length - decimals).replace(/0+$/, '');
+  return `${rest === '' ? integer : `${integer},${rest}`} %`;
+}
+
 export type RateKind = 'ea' | 'mv';
 
 /** El cuerpo de una tasa para la API: `{ effectiveFrom, ea: '0.2899' }` (o `mv`). null si el porcentaje no vale. */

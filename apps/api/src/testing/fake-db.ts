@@ -61,7 +61,9 @@ export class FakeDb {
     const create = (Entity: new () => object, data: Row) => Object.assign(new Entity(), data);
     const findOneBy = async (Entity: EntityClass, where: Row) => this.find(staged, Entity, where);
     const del = async (Entity: EntityClass, where: Row) => this.remove(staged, Entity, where);
-    return { save, create, findOneBy, delete: del } as unknown as EntityManager;
+    const find = async (Entity: EntityClass, options: FindOptions = {}) =>
+      this.findAll(staged, Entity, options.where ?? {}, options.order, options.take);
+    return { save, create, findOneBy, delete: del, find } as unknown as EntityManager;
   }
 
   private findAll(

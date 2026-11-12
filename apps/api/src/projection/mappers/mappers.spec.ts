@@ -160,6 +160,14 @@ describe('gastos: tarjeta o efectivo', () => {
       expect(promo.promoRate?.mv.isZero()).toBe(true);
     });
 
+    it('la deuda inicial cobra el mes completo en su primer corte', () => {
+      expect(toCardPurchase({ ...base, isOpeningDebt: true }).firstPeriodInterest).toBe('full_month');
+    });
+
+    it('un gasto normal no fija el interés del primer periodo', () => {
+      expect('firstPeriodInterest' in toCardPurchase({ ...base, isOpeningDebt: false })).toBe(false);
+    });
+
     it('rechaza un gasto sin cuotas: no es una compra con tarjeta', () => {
       expect(() => toCardPurchase({ ...base, installments: null })).toThrow(/cuotas/i);
     });

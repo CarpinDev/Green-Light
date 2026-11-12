@@ -154,6 +154,37 @@ describe('cards: plan de una compra', () => {
     });
   });
 
+  describe('interés de la primera cuota fijado en la compra (deuda que ya venía cobrando)', () => {
+    // Compra 2 días antes del corte (13 feb, corte 15), $682.500 a 2 cuotas al 2,10 % M.V.
+    const debt = (overrides: Partial<CardPurchase> = {}) =>
+      purchase({
+        date: '2026-02-13',
+        amount: pesos(682_500),
+        installments: 2,
+        promoRate: rateFromMv('0.021'),
+        ...overrides,
+      });
+    const prorated = { ...card, firstPeriodInterest: 'prorated' as const };
+
+    it('sin override, la tarjeta prorratea: solo 2 días de interés', () => {
+      const first = planPurchase(prorated, debt())[0];
+      expect(first?.interest).toBeLessThan(pesos(1_500));
+    });
+
+    it('full_month en la compra gana sobre prorated de la tarjeta: 682.500 × 0,021', () => {
+      const first = planPurchase(prorated, debt({ firstPeriodInterest: 'full_month' }))[0];
+      expect(first?.interest).toBe(1_433_250); // $14.332,50
+      expect(first?.capital).toBe(pesos(341_250));
+      expect(first?.payment).toBe(pesos(341_250) + 1_433_250);
+    });
+
+    it('full_month en la compra también gana sobre none de la tarjeta', () => {
+      const none = { ...card, firstPeriodInterest: 'none' as const };
+      expect(planPurchase(none, debt())[0]?.interest).toBe(0);
+      expect(planPurchase(none, debt({ firstPeriodInterest: 'full_month' }))[0]?.interest).toBe(1_433_250);
+    });
+  });
+
   describe('promociones', () => {
     it('0 % a 12 cuotas: ningún interés aunque la tarjeta cambie de tasa', () => {
       const plan = planPurchase(card, purchase({ installments: 12, promoRate: rateFromMv('0') }));

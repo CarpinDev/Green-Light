@@ -13,7 +13,7 @@ import { RateField } from '@/components/products/rate-field';
 import { Text } from '@/components/text';
 import { formatDay, isValidDate, today } from '@/dates';
 import { invalidateProducts } from '@/products/invalidate';
-import { formatPercent, type RateKind, rateBody } from '@/products/rates';
+import { formatPercentShort, type RateKind, rateBody } from '@/products/rates';
 import { colors, space, type } from '@/theme/tokens';
 
 /** La tasa vigente de la tarjeta y cómo registrar un cambio (las tasas variables cambian mes a mes). */
@@ -23,19 +23,19 @@ export function RateUpdate({ card }: { card: CardSummary }) {
   const [kind, setKind] = useState<RateKind>('ea');
   const [effectiveFrom, setEffectiveFrom] = useState(today());
   const [formError, setFormError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [saved, setSaved] = useState<'saved' | 'replaced' | null>(null);
 
   const add = useMutation({
-    mutationFn: (body: object) => postJson<{ id: number }>(`/products/${card.id}/rates`, body),
-    onSuccess: () => {
+    mutationFn: (body: object) => postJson<{ id: number; replaced: boolean }>(`/products/${card.id}/rates`, body),
+    onSuccess: ({ replaced }) => {
       invalidateProducts(queryClient);
       setPercent('');
-      setSaved(true);
+      setSaved(replaced ? 'replaced' : 'saved');
     },
   });
 
   const submit = () => {
-    setSaved(false);
+    setSaved(null);
     const body = rateBody(percent, kind, effectiveFrom);
     if (body === null) return setFormError('Escribe la tasa como porcentaje menor a 100, por ejemplo 28,99.');
     if (!isValidDate(effectiveFrom)) return setFormError('Elige una fecha válida.');
@@ -44,6 +44,9 @@ export function RateUpdate({ card }: { card: CardSummary }) {
   };
 
   const rate = card.currentRate;
+  const next = card.nextRate;
+  // La tasa vigente en el tipo elegido, sin el " %": así el campo muestra la tuya y no un ejemplo
+  const placeholder = rate === null ? undefined : formatPercentShort(rate[kind]).replace(/ %$/, '');
 
   return (
     <Card style={styles.card}>
@@ -51,11 +54,23 @@ export function RateUpdate({ card }: { card: CardSummary }) {
       <Text style={styles.muted}>
         {rate === null
           ? 'Esta tarjeta todavía no tiene una tasa vigente.'
-          : `Vigente: ${formatPercent(rate.ea)} E.A. · ${formatPercent(rate.mv)} M.V., desde el ${formatDay(rate.effectiveFrom)}.`}
+          : `Vigente: ${formatPercentShort(rate.ea)} E.A. · ${formatPercentShort(rate.mv)} M.V., desde el ${formatDay(rate.effectiveFrom)}.`}
       </Text>
+      {next !== null && (
+        <Text style={styles.muted}>
+          Programada: {formatPercentShort(next.ea)} E.A. · {formatPercentShort(next.mv)} M.V., desde el{' '}
+          {formatDay(next.effectiveFrom)}.
+        </Text>
+      )}
 
       <Label>Tasa nueva</Label>
-      <RateField percent={percent} onChangePercent={setPercent} kind={kind} onChangeKind={setKind} />
+      <RateField
+        placeholder={placeholder}
+        percent={percent}
+        onChangePercent={setPercent}
+        kind={kind}
+        onChangeKind={setKind}
+      />
 
       <Label>Rige desde</Label>
       <DateField value={effectiveFrom} onChange={setEffectiveFrom} />
@@ -68,7 +83,9 @@ export function RateUpdate({ card }: { card: CardSummary }) {
       />
       {formError !== null && <Text style={styles.error}>{formError}</Text>}
       {add.isError && <Text style={styles.error}>{errorText(add.error)}</Text>}
-      {saved && !add.isPending && <Text style={styles.ok}>Tasa guardada.</Text>}
+      {saved !== null && !add.isPending && (
+        <Text style={styles.ok}>{saved === 'replaced' ? 'Tasa corregida.' : 'Tasa guardada.'}</Text>
+      )}
     </Card>
   );
 }

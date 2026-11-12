@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { Account } from './entities/account.entity';
 import { Product } from './entities/product.entity';
@@ -18,4 +18,10 @@ export async function assertActiveCard(dataSource: DataSource, cardId: number): 
   if (!product.active) {
     throw new BadRequestException(`La tarjeta ${cardId} está desactivada`);
   }
+}
+
+/** El producto debe existir (404) y ser una tarjeta (400): para lo que solo tiene sentido con tarjetas. */
+export function assertCardProduct(product: Product | null, id: number): void {
+  if (!product) throw new NotFoundException(`La tarjeta ${id} no existe`);
+  if (product.kind !== 'credit_card') throw new BadRequestException(`El producto ${id} no es una tarjeta de crédito`);
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it } from '@jest/globals';
 
 import { isLast4, parseDay, parseInstallments, sanitizeLast4 } from '@/products/logic';
-import { formatPercent, percentToFraction, rateBody } from '@/products/rates';
+import { formatPercent, formatPercentShort, percentToFraction, rateBody } from '@/products/rates';
 
 describe('percentToFraction', () => {
   it('convierte con coma o con punto', () => {
@@ -129,5 +129,32 @@ describe('parseInstallments y parseDay', () => {
     expect(parseDay('15')).toBe(15);
     expect(parseDay('31')).toBe(31);
     for (const text of ['0', '32', '', 'x', '1,5']) expect(parseDay(text)).toBeNull();
+  });
+});
+
+describe('formatPercentShort', () => {
+  it('redondea a 2 decimales: la M.V. larga queda corta', () => {
+    expect(formatPercentShort('0.018769265122')).toBe('1,88 %');
+    expect(formatPercentShort('0.0212')).toBe('2,12 %');
+  });
+
+  it('quita los ceros que sobran', () => {
+    expect(formatPercentShort('0.25')).toBe('25 %');
+    expect(formatPercentShort('0.2859')).toBe('28,59 %');
+    expect(formatPercentShort('0.021')).toBe('2,1 %');
+    expect(formatPercentShort('0')).toBe('0 %');
+  });
+
+  it('redondea hacia arriba con acarreo y mantiene el cero de la unidad', () => {
+    expect(formatPercentShort('0.00005')).toBe('0,01 %');
+    expect(formatPercentShort('0.00004')).toBe('0 %');
+    expect(formatPercentShort('0.0999')).toBe('9,99 %');
+    expect(formatPercentShort('0.09999')).toBe('10 %');
+    expect(formatPercentShort('0.00999')).toBe('1 %');
+  });
+
+  it('acepta otra cantidad de decimales y deja tal cual lo que no es una fracción', () => {
+    expect(formatPercentShort('0.018769', 3)).toBe('1,877 %');
+    expect(formatPercentShort('abc')).toBe('abc');
   });
 });

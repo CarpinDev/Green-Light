@@ -62,6 +62,8 @@ export interface CardSummary {
   firstPeriodInterest: FirstPeriodInterest;
   /** Null si no hay ninguna tasa que ya rija (p. ej. la única empieza mañana). */
   currentRate: CurrentRate | null;
+  /** La próxima tasa programada (la de menor fecha que todavía no rige); null si no hay. */
+  nextRate: CurrentRate | null;
 }
 
 @Injectable()
@@ -146,6 +148,10 @@ export class CardsService {
             rates.filter((r) => r.productId === product.id),
             today,
           ),
+          nextRate: nextRateOf(
+            rates.filter((r) => r.productId === product.id),
+            today,
+          ),
         },
       ];
     });
@@ -176,4 +182,15 @@ export function currentRateOf(rates: readonly ProductRate[], today: IsoDate): Cu
   return best === undefined
     ? null
     : { effectiveFrom: best.effectiveFrom, ea: best.ea.toFixed(), mv: best.mv.toFixed() };
+}
+
+/** La próxima tasa programada: la de menor effectiveFrom que es posterior a hoy. */
+export function nextRateOf(rates: readonly ProductRate[], today: IsoDate): CurrentRate | null {
+  let next: ProductRate | undefined;
+  for (const rate of rates) {
+    if (rate.effectiveFrom > today && (next === undefined || rate.effectiveFrom < next.effectiveFrom)) next = rate;
+  }
+  return next === undefined
+    ? null
+    : { effectiveFrom: next.effectiveFrom, ea: next.ea.toFixed(), mv: next.mv.toFixed() };
 }

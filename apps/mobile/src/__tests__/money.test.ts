@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { formatCop, formatMoneyInput, moneyText, parsePesos, parseSignedPesos } from '@/money';
+import { formatCop, formatCopShort, formatMoneyInput, moneyText, parsePesos, parseSignedPesos } from '@/money';
 
 describe('parsePesos', () => {
   it('convierte pesos a centavos, con o sin puntos', () => {
@@ -129,5 +129,47 @@ describe('moneyText', () => {
   it('coincide con lo que formatMoneyInput escribe', () => {
     const typed = formatMoneyInput('-75000', true);
     expect(moneyText(typed?.cents ?? null)).toBe(typed?.text);
+  });
+});
+
+describe('formatCopShort', () => {
+  const pesos = (n: number) => Math.round(n * 100);
+
+  it('menos de mil pesos: el valor completo', () => {
+    expect(formatCopShort(pesos(850))).toBe('$850');
+    expect(formatCopShort(0)).toBe('$0');
+    expect(formatCopShort(pesos(999))).toBe('$999');
+  });
+
+  it('de mil a menos de un millón: en miles sin decimales', () => {
+    expect(formatCopShort(pesos(1000))).toBe('$1 mil');
+    expect(formatCopShort(pesos(793_400))).toBe('$793 mil');
+    expect(formatCopShort(pesos(120_000))).toBe('$120 mil');
+  });
+
+  it('un millón o más: en millones con 2 decimales y sin ceros de sobra', () => {
+    expect(formatCopShort(pesos(1_160_000))).toBe('$1,16 M');
+    expect(formatCopShort(pesos(1_083_568))).toBe('$1,08 M');
+    expect(formatCopShort(pesos(2_000_000))).toBe('$2 M');
+    expect(formatCopShort(pesos(1_500_000))).toBe('$1,5 M');
+    expect(formatCopShort(pesos(1_000_000))).toBe('$1 M');
+    expect(formatCopShort(pesos(12_345_678))).toBe('$12,35 M');
+  });
+
+  it('redondea y no trunca en los bordes', () => {
+    expect(formatCopShort(pesos(999.6))).toBe('$1 mil');
+    expect(formatCopShort(pesos(999_600))).toBe('$1 M');
+    expect(formatCopShort(pesos(999_499))).toBe('$999 mil');
+    expect(formatCopShort(pesos(1_004_999))).toBe('$1 M');
+    expect(formatCopShort(pesos(1_005_000))).toBe('$1,01 M');
+  });
+
+  it('los negativos llevan el signo de formatCop', () => {
+    const minus = formatCop(-5_000_000).trim().charAt(0);
+    expect(formatCopShort(pesos(-120_000))).toBe(`${minus}$120 mil`);
+    expect(formatCopShort(pesos(-1_160_000))).toBe(`${minus}$1,16 M`);
+    expect(formatCopShort(pesos(-850))).toBe(`${minus}$850`);
+    // Algo que redondea a 0 no lleva signo
+    expect(formatCopShort(-10)).toBe('$0');
   });
 });

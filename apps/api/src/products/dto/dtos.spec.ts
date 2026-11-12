@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfirmBalanceDto } from './confirm-balance.dto';
 import { CreateAccountDto } from './create-account.dto';
 import { CreateLoanDto } from './create-loan.dto';
+import { OpeningDebtDto } from './opening-debt.dto';
 import { RateDto } from './rate.dto';
 import { UpdateCardDto } from './update-card.dto';
 
@@ -108,5 +109,47 @@ describe('RateDto (POST /products/:id/rates)', () => {
     await expect(validate(RateDto, { effectiveFrom: '2026-07-01', ea: 0.2899 })).rejects.toThrow();
     await expect(validate(RateDto, { effectiveFrom: '2026-02-30', ea: '0.2899' })).rejects.toThrow();
     await expect(validate(RateDto, { effectiveFrom: '2026-07-01', ea: '0.2', source: 'ea' })).rejects.toThrow();
+  });
+});
+
+describe('OpeningDebtDto', () => {
+  const item = { amountCents: 190_000_000, installments: 2 };
+
+  it('acepta de 1 a 30 grupos, con o sin promoción', async () => {
+    await expect(validate(OpeningDebtDto, { items: [item] })).resolves.toBeDefined();
+    await expect(
+      validate(OpeningDebtDto, {
+        items: [item, { ...item, installments: 12, promo: { ea: '0', description: 'Promo' } }],
+      }),
+    ).resolves.toBeDefined();
+    await expect(validate(OpeningDebtDto, { items: Array.from({ length: 30 }, () => item) })).resolves.toBeDefined();
+  });
+
+  it('statementPaid es opcional y debe ser booleano', async () => {
+    await expect(validate(OpeningDebtDto, { items: [item], statementPaid: true })).resolves.toBeDefined();
+    await expect(validate(OpeningDebtDto, { items: [item], statementPaid: 'si' })).rejects.toThrow();
+  });
+
+  it('rechaza 0 grupos, 31 grupos y que items no sea una lista', async () => {
+    await expect(validate(OpeningDebtDto, { items: [] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: Array.from({ length: 31 }, () => item) })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, {})).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: item })).rejects.toThrow();
+  });
+
+  it('valida cada grupo: monto mayor que 0 y cuotas de 1 a 72', async () => {
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, amountCents: 0 }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, amountCents: 10.5 }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, installments: 0 }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, installments: 73 }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, installments: 72 }] })).resolves.toBeDefined();
+    // Un grupo malo entre varios buenos también se rechaza
+    await expect(validate(OpeningDebtDto, { items: [item, { ...item, installments: 0 }] })).rejects.toThrow();
+  });
+
+  it('la promoción va como texto; un number o un campo de más se rechazan', async () => {
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, promo: { ea: 0 } }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, promo: { ea: 'abc' } }] })).rejects.toThrow();
+    await expect(validate(OpeningDebtDto, { items: [{ ...item, color: 'azul' }] })).rejects.toThrow();
   });
 });

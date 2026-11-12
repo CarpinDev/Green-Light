@@ -21,6 +21,30 @@ export interface CreateExpenseInput {
   isOpeningDebt?: boolean;
 }
 
+/**
+ * Las columnas de un gasto a partir de lo que llegó. La promoción reutiliza resolveRate: una tasa no se
+ * valida en dos lugares distintos, y una mala es un 400 antes de escribir nada. Pura: la comparten el alta de
+ * un gasto y la deuda inicial de una tarjeta (que escribe varios dentro de una transacción).
+ */
+export function expenseValues(input: CreateExpenseInput): Partial<Expense> {
+  const promo = input.promo ? resolveRate({ ea: input.promo.ea, mv: input.promo.mv }) : undefined;
+
+  return {
+    date: input.date,
+    amountCents: input.amountCents,
+    sourceProductId: input.sourceProductId,
+    ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
+    ...(input.description !== undefined && { description: input.description }),
+    ...(input.installments !== undefined && { installments: input.installments }),
+    ...(promo && {
+      promoEa: promo.ea,
+      promoMv: promo.mv,
+      ...(input.promo?.description !== undefined && { promoDescription: input.promo.description }),
+    }),
+    ...(input.isOpeningDebt !== undefined && { isOpeningDebt: input.isOpeningDebt }),
+  };
+}
+
 @Injectable()
 export class ExpensesService {
   constructor(private readonly dataSource: DataSource) {}
@@ -40,23 +64,7 @@ export class ExpensesService {
     this.assertRulesFor(product, input);
     if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
 
-    // La promoción reutiliza resolveRate: una tasa no se valida en dos lugares distintos
-    const promo = input.promo ? resolveRate({ ea: input.promo.ea, mv: input.promo.mv }) : undefined;
-
-    return this.dataSource.getRepository(Expense).save({
-      date: input.date,
-      amountCents: input.amountCents,
-      sourceProductId: input.sourceProductId,
-      ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
-      ...(input.description !== undefined && { description: input.description }),
-      ...(input.installments !== undefined && { installments: input.installments }),
-      ...(promo && {
-        promoEa: promo.ea,
-        promoMv: promo.mv,
-        ...(input.promo?.description !== undefined && { promoDescription: input.promo.description }),
-      }),
-      ...(input.isOpeningDebt !== undefined && { isOpeningDebt: input.isOpeningDebt }),
-    });
+    return this.dataSource.getRepository(Expense).save(expenseValues(input));
   }
 
   /**
