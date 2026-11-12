@@ -112,6 +112,29 @@ describe('cardEvents', () => {
   it('todos los montos son salidas (negativos)', () => {
     expect(events.every((e) => e.amount < 0)).toBe(true);
   });
+
+  it('un pago de tarjeta trae el corte que paga y el pago total, sin tener que leer el texto', () => {
+    // El extracto que vence el 5 de abril es el que cortó el 15 de marzo
+    expect(payments.map((e) => e.cutDate)).toEqual(['2026-03-15', '2026-04-15']);
+    for (const p of payments) {
+      expect(p.label).toContain(p.cutDate);
+      expect(p.fullPayment).toBeGreaterThanOrEqual(-p.amount);
+    }
+    // El pago total es positivo: la A3 pendiente (200.000) y las demás cuotas por facturar más lo del corte
+    expect(payments[0]?.fullPayment).toBeGreaterThan(0);
+  });
+
+  it('los demás eventos no traen esos campos', () => {
+    const others = events.filter((e) => e.kind !== 'card_payment');
+    expect(others.length).toBeGreaterThan(0);
+    for (const e of others) {
+      expect('cutDate' in e).toBe(false);
+      expect('fullPayment' in e).toBe(false);
+    }
+    for (const e of loanEvents(loan, [], '2026-03-10', '2026-05-31')) {
+      expect('cutDate' in e || 'fullPayment' in e).toBe(false);
+    }
+  });
 });
 
 describe('loanEvents', () => {
@@ -164,6 +187,12 @@ describe('proyección completa con deudas', () => {
     expect(apr?.lowestBalance).toBe(338_520_007);
     expect(apr?.lowestBalanceDate).toBe('2026-04-10');
     expect(apr?.closingBalance).toBe(638_520_007);
+  });
+
+  it('Netflix con tarjeta no aparece como gasto fijo aparte: ya viene dentro del pago de la tarjeta', () => {
+    const all = [mar, apr, may].flatMap((m) => m?.events ?? []);
+    expect(all.some((e) => e.kind === 'fixed_expense')).toBe(false);
+    expect(all.filter((e) => e.kind === 'card_payment').every((e) => e.cutDate !== undefined)).toBe(true);
   });
 
   it('mayo cierra en verde', () => {

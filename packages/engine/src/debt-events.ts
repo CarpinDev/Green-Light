@@ -54,7 +54,7 @@ export function cardEvents(
     if (due > to) break;
     if (due <= from) continue;
 
-    const { minimum } = statement(card, rows, cut);
+    const { minimum, fullPayment } = statement(card, rows, cut);
     if (minimum.total > 0) {
       events.push({
         date: due,
@@ -62,6 +62,8 @@ export function cardEvents(
         amount: -minimum.total,
         label: `Pago mínimo tarjeta (corte ${cut})`,
         refId: card.id,
+        cutDate: cut,
+        fullPayment: fullPayment.total,
       });
     }
   }

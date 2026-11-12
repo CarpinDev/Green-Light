@@ -4,9 +4,10 @@ import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 
 import { getJson } from '@/api/client';
 import { isStaleBalance } from '@/api/errors';
-import type { Product, ProjectionResponse } from '@/api/types';
+import type { CardSummary, Product, ProjectionResponse } from '@/api/types';
 import { Banner } from '@/components/banner';
 import { Button } from '@/components/button';
+import { CommitmentsCard } from '@/components/home/commitments-card';
 import { HeroCard } from '@/components/home/hero-card';
 import { MonthBars } from '@/components/home/month-bars';
 import { StatPair } from '@/components/home/stat-pair';
@@ -15,6 +16,7 @@ import { UpcomingTeaser } from '@/components/movements/upcoming-teaser';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { currentMonth, STALE_DAYS, today } from '@/dates';
+import { monthCommitments, remainingLight } from '@/home/commitments';
 import { alertMessage, chartBars, firstVisibleMonth, incomeShare, upcomingEvents, visibleMonths } from '@/home/summary';
 import { useTabBarClearance } from '@/navigation';
 import { colors, type } from '@/theme/tokens';
@@ -26,6 +28,12 @@ export default function Home() {
   });
   // Los nombres de las tarjetas para las alertas. Si no llegan, las alertas salen sin nombre: no bloquea el inicio
   const products = useQuery({ queryKey: ['products'], queryFn: () => getJson<Product[]>('/products') });
+  // Para los nombres de las tarjetas y el umbral del semáforo. Si no llegan, hay respaldo: no bloquean el inicio
+  const cards = useQuery({ queryKey: ['cards'], queryFn: () => getJson<CardSummary[]>('/cards') });
+  const settings = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => getJson<{ yellowBelowIncomePct: string }>('/settings'),
+  });
   const clearance = useTabBarClearance();
 
   return (
@@ -56,6 +64,8 @@ export default function Home() {
         const visible = visibleMonths(months, currentMonth());
         const current = firstVisibleMonth(months, currentMonth());
         const next = upcomingEvents(months, currentMonth(), today())[0];
+        // Sin mes actual no se pinta la tarjeta, así que el mes vacío no se usa
+        const commitments = monthCommitments(months, current?.month ?? '', apiToday, cards.data ?? []);
 
         return (
           <ScrollView
@@ -90,6 +100,15 @@ export default function Home() {
                   balance={{ currentBalanceCents, today: apiToday, asOf, openingBalanceCents }}
                   month={current}
                   share={incomeShare(current)}
+                />
+                <CommitmentsCard
+                  month={current}
+                  commitments={commitments}
+                  light={remainingLight(
+                    commitments.realRemainingCents,
+                    current,
+                    settings.data?.yellowBelowIncomePct ?? null,
+                  )}
                 />
                 <StatPair income={current.income} outflow={current.outflow} />
                 <MonthBars bars={chartBars(visible)} />

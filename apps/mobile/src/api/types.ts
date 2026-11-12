@@ -13,6 +13,10 @@ export interface CashEvent {
   amount: number;
   label: string;
   refId?: string;
+  /** Solo en `card_payment`: el corte del extracto que se paga (la `date` es su vencimiento). */
+  cutDate?: string;
+  /** Solo en `card_payment`: lo que saldaría todo el extracto, en positivo. */
+  fullPayment?: number;
 }
 
 export interface MonthSummary {
