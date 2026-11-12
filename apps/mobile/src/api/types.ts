@@ -99,6 +99,8 @@ export interface CardSummary {
   firstPeriodInterest: FirstPeriodInterest;
   /** null: ninguna tasa rige todavía. */
   currentRate: CurrentRate | null;
+  /** La próxima tasa programada (rige desde una fecha futura); null si no hay. */
+  nextRate: CurrentRate | null;
 }
 
 export type MonthlyStatus = 'upcoming' | 'active' | 'ended';

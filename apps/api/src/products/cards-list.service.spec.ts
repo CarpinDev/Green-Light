@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { FakeDb } from '../testing/fake-db';
 import { CardsService } from './cards.service';
@@ -187,12 +187,23 @@ describe('tarjetas y tasas', () => {
       );
     });
 
-    it('409 si ya hay una tasa con esa fecha; con otra fecha sí entra', async () => {
+    it('la misma fecha corrige la tasa: una sola fila, con los valores nuevos y replaced', async () => {
+      const first = await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
+      expect(first.replaced).toBe(false);
+
+      const second = await products.addRate(VISA, { effectiveFrom: '2026-07-01', mv: '0.0214' });
+      expect(second).toEqual({ id: first.id, replaced: true });
+      const rows = db.rows(ProductRate).filter((r) => r.productId === VISA && r.effectiveFrom === '2026-07-01');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.source).toBe('mv');
+      expect(rows[0]?.mv.toFixed()).toBe('0.0214');
+    });
+
+    it('con otra fecha entra como una tasa nueva', async () => {
       await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
-      await expect(products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.29' })).rejects.toThrow(
-        ConflictException,
-      );
-      await expect(products.addRate(VISA, { effectiveFrom: '2026-08-01', ea: '0.29' })).resolves.toBeDefined();
+      await expect(products.addRate(VISA, { effectiveFrom: '2026-08-01', ea: '0.29' })).resolves.toMatchObject({
+        replaced: false,
+      });
       expect(db.rows(ProductRate)).toHaveLength(2);
     });
 

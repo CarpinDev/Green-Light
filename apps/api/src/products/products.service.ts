@@ -1,7 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
-import { isUniqueViolation } from '../common/pg-errors';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import type { ProductKind } from './product-kind';
@@ -35,9 +34,9 @@ export class ProductsService {
 
   /**
    * Agrega una tasa al historial (las variables cambian mes a mes). Sirve para tarjetas y préstamos;
-   * una cuenta no tiene tasa. 409 si ya hay una con esa misma fecha.
+   * una cuenta no tiene tasa. Si ya hay una con esa misma fecha, la corrige (`replaced: true`).
    */
-  async addRate(productId: number, input: AddRateInput): Promise<{ id: number }> {
+  async addRate(productId: number, input: AddRateInput): Promise<{ id: number; replaced: boolean }> {
     const repository = this.dataSource.getRepository(Product);
     const product = await repository.findOneBy({ id: productId });
     if (!product) throw new NotFoundException(`El producto ${productId} no existe`);
@@ -46,20 +45,16 @@ export class ProductsService {
     }
 
     const rate = resolveRate({ ea: input.ea, mv: input.mv });
-    try {
-      const saved = await this.dataSource.getRepository(ProductRate).save({
-        productId,
-        effectiveFrom: input.effectiveFrom,
-        ea: rate.ea,
-        mv: rate.mv,
-        source: rate.source,
-      });
-      return { id: saved.id };
-    } catch (err) {
-      if (isUniqueViolation(err)) {
-        throw new ConflictException(`El producto ${productId} ya tiene una tasa desde el ${input.effectiveFrom}`);
-      }
-      throw err;
+    const values = { ea: rate.ea, mv: rate.mv, source: rate.source };
+    const rates = this.dataSource.getRepository(ProductRate);
+
+    // Una tasa con la misma fecha se corrige (como RateHistory.add del motor): así se arregla una mal puesta
+    const existing = await rates.findOneBy({ productId, effectiveFrom: input.effectiveFrom });
+    if (existing) {
+      await rates.save({ ...existing, ...values });
+      return { id: existing.id, replaced: true };
     }
+    const saved = await rates.save({ productId, effectiveFrom: input.effectiveFrom, ...values });
+    return { id: saved.id, replaced: false };
   }
 }

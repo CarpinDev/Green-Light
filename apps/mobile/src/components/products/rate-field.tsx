@@ -16,16 +16,18 @@ interface RateFieldProps {
   onChangePercent: (text: string) => void;
   kind: RateKind;
   onChangeKind: (kind: RateKind) => void;
+  /** Lo que se ve con el campo vacío; por defecto un ejemplo. */
+  placeholder?: string;
 }
 
 /** Una tasa como la publica el banco: el porcentaje y si es E.A. (efectiva anual) o M.V. (mensual vencida). */
-export function RateField({ percent, onChangePercent, kind, onChangeKind }: RateFieldProps) {
+export function RateField({ percent, onChangePercent, kind, onChangeKind, placeholder = '28,99' }: RateFieldProps) {
   return (
     <>
       <Input
         value={percent}
         onChangeText={onChangePercent}
-        placeholder="28,99"
+        placeholder={placeholder}
         keyboardType="decimal-pad"
         accessibilityLabel="Tasa en porcentaje"
       />
