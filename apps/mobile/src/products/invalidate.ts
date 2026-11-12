@@ -7,7 +7,7 @@ import type { QueryClient } from '@tanstack/react-query';
  * No se espera: las pantallas montadas se refrescan solas.
  */
 export function invalidateProducts(queryClient: QueryClient): void {
-  for (const key of ['accounts', 'cards', 'products', 'projection', 'movements']) {
+  for (const key of ['accounts', 'cards', 'loans', 'products', 'projection', 'movements']) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
 }

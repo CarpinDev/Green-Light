@@ -3,11 +3,12 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson } from '@/api/client';
-import type { AccountSummary, CardSummary, Product, ProjectionResponse } from '@/api/types';
+import type { AccountSummary, CardSummary, LoanSummary, Product, ProjectionResponse } from '@/api/types';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { BalanceCard } from '@/components/products/balance-card';
 import { CardsSection } from '@/components/products/cards-section';
+import { LoansSection } from '@/components/products/loans-section';
 import { QueryState } from '@/components/query-state';
 import { SectionHeader } from '@/components/section-header';
 import { Text } from '@/components/text';
@@ -17,6 +18,7 @@ import { colors, space, type } from '@/theme/tokens';
 export default function Products() {
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
   const cards = useQuery({ queryKey: ['cards'], queryFn: () => getJson<CardSummary[]>('/cards') });
+  const loans = useQuery({ queryKey: ['loans'], queryFn: () => getJson<LoanSummary[]>('/loans') });
   // Solo para el contador del enlace: se comparte la clave con la pantalla de archivados
   const archived = useQuery({
     queryKey: ['products', 'archived'],
@@ -68,6 +70,13 @@ export default function Products() {
         <SectionHeader title="Tarjetas de crédito" addHref="/cards/new" />
         <QueryState inline query={cards} errorTitle="No se pudieron cargar tus tarjetas.">
           {(data) => <CardsSection cards={data} />}
+        </QueryState>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Préstamos" addHref="/loans/new" />
+        <QueryState inline query={loans} errorTitle="No se pudieron cargar tus préstamos.">
+          {(data) => <LoansSection loans={data} />}
         </QueryState>
       </View>
 

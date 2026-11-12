@@ -48,6 +48,8 @@ export function toEngineLoan(loan: Loan, rates: readonly ProductRate[]): Engine.
     method: loan.method,
     ...(loan.fixedPaymentCents !== null && { fixedPayment: loan.fixedPaymentCents }),
     insurance: loan.insuranceCents,
+    // El seguro por porcentaje del saldo (null o ausente: el fijo de arriba)
+    ...(loan.insuranceRate != null && { insuranceRate: loan.insuranceRate }),
   };
 }
 

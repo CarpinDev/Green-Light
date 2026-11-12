@@ -16,7 +16,13 @@ export class CapitalPaymentsController {
   /** Los abonos de una tarjeta, del más reciente al más viejo. */
   @Get('cards/:id/capital-payments')
   listOfCard(@Param('id', ParseIntPipe) id: number): Promise<CapitalPaymentSummary[]> {
-    return this.capitalPayments.listOfCard(id);
+    return this.capitalPayments.listOfProduct(id, 'credit_card');
+  }
+
+  /** Los abonos de un préstamo, del más reciente al más viejo. */
+  @Get('loans/:id/capital-payments')
+  listOfLoan(@Param('id', ParseIntPipe) id: number): Promise<CapitalPaymentSummary[]> {
+    return this.capitalPayments.listOfProduct(id, 'loan');
   }
 
   /** Borra un abono mal puesto. 204; 404 si no existe. */

@@ -56,6 +56,7 @@ export function monthCommitments(
   month: string,
   today: string,
   cards: readonly CardName[] = [],
+  loans: readonly LoanName[] = [],
 ): MonthCommitments {
   // Fechas ISO: comparar como texto. "YYYY-MM-31" es mayor que cualquier día del mes y menor que el siguiente
   const endOfMonth = `${month}-31`;
@@ -81,7 +82,7 @@ export function monthCommitments(
     } else if (e.date.startsWith(`${month}-`)) {
       items.push({
         kind: e.kind as 'fixed_expense' | 'loan_payment',
-        label: e.label,
+        label: e.kind === 'loan_payment' ? loanLabel(e.refId, e.label, loans) : e.label,
         ...(e.refId !== undefined && { refId: e.refId }),
         dueDate: e.date,
         amount: -e.amount,
@@ -129,4 +130,14 @@ export function realRemainingLight(
 /** Un evento de pago de tarjeta con su corte (los demás no lo traen). */
 export function hasCut(event: CashEvent): event is CashEvent & { cutDate: string } {
   return event.kind === 'card_payment' && event.cutDate !== undefined;
+}
+
+export interface LoanName {
+  id: number;
+  name: string;
+}
+
+/** El nombre del préstamo en vez del "Cuota 3 préstamo" del motor; sin la consulta, queda el texto del motor. */
+function loanLabel(refId: string | undefined, fallback: string, loans: readonly LoanName[]): string {
+  return loans.find((l) => String(l.id) === refId)?.name ?? fallback;
 }

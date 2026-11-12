@@ -59,7 +59,7 @@ export default function CardDetail() {
             </Link>
 
             <PlanSection cardId={card.id} />
-            <PaymentsList cardId={card.id} />
+            <PaymentsList productId={card.id} base="cards" />
             <OpeningDebtSection cardId={card.id} />
             <StatementCompare cardId={card.id} />
             <DangerZone productId={card.id} kind="credit_card" />

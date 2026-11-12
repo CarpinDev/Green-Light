@@ -8,7 +8,7 @@ import { loadCardPlanFacts } from '../products/card-plan-facts';
 import { Loan } from '../products/entities/loan.entity';
 import { ProductRate } from '../products/entities/product-rate.entity';
 import { Product } from '../products/entities/product.entity';
-import { assertCardProduct } from '../products/product-checks';
+import { assertCardProduct, assertLoanProduct } from '../products/product-checks';
 import { CapitalPayment } from './entities/capital-payment.entity';
 import { Expense } from './entities/expense.entity';
 
@@ -80,13 +80,18 @@ export class CapitalPaymentsService {
     });
   }
 
-  /** Los abonos de una tarjeta, del más reciente al más viejo, con el origen del dinero. */
-  async listOfCard(cardId: number): Promise<CapitalPaymentSummary[]> {
+  /**
+   * Los abonos de una tarjeta o de un préstamo, del más reciente al más viejo, con el origen del dinero.
+   * `kind` dice qué se espera: la tarjeta da 404/400 como siempre y el préstamo, 404.
+   */
+  async listOfProduct(productId: number, kind: 'credit_card' | 'loan'): Promise<CapitalPaymentSummary[]> {
     const db = this.dataSource;
-    assertCardProduct(await db.getRepository(Product).findOneBy({ id: cardId }), cardId);
+    const product = await db.getRepository(Product).findOneBy({ id: productId });
+    if (kind === 'credit_card') assertCardProduct(product, productId);
+    else assertLoanProduct(product, productId);
     const [payments, products] = await Promise.all([
       db.getRepository(CapitalPayment).find({
-        where: { productId: cardId },
+        where: { productId },
         order: { date: 'DESC', createdAt: 'DESC', id: 'DESC' },
       }),
       db.getRepository(Product).find(),

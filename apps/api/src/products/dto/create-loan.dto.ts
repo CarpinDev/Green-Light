@@ -41,11 +41,23 @@ export class CreateLoanDto implements CreateLoanInput {
   @Max(Number.MAX_SAFE_INTEGER)
   fixedPaymentCents?: number;
 
+  /** La cuota completa del extracto (con el seguro fijo): la API le resta el seguro. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  installmentTotalCents?: number;
+
   @IsOptional()
   @IsInt()
   @Min(0)
   @Max(Number.MAX_SAFE_INTEGER)
   insuranceCents?: number;
+
+  /** Seguro como porcentaje mensual del saldo, como texto: "0.2344". */
+  @IsOptional()
+  @Matches(/^\d{1,2}(\.\d{1,4})?$/, { message: 'insuranceRatePct debe ser un porcentaje como 0.2344' })
+  insuranceRatePct?: string;
 
   @IsOptional()
   @IsIn(AMORTIZATION_METHODS)

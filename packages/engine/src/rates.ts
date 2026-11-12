@@ -110,6 +110,19 @@ export class RateHistory {
 
         return applicableEntry.rate;
     }
+
+    /**
+     * Como rateOn, pero un día anterior a la primera tasa usa la primera: es la tasa que se conoce. Sirve para un
+     * préstamo que ya venía en curso, cuya tasa se registra hoy pero rige también para las cuotas de antes de hoy.
+     * Solo falla si no hay ninguna tasa.
+     */
+    rateOnOrFirst(day: string): Rate {
+        const first = this.entries[0];
+        if (first === undefined) {
+            throw new Error(`No hay tasa vigente el ${day}`);
+        }
+        return day < first.date ? first.rate : this.rateOn(day);
+    }
 }
 
 /** Tasa cero (compras sin interés). */

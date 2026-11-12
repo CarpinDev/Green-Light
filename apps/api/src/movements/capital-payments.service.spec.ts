@@ -285,7 +285,7 @@ describe('CapitalPaymentsService', () => {
           createdAt: new Date('2026-03-26T10:00:00Z'),
         },
       ]);
-      const list = await service.listOfCard(VISA);
+      const list = await service.listOfProduct(VISA, 'credit_card');
 
       expect(list.map((p) => p.id)).toEqual([2, 1, 3]);
       expect(list[0]).toMatchObject({ amountCents: 200, mode: 'reduce_payment', source: { kind: 'external' } });
@@ -293,9 +293,37 @@ describe('CapitalPaymentsService', () => {
       expect(list[2]?.source).toBeNull();
     });
 
+    it('también los de un préstamo; para un préstamo, cualquier otro producto es 404', async () => {
+      db.seed(CapitalPayment, [
+        {
+          id: 1,
+          productId: PRESTAMO,
+          date: '2026-03-20',
+          amountCents: 100,
+          mode: 'reduce_term',
+          sourceAccountId: null,
+          isExternal: true,
+          createdAt: new Date('2026-03-20T10:00:00Z'),
+        },
+        {
+          id: 2,
+          productId: VISA,
+          date: '2026-03-21',
+          amountCents: 200,
+          mode: 'reduce_term',
+          sourceAccountId: null,
+          isExternal: false,
+          createdAt: new Date('2026-03-21T10:00:00Z'),
+        },
+      ]);
+      expect((await service.listOfProduct(PRESTAMO, 'loan')).map((p) => p.id)).toEqual([1]);
+      await expect(service.listOfProduct(VISA, 'loan')).rejects.toThrow(NotFoundException);
+      await expect(service.listOfProduct(999, 'loan')).rejects.toThrow(NotFoundException);
+    });
+
     it('404 si la tarjeta no existe y 400 si no es una tarjeta', async () => {
-      await expect(service.listOfCard(999)).rejects.toThrow(NotFoundException);
-      await expect(service.listOfCard(AHORROS)).rejects.toThrow(BadRequestException);
+      await expect(service.listOfProduct(999, 'credit_card')).rejects.toThrow(NotFoundException);
+      await expect(service.listOfProduct(AHORROS, 'credit_card')).rejects.toThrow(BadRequestException);
     });
   });
 

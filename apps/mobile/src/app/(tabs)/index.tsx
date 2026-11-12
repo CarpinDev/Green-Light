@@ -4,7 +4,7 @@ import { RefreshControl, ScrollView, StyleSheet } from 'react-native';
 
 import { getJson } from '@/api/client';
 import { isStaleBalance } from '@/api/errors';
-import type { CardSummary, Product, ProjectionResponse } from '@/api/types';
+import type { CardSummary, LoanSummary, Product, ProjectionResponse } from '@/api/types';
 import { Banner } from '@/components/banner';
 import { Button } from '@/components/button';
 import { CommitmentsCard } from '@/components/home/commitments-card';
@@ -28,8 +28,9 @@ export default function Home() {
   });
   // Los nombres de las tarjetas para las alertas. Si no llegan, las alertas salen sin nombre: no bloquea el inicio
   const products = useQuery({ queryKey: ['products'], queryFn: () => getJson<Product[]>('/products') });
-  // Para los nombres de las tarjetas y el umbral del semáforo. Si no llegan, hay respaldo: no bloquean el inicio
+  // Para los nombres de las tarjetas y los préstamos y el umbral del semáforo. Si no llegan, hay respaldo: no bloquean el inicio
   const cards = useQuery({ queryKey: ['cards'], queryFn: () => getJson<CardSummary[]>('/cards') });
+  const loans = useQuery({ queryKey: ['loans'], queryFn: () => getJson<LoanSummary[]>('/loans') });
   const settings = useQuery({
     queryKey: ['settings'],
     queryFn: () => getJson<{ yellowBelowIncomePct: string }>('/settings'),
@@ -65,7 +66,13 @@ export default function Home() {
         const current = firstVisibleMonth(months, currentMonth());
         const next = upcomingEvents(months, currentMonth(), today())[0];
         // Sin mes actual no se pinta la tarjeta, así que el mes vacío no se usa
-        const commitments = monthCommitments(months, current?.month ?? '', apiToday, cards.data ?? []);
+        const commitments = monthCommitments(
+          months,
+          current?.month ?? '',
+          apiToday,
+          cards.data ?? [],
+          loans.data ?? [],
+        );
 
         return (
           <ScrollView

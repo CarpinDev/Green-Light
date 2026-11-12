@@ -21,6 +21,11 @@ export async function assertActiveCard(dataSource: DataSource, cardId: number): 
   }
 }
 
+/** El producto debe existir y ser un préstamo; si no, 404 (para una pantalla de préstamo, otro tipo es "no existe"). */
+export function assertLoanProduct(product: Product | null, id: number): void {
+  if (!product || product.kind !== 'loan') throw new NotFoundException(`El préstamo ${id} no existe`);
+}
+
 /** El producto debe existir (404) y ser una tarjeta (400): para lo que solo tiene sentido con tarjetas. */
 export function assertCardProduct(product: Product | null, id: number): void {
   if (!product) throw new NotFoundException(`La tarjeta ${id} no existe`);
