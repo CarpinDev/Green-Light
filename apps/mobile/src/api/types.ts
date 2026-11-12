@@ -160,3 +160,23 @@ export interface SimulationResponse extends InstallmentOption {
   without: MonthSummary[];
   with: MonthSummary[];
 }
+
+/** Un elemento de GET /movements: algo que ya pasó. El monto va en positivo; `direction` dice el signo. */
+export interface Movement {
+  /** 'expense:12', 'income:5', 'capital:3', 'recurring:2:2026-11-01', 'fixed:4:2026-11-05' */
+  id: string;
+  type: 'expense' | 'income' | 'capital_payment';
+  direction: 'in' | 'out';
+  date: string;
+  amountCents: number;
+  /** Vacía si no tiene: la app pone "Gasto", "Ingreso" o "Abono". */
+  description: string;
+  categoryName: string | null;
+  /** De dónde salió o a dónde llegó. null si no se sabe. */
+  product: { id: number; name: string; last4: string; kind: ProductKind } | null;
+  /** Solo en gastos con tarjeta. */
+  installments: number | null;
+  isOpeningDebt: boolean;
+  /** Una ocurrencia de lo programado (salario, gasto fijo): se calcula, no se registra. */
+  scheduled: boolean;
+}

@@ -19,21 +19,8 @@ const ICON: Record<CashEventKind, IconName> = {
   capital_payment: 'dollar-sign',
 };
 
-/** Los próximos movimientos: ícono, nombre, "tipo · fecha" y monto (con signo; los ingresos en verde). */
-export function UpcomingList({ events }: { events: readonly CashEvent[] }) {
-  return (
-    <View style={styles.section}>
-      <Text style={styles.heading}>Próximos movimientos</Text>
-      {events.length === 0 ? (
-        <Text style={styles.empty}>No hay movimientos próximos.</Text>
-      ) : (
-        events.map((event, i) => <Row key={`${event.date}-${event.refId ?? ''}-${i}`} event={event} />)
-      )}
-    </View>
-  );
-}
-
-function Row({ event }: { event: CashEvent }) {
+/** Un evento futuro de la proyección: ícono, nombre, "tipo · fecha" y monto (con signo; los ingresos en verde). */
+export function EventRow({ event, showDate = true }: { event: CashEvent; showDate?: boolean }) {
   const income = event.amount > 0;
   return (
     <View style={styles.row}>
@@ -45,21 +32,18 @@ function Row({ event }: { event: CashEvent }) {
           {event.label}
         </Text>
         <Text style={styles.caption}>
-          {KIND_LABEL[event.kind]} · {formatDayShort(event.date)}
+          {KIND_LABEL[event.kind]}
+          {showDate && ` · ${formatDayShort(event.date)}`}
         </Text>
       </View>
       <Text style={[styles.amount, income && styles.income]}>
-        {income ? '+' : '−'}
-        {formatCop(Math.abs(event.amount))}
+        {income ? '+' : '−'} {formatCop(Math.abs(event.amount))}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: space.md },
-  heading: { ...type.subtitle },
-  empty: { ...type.caption, color: colors.textMuted },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

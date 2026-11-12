@@ -41,6 +41,7 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
   const done = () => {
     // El semáforo de Inicio se recalcula y la lista se refresca; el registro ya cambió, esta pantalla sobra
     void queryClient.invalidateQueries({ queryKey: ['projection'] });
+    void queryClient.invalidateQueries({ queryKey: ['movements'] });
     void queryClient.invalidateQueries({ queryKey: listKey(kind) });
     if (router.canGoBack()) router.back();
     else router.replace('/monthly');

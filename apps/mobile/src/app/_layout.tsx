@@ -72,6 +72,9 @@ export default function RootLayout() {
           name="expenses/new"
           options={{ presentation: 'modal', title: 'Nuevo gasto', headerLeft: () => <CancelButton /> }}
         />
+        {/* Las listas completas, en el stack (no modales): se entra desde Inicio y se vuelve con atrás */}
+        <Stack.Screen name="movements" options={{ title: 'Movimientos' }} />
+        <Stack.Screen name="upcoming" options={{ title: 'Próximos' }} />
         {/* Ingresos recurrentes y gastos fijos: crear y editar, también como modales */}
         {MONTHLY_MODALS.map(({ name, title }) => (
           <Stack.Screen
