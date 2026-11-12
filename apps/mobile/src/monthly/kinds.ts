@@ -47,5 +47,6 @@ export function placeOf(kind: MonthlyKind, item: MonthlyItem): string {
   if (kind === 'income') {
     return (item as RecurringIncome).destinationAccountName ?? 'Sin cuenta destino';
   }
-  return (item as FixedExpense).cardName ?? 'Sale del saldo';
+  const expense = item as FixedExpense;
+  return expense.cardName ?? expense.accountName ?? 'Sale del saldo';
 }

@@ -98,6 +98,12 @@ export class CreateFixedExpenseDto implements CreateFixedExpenseInput {
   @IsInt()
   @Min(1)
   cardId?: number;
+
+  /** La cuenta de la que sale; no se combina con cardId. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  accountId?: number;
 }
 
 // El PATCH no acepta amountCents ni startDate: con forbidNonWhitelisted, mandarlos es 400.
@@ -153,6 +159,12 @@ export class UpdateFixedExpenseDto implements UpdateFixedExpenseInput {
   @IsInt()
   @Min(1)
   cardId?: number | null;
+
+  /** null la quita. El resultado final no puede tener tarjeta y cuenta a la vez. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  accountId?: number | null;
 }
 
 export class AmountChangeDto implements AmountChangeInput {

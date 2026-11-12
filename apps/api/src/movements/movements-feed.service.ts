@@ -170,8 +170,8 @@ export class MovementsFeedService {
             amountCents: f.amountCents,
             description: f.name,
             categoryName: categoryName(f.categoryId),
-            // Con tarjeta, el origen es la tarjeta; sin ella sale del saldo y no hay un producto que mostrar
-            product: productOf(f.cardId),
+            // El origen es la tarjeta o la cuenta; sin ninguna sale del saldo en general y no hay producto que mostrar
+            product: productOf(f.cardId ?? f.accountId),
             installments: null,
             isOpeningDebt: false,
             scheduled: true,

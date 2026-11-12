@@ -19,6 +19,7 @@ import { Text } from '@/components/text';
 import { isValidDate, today } from '@/dates';
 import { listKey, MONTHLY, type MonthlyItem, type MonthlyKind } from '@/monthly/kinds';
 import { parseDayOfMonth } from '@/monthly/logic';
+import { type ExpenseSource, sourceBody, sourceOf } from '@/monthly/source';
 import { formatCop } from '@/money';
 import { colors, space } from '@/theme/tokens';
 
@@ -39,11 +40,9 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
   const text = MONTHLY[kind];
   const editing = item !== undefined;
 
-  const initialTarget = !editing
-    ? null
-    : kind === 'income'
-      ? (item as RecurringIncome).destinationAccountId
-      : (item as FixedExpense).cardId;
+  // El ingreso llega a una cuenta; el gasto fijo sale de una cuenta o de una tarjeta (o de ninguna)
+  const initialTarget = editing && kind === 'income' ? (item as RecurringIncome).destinationAccountId : null;
+  const initialSource: ExpenseSource = editing && kind === 'expense' ? sourceOf(item as FixedExpense) : null;
   const initialCategory = editing && kind === 'expense' ? (item as FixedExpense).categoryId : null;
 
   const [name, setName] = useState(item?.name ?? '');
@@ -51,6 +50,7 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
   const [day, setDay] = useState(item === undefined ? '' : String(item.dayOfMonth));
   const [startDate, setStartDate] = useState(today());
   const [targetId, setTargetId] = useState<number | null>(initialTarget);
+  const [source, setSource] = useState<ExpenseSource>(initialSource);
   const [categoryId, setCategoryId] = useState<number | null>(initialCategory);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -93,15 +93,16 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
     if (!editing && !isValidDate(startDate)) return setFormError('Elige una fecha de inicio válida.');
 
     setFormError(null);
-    const targetField = kind === 'income' ? 'destinationAccountId' : 'cardId';
 
     if (editing) {
       // Solo lo que cambió: mandar de nuevo una tarjeta ya desactivada daría error sin que el usuario la tocara.
-      // null quita la cuenta, la tarjeta o la categoría.
+      // null quita la cuenta, la tarjeta o la categoría; el origen de un gasto fijo limpia el otro tipo (ver sourceBody)
       save.mutate({
         ...(name.trim() !== item.name && { name: name.trim() }),
         ...(dayOfMonth !== item.dayOfMonth && { dayOfMonth }),
-        ...(targetId !== initialTarget && { [targetField]: targetId }),
+        ...(kind === 'income'
+          ? targetId !== initialTarget && { destinationAccountId: targetId }
+          : sourceBody(source, initialSource)),
         ...(categoryId !== initialCategory && { categoryId }),
       });
       return;
@@ -112,7 +113,7 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
       amountCents,
       dayOfMonth,
       startDate,
-      ...(targetId !== null && { [targetField]: targetId }),
+      ...(kind === 'income' ? targetId !== null && { destinationAccountId: targetId } : sourceBody(source)),
       ...(categoryId !== null && { categoryId }),
     });
   };
@@ -167,21 +168,51 @@ export function MonthlyForm({ kind, item }: MonthlyFormProps) {
           </>
         ) : (
           <>
-            <Label>Tarjeta con la que se paga (opcional)</Label>
-            <QueryState inline query={products} errorTitle="No se pudieron cargar tus tarjetas.">
-              {(data) => (
-                <Pills
-                  items={choices(
-                    data.filter((p) => p.kind === 'credit_card').map((p) => ({ value: p.id, label: p.name })),
-                    targetId,
-                    (item as FixedExpense | undefined)?.cardName,
-                  )}
-                  selected={targetId}
-                  onSelect={toggle(targetId, setTargetId)}
-                />
-              )}
+            <Label>¿De dónde sale?</Label>
+            <QueryState inline query={products} errorTitle="No se pudieron cargar tus cuentas y tarjetas.">
+              {(data) => {
+                const expense = item as FixedExpense | undefined;
+                // Los ids de cuenta y de tarjeta son de producto, así que no se repiten entre los dos grupos.
+                // Una cuenta o tarjeta ya desactivada se sigue mostrando si es la que tiene el registro.
+                const accountItems = choices(
+                  data.filter((p) => p.kind === 'account').map((p) => ({ value: p.id, label: p.name })),
+                  initialSource?.kind === 'account' ? initialSource.id : null,
+                  expense?.accountName,
+                );
+                const cardItems = choices(
+                  data.filter((p) => p.kind === 'credit_card').map((p) => ({ value: p.id, label: p.name })),
+                  initialSource?.kind === 'card' ? initialSource.id : null,
+                  expense?.cardName,
+                );
+                const pick = (next: NonNullable<ExpenseSource>['kind']) => (id: number) =>
+                  setSource(source?.kind === next && source.id === id ? null : { kind: next, id });
+                return (
+                  <>
+                    {accountItems.length > 0 && (
+                      <>
+                        <Text style={styles.group}>Cuentas</Text>
+                        <Pills
+                          items={accountItems}
+                          selected={source?.kind === 'account' ? source.id : null}
+                          onSelect={pick('account')}
+                        />
+                      </>
+                    )}
+                    {cardItems.length > 0 && (
+                      <>
+                        <Text style={styles.group}>Tarjetas</Text>
+                        <Pills
+                          items={cardItems}
+                          selected={source?.kind === 'card' ? source.id : null}
+                          onSelect={pick('card')}
+                        />
+                      </>
+                    )}
+                  </>
+                );
+              }}
             </QueryState>
-            <Text style={styles.hint}>Sin tarjeta, el gasto sale directo de tu saldo.</Text>
+            <Text style={styles.hint}>Si no eliges nada, sale de tu saldo en general.</Text>
 
             <Label>Categoría (opcional)</Label>
             <QueryState inline query={categories} errorTitle="No se pudieron cargar las categorías.">
@@ -226,6 +257,7 @@ const styles = StyleSheet.create({
   content: { padding: space.lg, gap: space.sm, maxWidth: 640, width: '100%', alignSelf: 'center' },
   readonly: { color: colors.text, fontSize: 16 },
   hint: { color: colors.textMuted, fontSize: 13 },
+  group: { color: colors.textMuted, fontSize: 13, fontWeight: '700' },
   footer: {
     gap: space.sm,
     paddingHorizontal: space.lg,

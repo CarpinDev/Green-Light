@@ -2,6 +2,7 @@ import type { Cents, IsoDate } from '@greenlight/engine';
 import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Category } from '../../movements/entities/category.entity';
+import { Account } from '../../products/entities/account.entity';
 import { CreditCard } from '../../products/entities/credit-card.entity';
 
 /** Arriendo, servicios, suscripciones: un cargo cada mes. */
@@ -9,6 +10,7 @@ import { CreditCard } from '../../products/entities/credit-card.entity';
 @Check(`"amount_cents" > 0`)
 @Check(`"day_of_month" BETWEEN 1 AND 31`)
 @Check(`"end_date" IS NULL OR "end_date" >= "start_date"`)
+@Check(`"card_id" IS NULL OR "account_id" IS NULL`)
 export class FixedExpense {
   @PrimaryGeneratedColumn() id!: number;
 
@@ -37,4 +39,12 @@ export class FixedExpense {
   @ManyToOne(() => CreditCard, { nullable: true, onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'card_id' })
   card!: CreditCard | null;
+
+  /** Si sale de una cuenta. Es información de origen: la proyección usa un solo disponible y no cambia. */
+  @Column({ type: 'int', nullable: true }) accountId!: number | null;
+
+  // RESTRICT, igual que la tarjeta; y como mucho una de las dos (el CHECK de arriba)
+  @ManyToOne(() => Account, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'account_id' })
+  account!: Account | null;
 }

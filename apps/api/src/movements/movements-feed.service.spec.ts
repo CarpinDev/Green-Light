@@ -338,6 +338,16 @@ describe('MovementsFeedService', () => {
           endDate: null,
           cardId: null,
         },
+        {
+          id: 3,
+          name: 'Gimnasio',
+          amountCents: 100,
+          dayOfMonth: 5,
+          startDate: '2026-01-01',
+          endDate: null,
+          cardId: null,
+          accountId: AHORROS,
+        },
       ]);
       db.seed(RecurringIncome, [
         {
@@ -354,6 +364,7 @@ describe('MovementsFeedService', () => {
       const byId = (id: string) => list.find((m) => m.id === id);
       expect(byId('fixed:1:2026-11-05')?.product).toMatchObject({ id: VISA, kind: 'credit_card' });
       expect(byId('fixed:2:2026-11-05')?.product).toBeNull();
+      expect(byId('fixed:3:2026-11-05')?.product).toMatchObject({ id: AHORROS, kind: 'account', name: 'Ahorros' });
       expect(byId('recurring:1:2026-11-05')?.product).toMatchObject({ id: AHORROS, name: 'Ahorros' });
     });
 

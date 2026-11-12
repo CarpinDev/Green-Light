@@ -98,8 +98,10 @@ export class ProductLifecycleService {
     const product = await this.dataSource.transaction(async (manager) => {
       const found = await this.requireProduct(manager, productId);
       const usage = await this.usageOf(manager, productId);
-      if (usage.blockers.length > 0)
-        throw new ConflictException(blockedMessage(found.kind, usage.blockers, 'archivar'));
+      // Una cuenta con gastos fijos se puede archivar (justo para eso sirve: cerrarla conservando su historial);
+      // lo que sí frena a todos es un ingreso que le llega o, en una tarjeta, un gasto fijo que cobra
+      const blockers = usage.blockers.filter((b) => !(found.kind === 'account' && b.kind === 'fixed_expense'));
+      if (blockers.length > 0) throw new ConflictException(blockedMessage(found.kind, blockers, 'archivar'));
       return found;
     });
 
@@ -157,7 +159,11 @@ export class ProductLifecycleService {
       manager.find(CapitalPayment, { where: { productId } }),
       manager.find(AccountBalance, { where: { productId } }),
       manager.find(ProductRate, { where: { productId } }),
-      manager.find(FixedExpense, { where: { cardId: productId } }),
+      // De una tarjeta (cardId) o de una cuenta (accountId): según el tipo del producto solo una de las dos tiene filas
+      Promise.all([
+        manager.find(FixedExpense, { where: { cardId: productId } }),
+        manager.find(FixedExpense, { where: { accountId: productId } }),
+      ]).then(([fromCard, fromAccount]) => [...fromCard, ...fromAccount]),
       manager.find(RecurringIncome, { where: { destinationAccountId: productId } }),
       manager.find(OneOffIncome, { where: { destinationAccountId: productId } }),
     ]);
@@ -192,8 +198,11 @@ function blockedMessage(
 
   const parts: string[] = [];
   if (fixed.length > 0) {
+    const noun = fixed.length === 1 ? 'gasto fijo' : 'gastos fijos';
     parts.push(
-      `${This} ${word} paga ${fixed.length} ${fixed.length === 1 ? 'gasto fijo' : 'gastos fijos'} (${names(fixed)}).`,
+      kind === 'account'
+        ? `De ${This.toLowerCase()} ${word} ${fixed.length === 1 ? 'sale' : 'salen'} ${fixed.length} ${noun} (${names(fixed)}).`
+        : `${This} ${word} paga ${fixed.length} ${noun} (${names(fixed)}).`,
     );
   }
   if (incomes.length > 0) {
@@ -202,5 +211,9 @@ function blockedMessage(
     );
   }
   const many = blockers.length > 1;
-  return `${parts.join(' ')} ${many ? 'Cámbialos o elimínalos' : 'Cámbialo o elimínalo'} antes de ${action}${clitic}.`;
+  const advice = `${many ? 'Cámbialos o elimínalos' : 'Cámbialo o elimínalo'} antes de ${action}${clitic}.`;
+  // Una cuenta con gastos fijos no se borra, pero sí se cierra: se ofrece archivarla
+  const archive =
+    action === 'eliminar' && kind === 'account' && fixed.length > 0 ? ' O archívala para conservar su historial.' : '';
+  return `${parts.join(' ')} ${advice}${archive}`;
 }

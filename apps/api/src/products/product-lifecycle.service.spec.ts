@@ -184,6 +184,22 @@ describe('eliminar y archivar productos', () => {
       expect(db.rows(AccountBalance)).toHaveLength(1);
     });
 
+    it('409 si un gasto fijo sale de la cuenta, y el mensaje ofrece archivarla', async () => {
+      db.seed(FixedExpense, [{ id: 1, name: 'Arriendo', cardId: null, accountId: AHORROS }]);
+
+      await expect(lifecycle.remove(AHORROS)).rejects.toThrow(
+        'De esta cuenta sale 1 gasto fijo (Arriendo). Cámbialo o elimínalo antes de eliminarla. O archívala para conservar su historial.',
+      );
+      expect((await lifecycle.usage(AHORROS)).blockers).toEqual([{ kind: 'fixed_expense', id: 1, name: 'Arriendo' }]);
+      expect(db.rows(Account)).toHaveLength(1);
+    });
+
+    it('una cuenta con gastos fijos sí se archiva (cerrarla conserva el historial)', async () => {
+      db.seed(FixedExpense, [{ id: 1, name: 'Arriendo', cardId: null, accountId: AHORROS }]);
+      await expect(lifecycle.archive(AHORROS, TODAY)).resolves.toEqual({ id: AHORROS, active: false });
+      expect(db.rows(FixedExpense)).toHaveLength(1);
+    });
+
     it('si algo falla antes de terminar, no queda nada a medias', async () => {
       // Una transacción que lanza al final: el fake descarta todo lo escrito dentro
       const real = db.dataSource();

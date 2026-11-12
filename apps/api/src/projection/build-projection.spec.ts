@@ -4,6 +4,7 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { AccountBalance } from '../products/entities/account-balance.entity';
 import { Expense } from '../movements/entities/expense.entity';
 import { Settings } from '../settings/entities/settings.entity';
+import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
 import {
   AHORROS,
@@ -72,6 +73,30 @@ describe('buildProjection: las mismas cifras que el motor', () => {
 
   it('Netflix con tarjeta no sale del disponible el día 20: llega en el pago de la tarjeta', () => {
     expect(apr?.events.some((e) => e.date === '2026-04-20')).toBe(false);
+  });
+});
+
+describe('buildProjection: la cuenta de un gasto fijo es solo información de origen', () => {
+  const rent = (accountId: number | null) =>
+    make(FixedExpense, {
+      id: 41,
+      name: 'Arriendo',
+      amountCents: pesos(900_000),
+      dayOfMonth: 3,
+      startDate: '2026-01-01',
+      endDate: null,
+      cardId: null,
+      accountId,
+    });
+
+  it('un gasto fijo con cuenta da los mismos cierres de mes que el mismo sin cuenta', () => {
+    const base = facts();
+    const without = buildProjection({ ...base, fixedExpenses: [...base.fixedExpenses, rent(null)] }, 6);
+    const withAccount = buildProjection({ ...base, fixedExpenses: [...base.fixedExpenses, rent(AHORROS)] }, 6);
+    expect(withAccount.months.map((m) => m.closingBalance)).toEqual(without.months.map((m) => m.closingBalance));
+    // Y sí descuenta el arriendo: sin él, los cierres serían otros
+    const none = buildProjection(base, 6);
+    expect(without.months.map((m) => m.closingBalance)).not.toEqual(none.months.map((m) => m.closingBalance));
   });
 });
 
