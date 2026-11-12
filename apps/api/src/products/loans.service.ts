@@ -1,10 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import type { AmortizationMethod, Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { isUniqueViolation } from '../common/pg-errors';
 import { Loan } from './entities/loan.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
+import { duplicateProductError } from './product-checks';
 import { type RateInput, resolveRate } from './resolve-rate';
 
 export interface CreateLoanInput {
@@ -65,7 +66,13 @@ export class LoansService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
-        throw new ConflictException(`Ya existe un préstamo de ${input.bank} terminado en ${input.last4}`);
+        throw await duplicateProductError(
+          this.dataSource,
+          'loan',
+          input.bank,
+          input.last4,
+          `Ya existe un préstamo de ${input.bank} terminado en ${input.last4}`,
+        );
       }
       throw err;
     }

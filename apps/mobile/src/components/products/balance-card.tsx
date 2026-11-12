@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { Link } from 'expo-router';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
@@ -49,6 +50,11 @@ export function BalanceCard({ account }: { account: AccountSummary }) {
           {account.name} ····{account.last4}
         </Text>
         {stale && <LightBadge light="yellow" label="Saldo viejo" />}
+        <Link href={{ pathname: '/accounts/[id]', params: { id: String(account.id) } }} asChild>
+          <Pressable accessibilityRole="button" accessibilityLabel={`Opciones de ${account.name}`} hitSlop={8}>
+            <Text style={styles.options}>Opciones</Text>
+          </Pressable>
+        </Link>
       </View>
       <Text style={[styles.muted, stale && styles.staleText]}>
         {latest === null
@@ -69,6 +75,7 @@ const styles = StyleSheet.create({
   card: { gap: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   name: { ...type.subtitle, flexShrink: 1 },
+  options: { ...type.caption, color: colors.primary, fontWeight: '700' },
   muted: { ...type.caption, color: colors.textMuted },
   staleText: { color: light.yellow.bg },
   error: { color: colors.danger },

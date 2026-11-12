@@ -6,6 +6,7 @@ import { getJson } from '@/api/client';
 import type { CardSummary } from '@/api/types';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
+import { DangerZone } from '@/components/products/danger-zone';
 import { OpeningDebtSection } from '@/components/products/opening-debt-section';
 import { PlanSection } from '@/components/products/plan-section';
 import { StatementCompare } from '@/components/products/statement-compare';
@@ -55,6 +56,7 @@ export default function CardDetail() {
             <PlanSection cardId={card.id} />
             <OpeningDebtSection cardId={card.id} />
             <StatementCompare cardId={card.id} />
+            <DangerZone productId={card.id} kind="credit_card" />
           </ScrollView>
         );
       }}

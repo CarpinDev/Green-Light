@@ -24,11 +24,17 @@ export class ProductsService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Los productos activos, ordenados por nombre. */
-  async listActive(): Promise<ProductSummary[]> {
-    const products = await this.dataSource.getRepository(Product).find({
-      where: { active: true },
-      order: { name: 'ASC' },
-    });
+  listActive(): Promise<ProductSummary[]> {
+    return this.list(true);
+  }
+
+  /** Los archivados, ordenados por nombre. */
+  listArchived(): Promise<ProductSummary[]> {
+    return this.list(false);
+  }
+
+  private async list(active: boolean): Promise<ProductSummary[]> {
+    const products = await this.dataSource.getRepository(Product).find({ where: { active }, order: { name: 'ASC' } });
     return products.map(({ id, kind, name, bank, last4 }) => ({ id, kind, name, bank, last4 }));
   }
 

@@ -76,6 +76,8 @@ export default function RootLayout() {
         <Stack.Screen name="movements" options={{ title: 'Movimientos' }} />
         <Stack.Screen name="upcoming" options={{ title: 'Próximos' }} />
         <Stack.Screen name="cards/[id]/index" options={{ title: 'Tarjeta' }} />
+        <Stack.Screen name="accounts/[id]" options={{ title: 'Cuenta' }} />
+        <Stack.Screen name="archived" options={{ title: 'Archivados' }} />
         {/* Ingresos recurrentes y gastos fijos: crear y editar, también como modales */}
         {MONTHLY_MODALS.map(({ name, title }) => (
           <Stack.Screen

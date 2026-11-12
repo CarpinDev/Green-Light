@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson } from '@/api/client';
-import type { AccountSummary, CardSummary } from '@/api/types';
+import type { AccountSummary, CardSummary, Product } from '@/api/types';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { BalanceCard } from '@/components/products/balance-card';
@@ -17,6 +17,12 @@ import { colors, space, type } from '@/theme/tokens';
 export default function Products() {
   const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
   const cards = useQuery({ queryKey: ['cards'], queryFn: () => getJson<CardSummary[]>('/cards') });
+  // Solo para el contador del enlace: se comparte la clave con la pantalla de archivados
+  const archived = useQuery({
+    queryKey: ['products', 'archived'],
+    queryFn: () => getJson<Product[]>('/products?archived=true'),
+  });
+  const archivedCount = archived.data?.length ?? 0;
   const clearance = useTabBarClearance();
 
   // Cada sección con su propio estado: si una falla o carga, la otra no se queda esperando
@@ -54,6 +60,14 @@ export default function Products() {
           {(data) => <CardsSection cards={data} />}
         </QueryState>
       </View>
+
+      {archivedCount > 0 && (
+        <Link href="/archived" asChild>
+          <Pressable accessibilityRole="link" style={styles.archived}>
+            <Text style={styles.archivedText}>Archivados ({archivedCount})</Text>
+          </Pressable>
+        </Link>
+      )}
     </ScrollView>
   );
 }
@@ -64,4 +78,6 @@ const styles = StyleSheet.create({
   accounts: { gap: space.md },
   empty: { gap: space.md },
   muted: { ...type.caption, color: colors.textMuted },
+  archived: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
+  archivedText: { color: colors.primary, fontWeight: '700' },
 });

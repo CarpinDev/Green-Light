@@ -1,9 +1,9 @@
 import { ActivityIndicator, Pressable, type PressableProps, StyleSheet } from 'react-native';
 
 import { Text } from '@/components/text';
-import { colors, radius } from '@/theme/tokens';
+import { colors, light, radius } from '@/theme/tokens';
 
-type Variant = 'primary' | 'secondary';
+type Variant = 'primary' | 'secondary' | 'danger';
 
 interface ButtonProps extends Omit<PressableProps, 'children'> {
   label: string;
@@ -18,7 +18,7 @@ interface ButtonProps extends Omit<PressableProps, 'children'> {
  */
 export function Button({ label, variant = 'primary', loading = false, disabled, style, ...props }: ButtonProps) {
   const inactive = disabled === true || loading;
-  const textColor = variant === 'primary' ? colors.onPrimary : colors.text;
+  const textColor = { primary: colors.onPrimary, secondary: colors.text, danger: light.red.fg }[variant];
 
   return (
     <Pressable
@@ -28,7 +28,7 @@ export function Button({ label, variant = 'primary', loading = false, disabled, 
       disabled={inactive}
       style={(state) => [
         styles.base,
-        variant === 'primary' ? styles.primary : styles.secondary,
+        styles[variant],
         inactive && styles.inactive,
         typeof style === 'function' ? style(state) : style,
       ]}
@@ -51,6 +51,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   primary: { backgroundColor: colors.primary },
+  danger: { backgroundColor: colors.danger },
   secondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
   inactive: { opacity: 0.5 },
   label: { fontWeight: '700', fontSize: 16 },
