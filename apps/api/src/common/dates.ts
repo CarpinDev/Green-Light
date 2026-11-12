@@ -11,7 +11,7 @@ export function isoDateOf(date: Date = new Date()): IsoDate {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-/** La fecha `days` días antes (o después, si es negativo) de otra YYYY-MM-DD, en calendario local. */
+/** La fecha `days` días después (o antes, si es negativo) de otra YYYY-MM-DD, en calendario local. */
 export function addDays(date: IsoDate, days: number): IsoDate {
   const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
   return isoDateOf(new Date(year, month - 1, day + days));

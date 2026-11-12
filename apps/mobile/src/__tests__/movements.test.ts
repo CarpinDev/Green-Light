@@ -139,18 +139,19 @@ describe('upcomingEvents', () => {
     events,
   });
 
-  it('lo de hoy en adelante, del mes actual y el siguiente, por fecha', () => {
+  it('desde mañana, del mes actual y el siguiente, por fecha: lo de hoy ya es de Recientes', () => {
     const months = [
       month('2026-10', [event('2026-10-30', -1)]),
       month('2026-11', [event('2026-11-20', -3), event('2026-11-05', -9), event('2026-11-12', -2)]),
       month('2026-12', [event('2026-12-01', -4)]),
       month('2027-01', [event('2027-01-10', -5)]),
     ];
-    expect(upcomingEvents(months, '2026-11', '2026-11-12').map((e) => e.date)).toEqual([
-      '2026-11-12',
-      '2026-11-20',
-      '2026-12-01',
-    ]);
+    expect(upcomingEvents(months, '2026-11', '2026-11-12').map((e) => e.date)).toEqual(['2026-11-20', '2026-12-01']);
+  });
+
+  it('la división es limpia: hoy ya no entra y mañana sí', () => {
+    const months = [month('2026-11', [event('2026-11-12', -1), event('2026-11-13', -2)])];
+    expect(upcomingEvents(months, '2026-11', '2026-11-12').map((e) => e.date)).toEqual(['2026-11-13']);
   });
 
   it('sin eventos futuros, una lista vacía', () => {

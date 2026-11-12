@@ -116,13 +116,14 @@ export function alertMessage(alert: Alert, products: readonly Product[]): string
 }
 
 /**
- * Todo lo que viene de `today` en adelante en el mes actual y el siguiente, por fecha (de la proyección).
+ * Todo lo que viene desde mañana en el mes actual y el siguiente, por fecha (de la proyección). Lo de hoy no
+ * entra: ya pasó para "Movimientos recientes" (que llega hasta hoy incluido), y así no sale en las dos listas.
  * Un gasto con tarjeta no aparece el día de la compra: aparece como "Pago de tarjeta" el día del pago del extracto.
  */
 export function upcomingEvents(months: readonly MonthSummary[], now: string, today: string): CashEvent[] {
   return visibleMonths(months, now)
     .slice(0, 2)
     .flatMap((m) => m.events)
-    .filter((e) => e.date >= today)
+    .filter((e) => e.date > today)
     .sort(byDate);
 }
