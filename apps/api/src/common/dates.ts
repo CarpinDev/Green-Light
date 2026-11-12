@@ -11,6 +11,12 @@ export function isoDateOf(date: Date = new Date()): IsoDate {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
+/** El día anterior a una fecha YYYY-MM-DD (en calendario local, sin pasar por UTC). */
+export function dayBefore(date: IsoDate): IsoDate {
+  const [year = 0, month = 1, day = 1] = date.split('-').map(Number);
+  return isoDateOf(new Date(year, month - 1, day - 1));
+}
+
 /** La vigencia no puede terminar antes de empezar (YYYY-MM-DD se compara como texto). */
 export function assertDateRange(startDate: IsoDate, endDate: IsoDate | undefined): void {
   if (endDate !== undefined && endDate < startDate) {

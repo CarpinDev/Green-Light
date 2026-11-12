@@ -26,9 +26,25 @@ export async function postJson<T>(path: string, body: unknown): Promise<T> {
   });
 }
 
+/** PATCH con un cuerpo JSON: edita solo los campos que se mandan. */
+export async function patchJson<T>(path: string, body: unknown): Promise<T> {
+  return send<T>(path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+/** DELETE: la API responde 204 sin cuerpo, así que no devuelve nada. */
+export async function deleteJson(path: string): Promise<void> {
+  await send<void>(path, { method: 'DELETE' });
+}
+
 async function send<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, init);
   if (!response.ok) throw new ApiError(response.status, await messageOf(response));
+  // 204 No Content (un DELETE): no hay cuerpo, y response.json() fallaría
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 

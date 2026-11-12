@@ -1,6 +1,14 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { IsIsoDate } from '../../common/validators';
-import type { CreateFixedExpenseInput, CreateOneOffIncomeInput, CreateRecurringIncomeInput } from '../incomes.service';
+import type {
+  AmountChangeInput,
+  CreateFixedExpenseInput,
+  CreateOneOffIncomeInput,
+  CreateRecurringIncomeInput,
+  UpdateFixedExpenseInput,
+  UpdateRecurringIncomeInput,
+  MonthlyStatus,
+} from '../incomes.service';
 
 export class CreateRecurringIncomeDto implements CreateRecurringIncomeInput {
   @IsString()
@@ -90,4 +98,76 @@ export class CreateFixedExpenseDto implements CreateFixedExpenseInput {
   @IsInt()
   @Min(1)
   cardId?: number;
+}
+
+// El PATCH no acepta amountCents ni startDate: con forbidNonWhitelisted, mandarlos es 400.
+// Los campos con `null` ("quitar") pasan por IsOptional, que deja pasar null y undefined.
+
+export class UpdateRecurringIncomeDto implements UpdateRecurringIncomeInput {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  dayOfMonth?: number;
+
+  /** Una fecha no anterior al inicio (lo revisa el service). null no vale: un terminado no se reactiva. */
+  @ValidateIf((o: { endDate?: unknown }) => o.endDate !== undefined)
+  @IsIsoDate()
+  endDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  destinationAccountId?: number | null;
+}
+
+export class UpdateFixedExpenseDto implements UpdateFixedExpenseInput {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  name?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  dayOfMonth?: number;
+
+  @ValidateIf((o: { endDate?: unknown }) => o.endDate !== undefined)
+  @IsIsoDate()
+  endDate?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  categoryId?: number | null;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  cardId?: number | null;
+}
+
+export class AmountChangeDto implements AmountChangeInput {
+  @IsInt()
+  @Min(1)
+  @Max(Number.MAX_SAFE_INTEGER)
+  amountCents!: number;
+
+  @IsIsoDate()
+  effectiveFrom!: string;
+}
+
+/** GET ...?status=active|upcoming|ended. */
+export class ListMonthlyQuery {
+  @IsOptional()
+  @IsIn(['upcoming', 'active', 'ended'])
+  status?: MonthlyStatus;
 }

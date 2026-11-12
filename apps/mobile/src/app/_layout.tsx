@@ -23,6 +23,13 @@ const queryClient = new QueryClient({
   },
 });
 
+const MONTHLY_MODALS = [
+  { name: 'recurring-incomes/new', title: 'Nuevo ingreso' },
+  { name: 'recurring-incomes/[id]', title: 'Editar ingreso' },
+  { name: 'fixed-expenses/new', title: 'Nuevo gasto fijo' },
+  { name: 'fixed-expenses/[id]', title: 'Editar gasto fijo' },
+];
+
 export default function RootLayout() {
   const [loaded, fontError] = useFonts({
     [fonts.body]: Inter_400Regular,
@@ -61,6 +68,14 @@ export default function RootLayout() {
           name="expenses/new"
           options={{ presentation: 'modal', title: 'Nuevo gasto', headerLeft: () => <CancelButton /> }}
         />
+        {/* Ingresos recurrentes y gastos fijos: crear y editar, también como modales */}
+        {MONTHLY_MODALS.map(({ name, title }) => (
+          <Stack.Screen
+            key={name}
+            name={name}
+            options={{ presentation: 'modal', title, headerLeft: () => <CancelButton /> }}
+          />
+        ))}
       </Stack>
     </QueryClientProvider>
   );

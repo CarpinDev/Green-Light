@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Category } from '../movements/entities/category.entity';
 import { Account } from '../products/entities/account.entity';
 import { Product } from '../products/entities/product.entity';
@@ -25,8 +25,8 @@ describe('IncomesService', () => {
     db = new FakeDb();
     db.withoutId.add(Account);
     db.seed(Product, [
-      { id: VISA, kind: 'credit_card', active: true },
-      { id: AHORROS, kind: 'account', active: true },
+      { id: VISA, kind: 'credit_card', name: 'Visa', active: true },
+      { id: AHORROS, kind: 'account', name: 'Ahorros', active: true },
       { id: PRESTAMO, kind: 'loan', active: true },
       { id: CERRADA, kind: 'credit_card', active: false },
     ]);
@@ -126,6 +126,257 @@ describe('IncomesService', () => {
 
     it('con una categoría de ingreso: 400', async () => {
       await expect(service.createFixedExpense({ ...rent, categoryId: SALARIO })).rejects.toThrow(/categor/i);
+    });
+  });
+
+  describe('listados', () => {
+    const TODAY = '2026-06-15';
+
+    beforeEach(() => {
+      db.seed(RecurringIncome, [
+        {
+          id: 1,
+          name: 'Salario',
+          amountCents: 300,
+          dayOfMonth: 30,
+          startDate: '2026-01-01',
+          endDate: null,
+          destinationAccountId: AHORROS,
+        },
+        { id: 2, name: 'Freelance', amountCents: 100, dayOfMonth: 5, startDate: '2026-01-01', endDate: '2026-05-31' },
+        {
+          id: 3,
+          name: 'Arriendo recibido',
+          amountCents: 200,
+          dayOfMonth: 5,
+          startDate: '2026-01-01',
+          endDate: '2026-06-15',
+        },
+      ]);
+      db.seed(FixedExpense, [
+        {
+          id: 1,
+          name: 'Netflix',
+          amountCents: 30,
+          dayOfMonth: 20,
+          startDate: '2026-01-01',
+          endDate: null,
+          cardId: VISA,
+          categoryId: MERCADO,
+        },
+        { id: 2, name: 'Arriendo', amountCents: 1200, dayOfMonth: 1, startDate: '2026-01-01', endDate: null },
+        { id: 3, name: 'Gimnasio', amountCents: 80, dayOfMonth: 1, startDate: '2025-01-01', endDate: '2026-03-01' },
+      ]);
+    });
+
+    it('ingresos: por día y nombre, con status y el nombre de la cuenta (o null)', async () => {
+      const list = await service.listRecurringIncomes({}, TODAY);
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Arriendo recibido', 'active'], // termina hoy: todavía rige
+        ['Freelance', 'ended'],
+        ['Salario', 'active'],
+      ]);
+      expect(list[2]).toMatchObject({
+        destinationAccountId: AHORROS,
+        destinationAccountName: 'Ahorros',
+        endDate: null,
+      });
+      expect(list[1]).toMatchObject({ destinationAccountId: null, destinationAccountName: null });
+    });
+
+    it('?status filtra por estado', async () => {
+      const active = await service.listRecurringIncomes({ status: 'active' }, TODAY);
+      expect(active.map((r) => r.name)).toEqual(['Arriendo recibido', 'Salario']);
+      const ended = await service.listRecurringIncomes({ status: 'ended' }, TODAY);
+      expect(ended.map((r) => r.name)).toEqual(['Freelance']);
+      expect(await service.listRecurringIncomes({ status: 'upcoming' }, TODAY)).toEqual([]);
+    });
+
+    it('upcoming: empieza después de hoy; el día que empieza ya es active', async () => {
+      db.seed(RecurringIncome, [
+        { id: 1, name: 'Nuevo', amountCents: 1, dayOfMonth: 1, startDate: '2026-06-16', endDate: null },
+        { id: 2, name: 'Hoy', amountCents: 1, dayOfMonth: 2, startDate: '2026-06-15', endDate: null },
+      ]);
+      const list = await service.listRecurringIncomes({}, TODAY);
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Nuevo', 'upcoming'],
+        ['Hoy', 'active'],
+      ]);
+    });
+
+    it('un cambio de monto futuro deja uno solo active: el viejo rige hasta el día anterior, el nuevo es upcoming', async () => {
+      db.seed(RecurringIncome, [
+        { id: 1, name: 'Salario', amountCents: 300, dayOfMonth: 30, startDate: '2026-01-01', endDate: null },
+      ]);
+      await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2026-12-01' });
+      const list = await service.listRecurringIncomes({}, TODAY);
+      expect(list.map((r) => [r.amountCents, r.status])).toEqual([
+        [300, 'active'],
+        [350, 'upcoming'],
+      ]);
+    });
+
+    it('gastos fijos: con el nombre de la tarjeta y la categoría', async () => {
+      const list = await service.listFixedExpenses({}, TODAY);
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Arriendo', 'active'],
+        ['Gimnasio', 'ended'],
+        ['Netflix', 'active'],
+      ]);
+      expect(list[2]).toMatchObject({ cardId: VISA, cardName: 'Visa', categoryId: MERCADO });
+      expect(list[0]).toMatchObject({ cardId: null, cardName: null });
+      const active = await service.listFixedExpenses({ status: 'active' }, TODAY);
+      expect(active.map((r) => r.name)).toEqual(['Arriendo', 'Netflix']);
+    });
+  });
+
+  describe('editar', () => {
+    beforeEach(() => {
+      db.seed(RecurringIncome, [
+        { id: 1, name: 'Salario', amountCents: 300, dayOfMonth: 30, startDate: '2026-03-01', endDate: null },
+      ]);
+      db.seed(FixedExpense, [
+        { id: 1, name: 'Netflix', amountCents: 30, dayOfMonth: 20, startDate: '2026-03-01', endDate: null },
+      ]);
+    });
+
+    it('cambia solo lo que llega y no toca el monto ni el inicio', async () => {
+      await service.updateRecurringIncome(1, { name: 'Sueldo', dayOfMonth: 15, destinationAccountId: AHORROS });
+      expect(db.rows(RecurringIncome)[0]).toMatchObject({
+        name: 'Sueldo',
+        dayOfMonth: 15,
+        destinationAccountId: AHORROS,
+        amountCents: 300,
+        startDate: '2026-03-01',
+      });
+    });
+
+    it('un endDate anterior al inicio guardado es 400 y no escribe', async () => {
+      await expect(service.updateRecurringIncome(1, { endDate: '2026-02-28' })).rejects.toThrow(BadRequestException);
+      await expect(service.updateFixedExpense(1, { endDate: '2026-02-28' })).rejects.toThrow(BadRequestException);
+      expect(db.rows(RecurringIncome)[0]?.endDate).toBeNull();
+    });
+
+    it('pone un fin; no hay forma de quitarlo desde aquí (ver el DTO)', async () => {
+      await service.updateRecurringIncome(1, { endDate: '2026-04-30' });
+      expect(db.rows(RecurringIncome)[0]?.endDate).toBe('2026-04-30');
+    });
+
+    it('aplica las reglas del create: cuenta, tarjeta activa y categoría de gasto', async () => {
+      await expect(service.updateRecurringIncome(1, { destinationAccountId: VISA })).rejects.toThrow(/cuenta/i);
+      await expect(service.updateFixedExpense(1, { cardId: CERRADA })).rejects.toThrow(BadRequestException);
+      await expect(service.updateFixedExpense(1, { categoryId: SALARIO })).rejects.toThrow(/categor/i);
+      await service.updateFixedExpense(1, { cardId: VISA, categoryId: MERCADO });
+      expect(db.rows(FixedExpense)[0]).toMatchObject({ cardId: VISA, categoryId: MERCADO });
+    });
+
+    it('un id que no existe es 404', async () => {
+      await expect(service.updateRecurringIncome(99, { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(service.updateFixedExpense(99, { name: 'x' })).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('cambiar el monto', () => {
+    beforeEach(() => {
+      db.seed(RecurringIncome, [
+        {
+          id: 1,
+          name: 'Salario',
+          amountCents: 300,
+          dayOfMonth: 30,
+          startDate: '2026-01-01',
+          endDate: null,
+          destinationAccountId: AHORROS,
+        },
+      ]);
+      db.seed(FixedExpense, [
+        {
+          id: 1,
+          name: 'Arriendo',
+          amountCents: 1200,
+          dayOfMonth: 1,
+          startDate: '2026-01-01',
+          endDate: '2026-12-31',
+          cardId: VISA,
+        },
+      ]);
+    });
+
+    it('cierra el registro el día anterior y abre uno nuevo: rangos contiguos sin solaparse', async () => {
+      const { id } = await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2026-07-01' });
+      const [old, created] = db.rows(RecurringIncome);
+      expect(old).toMatchObject({ id: 1, amountCents: 300, startDate: '2026-01-01', endDate: '2026-06-30' });
+      expect(created).toMatchObject({
+        id,
+        name: 'Salario',
+        amountCents: 350,
+        dayOfMonth: 30,
+        startDate: '2026-07-01',
+        endDate: null,
+        destinationAccountId: AHORROS,
+      });
+      expect(id).not.toBe(1);
+    });
+
+    it('el día anterior cruza meses y años (1 de enero -> 31 de diciembre)', async () => {
+      await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2027-01-01' });
+      expect(db.rows(RecurringIncome)[0]?.endDate).toBe('2026-12-31');
+    });
+
+    it('conserva el fin que ya tenía el registro en el nuevo', async () => {
+      await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      const [old, created] = db.rows(FixedExpense);
+      expect(old?.endDate).toBe('2026-06-30');
+      expect(created).toMatchObject({
+        amountCents: 1300,
+        startDate: '2026-07-01',
+        endDate: '2026-12-31',
+        cardId: VISA,
+      });
+    });
+
+    it('effectiveFrom igual o anterior al inicio es 400', async () => {
+      for (const effectiveFrom of ['2026-01-01', '2025-12-01']) {
+        await expect(service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom })).rejects.toThrow(
+          /después del inicio/,
+        );
+      }
+      expect(db.rows(RecurringIncome)).toHaveLength(1);
+    });
+
+    it('si ya terminó antes de effectiveFrom es 400', async () => {
+      await expect(
+        service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2027-02-01' }),
+      ).rejects.toThrow(/terminó/);
+      expect(db.rows(FixedExpense)).toHaveLength(1);
+    });
+
+    it('si falla al guardar, no queda nada a medias', async () => {
+      db.failOn = RecurringIncome;
+      await expect(
+        service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2026-07-01' }),
+      ).rejects.toThrow();
+      expect(db.rows(RecurringIncome)).toHaveLength(1);
+      expect(db.rows(RecurringIncome)[0]?.endDate).toBeNull();
+    });
+
+    it('un id que no existe es 404', async () => {
+      await expect(
+        service.changeRecurringIncomeAmount(99, { amountCents: 350, effectiveFrom: '2026-07-01' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('borrar', () => {
+    it('borra el registro; uno que no existe es 404', async () => {
+      db.seed(RecurringIncome, [{ id: 1, name: 'Salario', startDate: '2026-01-01' }]);
+      db.seed(FixedExpense, [{ id: 1, name: 'Netflix', startDate: '2026-01-01' }]);
+      await service.removeRecurringIncome(1);
+      await service.removeFixedExpense(1);
+      expect(db.rows(RecurringIncome)).toHaveLength(0);
+      expect(db.rows(FixedExpense)).toHaveLength(0);
+      await expect(service.removeRecurringIncome(1)).rejects.toThrow(NotFoundException);
+      await expect(service.removeFixedExpense(1)).rejects.toThrow(NotFoundException);
     });
   });
 });

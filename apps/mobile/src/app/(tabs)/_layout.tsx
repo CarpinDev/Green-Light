@@ -60,6 +60,10 @@ export default function TabsLayout() {
         name="balances"
         options={{ title: 'Saldos', headerTitle: 'Confirmar saldos', tabBarIcon: icon('credit-card') }}
       />
+      <Tabs.Screen
+        name="monthly"
+        options={{ title: 'Mensual', headerTitle: 'Ingresos y gastos fijos', tabBarIcon: icon('repeat') }}
+      />
     </Tabs>
   );
 }

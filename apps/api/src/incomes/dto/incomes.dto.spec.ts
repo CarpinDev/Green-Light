@@ -1,7 +1,15 @@
 import { ValidationPipe } from '@nestjs/common';
 import { CreateCategoryDto } from '../../movements/dto/create-category.dto';
 import { UpdateSettingsDto } from '../../settings/dto/update-settings.dto';
-import { CreateFixedExpenseDto, CreateOneOffIncomeDto, CreateRecurringIncomeDto } from './incomes.dto';
+import {
+  AmountChangeDto,
+  CreateFixedExpenseDto,
+  CreateOneOffIncomeDto,
+  CreateRecurringIncomeDto,
+  ListMonthlyQuery,
+  UpdateFixedExpenseDto,
+  UpdateRecurringIncomeDto,
+} from './incomes.dto';
 
 // La forma del cuerpo de los endpoints de planeación, con el mismo ValidationPipe que usa main.ts.
 // El orden de las fechas y las referencias entre tablas las revisan los services.
@@ -41,6 +49,55 @@ describe('CreateOneOffIncomeDto', () => {
       validate(CreateOneOffIncomeDto, { date: '2026-06-20', amountCents: 50_000_000 }),
     ).resolves.toBeDefined();
     await expect(validate(CreateOneOffIncomeDto, { date: '2026-06-20', amountCents: 0 })).rejects.toThrow();
+  });
+});
+
+describe('UpdateRecurringIncomeDto y UpdateFixedExpenseDto', () => {
+  it('acepta cualquier subconjunto de campos, incluso vacío, y null para quitar cuenta, tarjeta o categoría', async () => {
+    for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
+      await expect(validate(Dto, {})).resolves.toBeDefined();
+      await expect(validate(Dto, { name: 'Otro', dayOfMonth: 31, endDate: '2026-12-31' })).resolves.toBeDefined();
+    }
+    await expect(validate(UpdateRecurringIncomeDto, { destinationAccountId: null })).resolves.toBeDefined();
+    await expect(validate(UpdateFixedExpenseDto, { cardId: null, categoryId: 3 })).resolves.toBeDefined();
+  });
+
+  it('rechaza amountCents y startDate: el monto cambia con amount-changes', async () => {
+    for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
+      await expect(validate(Dto, { amountCents: 100 })).rejects.toThrow();
+      await expect(validate(Dto, { startDate: '2026-01-01' })).rejects.toThrow();
+    }
+  });
+
+  it('rechaza endDate null: un terminado no se reactiva, se crea uno nuevo', async () => {
+    for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
+      await expect(validate(Dto, { endDate: null })).rejects.toThrow();
+    }
+  });
+
+  it('rechaza día fuera de 1..31, fecha imposible y nombre vacío', async () => {
+    for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
+      await expect(validate(Dto, { dayOfMonth: 32 })).rejects.toThrow();
+      await expect(validate(Dto, { endDate: '2026-02-30' })).rejects.toThrow();
+      await expect(validate(Dto, { name: '' })).rejects.toThrow();
+    }
+  });
+});
+
+describe('AmountChangeDto', () => {
+  it('pide monto positivo y fecha real', async () => {
+    await expect(validate(AmountChangeDto, { amountCents: 350, effectiveFrom: '2026-07-01' })).resolves.toBeDefined();
+    await expect(validate(AmountChangeDto, { amountCents: 0, effectiveFrom: '2026-07-01' })).rejects.toThrow();
+    await expect(validate(AmountChangeDto, { amountCents: 350, effectiveFrom: '2026-13-01' })).rejects.toThrow();
+    await expect(validate(AmountChangeDto, { amountCents: 350 })).rejects.toThrow();
+  });
+});
+
+describe('ListMonthlyQuery', () => {
+  it('status es opcional y solo upcoming, active o ended', async () => {
+    await expect(validate(ListMonthlyQuery, {})).resolves.toBeDefined();
+    await expect(validate(ListMonthlyQuery, { status: 'upcoming' })).resolves.toBeDefined();
+    await expect(validate(ListMonthlyQuery, { status: 'si' })).rejects.toThrow();
   });
 });
 

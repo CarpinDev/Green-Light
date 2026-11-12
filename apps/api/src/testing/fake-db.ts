@@ -46,6 +46,7 @@ export class FakeDb {
         find: async (options: FindOptions = {}) =>
           this.findAll(this.tables, Entity, options.where ?? {}, options.order),
         save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
+        delete: async (where: Row) => this.remove(this.tables, Entity, where),
       }),
     } as unknown as DataSource;
   }
@@ -56,7 +57,8 @@ export class FakeDb {
       return this.insert(staged, entity);
     };
     const create = (Entity: new () => object, data: Row) => Object.assign(new Entity(), data);
-    return { save, create } as unknown as EntityManager;
+    const findOneBy = async (Entity: EntityClass, where: Row) => this.find(staged, Entity, where);
+    return { save, create, findOneBy } as unknown as EntityManager;
   }
 
   private findAll(tables: Table, Entity: EntityClass, where: Row, order: FindOptions['order'] = {}): Row[] {
@@ -72,6 +74,17 @@ export class FakeDb {
       }
       return 0;
     });
+  }
+
+  /** Como repository.delete(criteria): borra lo que coincide y dice cuántas filas fueron. */
+  private remove(tables: Table, Entity: EntityClass, where: Row): { affected: number } {
+    const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
+    const list = tables.get(Entity) ?? [];
+    tables.set(
+      Entity,
+      list.filter((r) => !matches(r)),
+    );
+    return { affected: list.filter(matches).length };
   }
 
   private find(tables: Table, Entity: EntityClass, where: Row): Row | null {
@@ -101,7 +114,11 @@ export class FakeDb {
         );
       }
     }
-    if (!this.withoutId.has(type) && entity.id === undefined) entity.id = this.nextId++;
+    if (!this.withoutId.has(type) && entity.id === undefined) {
+      // Los ids que se sembraron a mano no se pisan: el siguiente es mayor que todos los de la tabla
+      const highest = Math.max(0, ...list.map((r) => Number(r.id ?? 0)));
+      entity.id = Math.max(this.nextId++, highest + 1);
+    }
     tables.set(type, [...list, entity]);
     return entity;
   }
