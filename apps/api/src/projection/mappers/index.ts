@@ -67,13 +67,17 @@ export function toCardPurchase(expense: Expense): Engine.CardPurchase {
   };
 }
 
-/** Un gasto desde una cuenta: sale del disponible el mismo día. */
-export function toCashExpense(expense: Expense): Engine.CashExpense {
+/**
+ * Un gasto desde una cuenta: sale del disponible el mismo día. `afterBalance` ya viene resuelto (si se
+ * registró después del saldo confirmado): el mapper no sabe de `asOf` ni de horas.
+ */
+export function toCashExpense(expense: Expense, afterBalance = false): Engine.CashExpense {
   return {
     id: String(expense.id),
     date: expense.date,
     amount: expense.amountCents,
     description: expense.description,
+    ...(afterBalance && { afterBalance }),
   };
 }
 
@@ -113,12 +117,14 @@ export function toRecurringIncome(income: RecurringIncome): Engine.RecurringInco
   };
 }
 
-export function toOneOffIncome(income: OneOffIncome): Engine.OneOffIncome {
+/** `afterBalance`: se registró después del saldo confirmado (lo decide quien arma la proyección). */
+export function toOneOffIncome(income: OneOffIncome, afterBalance = false): Engine.OneOffIncome {
   return {
     id: String(income.id),
     date: income.date,
     amount: income.amountCents,
     description: income.description,
+    ...(afterBalance && { afterBalance }),
   };
 }
 

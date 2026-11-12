@@ -108,14 +108,17 @@ export class AccountsService {
     const account = await this.dataSource.getRepository(Account).findOneBy({ productId: accountId });
     if (!account) throw new NotFoundException(`No existe la cuenta ${accountId}`);
 
-    const balances = this.dataSource.getRepository(AccountBalance);
-    const sameDay = await balances.findOneBy({ productId: accountId, asOf: input.asOf });
-    return balances.save({
-      // Con el id guardado, save actualiza esa fila en vez de insertar otra
-      ...(sameDay && { id: sameDay.id }),
-      productId: accountId,
-      asOf: input.asOf,
-      balanceCents: input.balanceCents,
+    // El saldo del mismo día se reemplaza borrando la fila y creando otra, no actualizándola: así su
+    // `createdAt` (la hora que usa la proyección para saber qué se registró después) avanza. Con un
+    // UPDATE conservaría la hora de la primera confirmación, y lo registrado entre las dos contaría doble.
+    return this.dataSource.transaction(async (manager) => {
+      const sameDay = await manager.findOneBy(AccountBalance, { productId: accountId, asOf: input.asOf });
+      if (sameDay) await manager.delete(AccountBalance, { id: sameDay.id });
+      return manager.save(AccountBalance, {
+        productId: accountId,
+        asOf: input.asOf,
+        balanceCents: input.balanceCents,
+      });
     });
   }
 }

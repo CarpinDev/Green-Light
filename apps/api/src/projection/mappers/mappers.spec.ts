@@ -290,3 +290,23 @@ describe('toEngineSettings', () => {
     expect(settings.statementTolerancePct.equals(D('0.02'))).toBe(true);
   });
 });
+
+describe('afterBalance en los mappers', () => {
+  const expense = make(Expense, {
+    id: 31,
+    date: '2026-03-12',
+    amountCents: 120_000_000,
+    sourceProductId: 3,
+    installments: null,
+    description: 'Mercado',
+  });
+  const bonus = make(OneOffIncome, { id: 2, date: '2026-06-20', amountCents: 50_000_000, description: 'Prima' });
+
+  it('lo agregan solo cuando es true; sin él, la salida no trae la propiedad', () => {
+    expect(toCashExpense(expense, true)).toMatchObject({ afterBalance: true });
+    expect(toCashExpense(expense, false)).not.toHaveProperty('afterBalance');
+    expect(toCashExpense(expense)).not.toHaveProperty('afterBalance');
+    expect(toOneOffIncome(bonus, true)).toMatchObject({ afterBalance: true });
+    expect(toOneOffIncome(bonus)).not.toHaveProperty('afterBalance');
+  });
+});

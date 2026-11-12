@@ -190,3 +190,79 @@ describe('project: disponible mes a mes', () => {
     });
   });
 });
+
+describe('project: movimientos del mismo día del saldo', () => {
+  // Confirmé mi saldo el 10 de marzo. Lo que se registró ese mismo día antes de confirmarlo ya está dentro
+  // del saldo; lo que se registró después, no. El motor recibe ese dato ya resuelto como `afterBalance`.
+  const base: ProjectionInput = {
+    asOf: '2026-03-10',
+    openingBalance: pesos(1_000_000),
+    recurringIncomes: [{ id: 'salary', name: 'Salario', amount: pesos(3_000_000), day: 30, start: '2026-01-01' }],
+    yellowBelowIncomePct: TEN_PCT,
+  };
+  const marchOf = (input: ProjectionInput) => project(input, 1)[0];
+
+  it('un gasto del mismo día registrado después del saldo cuenta; sin la marca, no', () => {
+    const expense = { id: 'x', date: '2026-03-10', amount: pesos(200_000), description: 'Almuerzo' };
+    const counted = marchOf({ ...base, cashExpenses: [{ ...expense, afterBalance: true }] });
+    const ignored = marchOf({ ...base, cashExpenses: [expense] });
+
+    expect(counted?.events.map((e) => e.refId)).toEqual(['x', 'salary']);
+    expect(counted?.closingBalance).toBe(pesos(3_800_000));
+    expect(ignored?.events.map((e) => e.refId)).toEqual(['salary']);
+    expect(ignored?.closingBalance).toBe(pesos(4_000_000));
+  });
+
+  it('un ingreso del mismo día registrado después del saldo cuenta; sin la marca, no', () => {
+    const income = { id: 'bonus', date: '2026-03-10', amount: pesos(500_000), description: 'Prima' };
+    expect(marchOf({ ...base, oneOffIncomes: [{ ...income, afterBalance: true }] })?.closingBalance).toBe(
+      pesos(4_500_000),
+    );
+    expect(marchOf({ ...base, oneOffIncomes: [income] })?.closingBalance).toBe(pesos(4_000_000));
+  });
+
+  it('un evento del día anterior no cuenta aunque lleve afterBalance', () => {
+    const march = marchOf({
+      ...base,
+      cashExpenses: [{ id: 'old', date: '2026-03-09', amount: pesos(200_000), description: 'Ayer', afterBalance: true }],
+    });
+    expect(march?.events.map((e) => e.refId)).toEqual(['salary']);
+    expect(march?.closingBalance).toBe(pesos(4_000_000));
+  });
+
+  it('uno de un día posterior cuenta con o sin la marca', () => {
+    const march = marchOf({
+      ...base,
+      cashExpenses: [
+        { id: 'a', date: '2026-03-11', amount: pesos(100_000), description: 'A' },
+        { id: 'b', date: '2026-03-12', amount: pesos(100_000), description: 'B', afterBalance: false },
+      ],
+    });
+    expect(march?.events.map((e) => e.refId)).toEqual(['a', 'b', 'salary']);
+  });
+
+  it('el ingreso de referencia no cambia: ya incluía lo anterior al saldo y el del mismo día', () => {
+    const income = { id: 'bonus', date: '2026-03-10', amount: pesos(500_000), description: 'Prima' };
+    const withMark = marchOf({ ...base, oneOffIncomes: [{ ...income, afterBalance: true }] });
+    const withoutMark = marchOf({ ...base, oneOffIncomes: [income] });
+    expect(withMark?.referenceIncome).toBe(pesos(3_500_000));
+    expect(withoutMark?.referenceIncome).toBe(pesos(3_500_000));
+  });
+
+  it('los eventos que llegan de otros módulos (extraEvents) no se desempatan: el del día del saldo no cuenta', () => {
+    const march = marchOf({
+      ...base,
+      extraEvents: [{ date: '2026-03-10', kind: 'capital_payment', amount: -pesos(100_000), label: 'Abono', refId: 'c' }],
+    });
+    expect(march?.events.map((e) => e.refId)).toEqual(['salary']);
+  });
+
+  it('el evento conserva la marca en la salida', () => {
+    const march = marchOf({
+      ...base,
+      cashExpenses: [{ id: 'x', date: '2026-03-10', amount: pesos(1), description: 'x', afterBalance: true }],
+    });
+    expect(march?.events[0]?.afterBalance).toBe(true);
+    expect(march?.events[1]).not.toHaveProperty('afterBalance');
+  });
+});

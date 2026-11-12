@@ -4,7 +4,18 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { AccountBalance } from '../products/entities/account-balance.entity';
 import { Expense } from '../movements/entities/expense.entity';
 import { Settings } from '../settings/entities/settings.entity';
-import { AHORROS, NOMINA, VISA, facts, make, pesos, rateRow } from '../testing/projection-facts';
+import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
+import {
+  AHORROS,
+  BALANCE_CREATED_AT,
+  NOMINA,
+  VISA,
+  at,
+  facts,
+  make,
+  pesos,
+  rateRow,
+} from '../testing/projection-facts';
 import { MAX_BALANCE_AGE_DAYS, type ProjectionFacts, buildProjection as buildAt } from './build-projection';
 
 // Va en apps/api/src/projection/. buildProjection es PURA: recibe las filas que el service ya
@@ -225,5 +236,100 @@ describe('buildProjection: alertas', () => {
       { kind: 'debt_to_income', refId: '2026-04', value: '0.4716', threshold: '0.3' },
       { kind: 'debt_to_income', refId: '2026-05', value: '0.4009', threshold: '0.3' },
     ]);
+  });
+});
+
+describe('buildProjection: lo registrado el mismo día del saldo', () => {
+  // El saldo que fija asOf (10 de marzo) se confirmó a las 2 p. m. (BALANCE_CREATED_AT). Lo del mismo día
+  // cuenta solo si se registró después de esa hora; antes, ya estaba dentro del saldo.
+  const cash = (id: number, date: string, amount: number, createdAt: Date) =>
+    make(Expense, {
+      id,
+      date,
+      amountCents: pesos(amount),
+      sourceProductId: AHORROS,
+      installments: null,
+      description: '',
+      createdAt,
+    });
+  const income = (id: number, date: string, amount: number, createdAt: Date) =>
+    make(OneOffIncome, { id, date, amountCents: pesos(amount), description: 'Prima', createdAt });
+
+  const base = facts();
+  const marchClosing = (f: ProjectionFacts) => buildProjection(f, 3).months[0]?.closingBalance;
+  const BASE_CLOSING = pesos(4_800_000);
+
+  it('un gasto del mismo día registrado después del saldo baja el cierre; uno registrado antes, no', () => {
+    const after = at('2026-03-10', 15);
+    const before = at('2026-03-10', 13);
+    expect(marchClosing(facts({ expenses: [...base.expenses, cash(11, '2026-03-10', 100_000, after)] }))).toBe(
+      BASE_CLOSING - pesos(100_000),
+    );
+    expect(marchClosing(facts({ expenses: [...base.expenses, cash(11, '2026-03-10', 100_000, before)] }))).toBe(
+      BASE_CLOSING,
+    );
+  });
+
+  it('un ingreso puntual del mismo día registrado después del saldo sube el cierre; uno antes, no', () => {
+    const f = (createdAt: Date) => facts({ oneOffIncomes: [income(50, '2026-03-10', 500_000, createdAt)] });
+    expect(marchClosing(f(at('2026-03-10', 15)))).toBe(BASE_CLOSING + pesos(500_000));
+    expect(marchClosing(f(at('2026-03-10', 13)))).toBe(BASE_CLOSING);
+  });
+
+  it('registrado a la misma hora exacta del saldo no cuenta (la comparación es estricta)', () => {
+    const f = facts({ expenses: [...base.expenses, cash(11, '2026-03-10', 100_000, BALANCE_CREATED_AT)] });
+    expect(marchClosing(f)).toBe(BASE_CLOSING);
+  });
+
+  it('el día anterior no cuenta aunque se haya registrado después; el posterior cuenta siempre', () => {
+    const late = at('2026-03-11', 9);
+    expect(marchClosing(facts({ expenses: [...base.expenses, cash(11, '2026-03-09', 100_000, late)] }))).toBe(
+      BASE_CLOSING,
+    );
+    // Posterior: cuenta aunque se haya registrado antes del saldo (alguien lo programó con tiempo)
+    const early = at('2026-03-01', 9);
+    expect(marchClosing(facts({ expenses: [...base.expenses, cash(11, '2026-03-11', 100_000, early)] }))).toBe(
+      BASE_CLOSING - pesos(100_000),
+    );
+  });
+
+  it('si dos cuentas comparten la fecha del saldo, manda la hora del más reciente', () => {
+    const balances = [
+      make(AccountBalance, {
+        id: 1,
+        productId: AHORROS,
+        asOf: '2026-03-10',
+        balanceCents: pesos(1_000_000),
+        createdAt: at('2026-03-10', 14),
+      }),
+      make(AccountBalance, {
+        id: 2,
+        productId: NOMINA,
+        asOf: '2026-03-10',
+        balanceCents: pesos(1_000_000),
+        createdAt: at('2026-03-10', 16),
+      }),
+    ];
+    // A las 3 p. m.: después del primer saldo pero antes del segundo, que ya lo incluye
+    const f = (createdAt: Date) =>
+      facts({ balances, expenses: [...base.expenses, cash(11, '2026-03-10', 100_000, createdAt)] });
+    expect(marchClosing(f(at('2026-03-10', 15)))).toBe(BASE_CLOSING);
+    expect(marchClosing(f(at('2026-03-10', 17)))).toBe(BASE_CLOSING - pesos(100_000));
+  });
+
+  it('un gasto con tarjeta no sale del disponible ese día: la marca no lo convierte en salida de caja', () => {
+    const onCard = make(Expense, {
+      id: 11,
+      date: '2026-03-10',
+      amountCents: pesos(100_000),
+      sourceProductId: VISA,
+      installments: 1,
+      promoEa: null,
+      promoMv: null,
+      description: '',
+      createdAt: at('2026-03-10', 15),
+    });
+    const events = buildProjection(facts({ expenses: [...base.expenses, onCard] }), 3).months[0]?.events ?? [];
+    expect(events.filter((e) => e.kind === 'expense')).toEqual([]);
   });
 });

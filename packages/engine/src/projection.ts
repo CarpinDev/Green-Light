@@ -18,6 +18,12 @@ export interface OneOffIncome {
   date: IsoDate;
   amount: Cents;
   description: string;
+  /**
+   * Registrado después del saldo confirmado que fija `asOf`. Solo importa si `date === asOf`: ese día
+   * cuenta únicamente lo que llegó después del saldo (el resto ya está dentro). El motor no sabe de horas:
+   * quien arma la entrada calcula el booleano.
+   */
+  afterBalance?: boolean;
 }
 
 export interface FixedExpense {
@@ -36,6 +42,12 @@ export interface CashExpense {
   date: IsoDate;
   amount: Cents;
   description: string;
+  /**
+   * Registrado después del saldo confirmado que fija `asOf`. Solo importa si `date === asOf`: ese día
+   * cuenta únicamente lo que llegó después del saldo (el resto ya está dentro). El motor no sabe de horas:
+   * quien arma la entrada calcula el booleano.
+   */
+  afterBalance?: boolean;
 }
 
 export type CashEventKind =
@@ -53,12 +65,22 @@ export interface CashEvent {
   amount: Cents;
   label: string;
   refId: string;
+  /**
+   * Registrado después del saldo confirmado que fija `asOf`. Solo importa si `date === asOf`: ese día
+   * cuenta únicamente lo que llegó después del saldo (el resto ya está dentro). El motor no sabe de horas:
+   * quien arma la entrada calcula el booleano.
+   */
+  afterBalance?: boolean;
 }
 
 export type TrafficLight = 'green' | 'yellow' | 'red';
 
 export interface ProjectionInput {
-  /** Fecha del saldo real: solo cuentan los eventos posteriores. */
+  /**
+   * Fecha del saldo real: cuentan los eventos posteriores y, del mismo día, los marcados `afterBalance`.
+   * Los abonos a capital, los ingresos y gastos recurrentes y lo que viene de otros módulos (`extraEvents`)
+   * no se desempatan: lo de ese día ya está en el saldo.
+   */
   asOf: IsoDate;
   openingBalance: Cents;
   recurringIncomes?: readonly RecurringIncome[];
@@ -145,7 +167,14 @@ function buildEvents(input: ProjectionInput, from: IsoDate, to: IsoDate): CashEv
   }
   for (const inc of input.oneOffIncomes ?? []) {
     if (inRange(inc.date)) {
-      events.push({ date: inc.date, kind: 'income', amount: inc.amount, label: inc.description, refId: inc.id });
+      events.push({
+        date: inc.date,
+        kind: 'income',
+        amount: inc.amount,
+        label: inc.description,
+        refId: inc.id,
+        ...(inc.afterBalance === true && { afterBalance: true }),
+      });
     }
   }
   for (const exp of input.fixedExpenses ?? []) {
@@ -157,7 +186,14 @@ function buildEvents(input: ProjectionInput, from: IsoDate, to: IsoDate): CashEv
   }
   for (const exp of input.cashExpenses ?? []) {
     if (inRange(exp.date)) {
-      events.push({ date: exp.date, kind: 'expense', amount: -exp.amount, label: exp.description, refId: exp.id });
+      events.push({
+        date: exp.date,
+        kind: 'expense',
+        amount: -exp.amount,
+        label: exp.description,
+        refId: exp.id,
+        ...(exp.afterBalance === true && { afterBalance: true }),
+      });
     }
   }
   for (const ev of input.extraEvents ?? []) {
@@ -176,8 +212,10 @@ function summarizeMonths(input: ProjectionInput, all: readonly CashEvent[], mont
     const month = shiftMonths(firstMonth, k, 1).slice(0, 7);
     const ofMonth = all.filter((e) => e.date.startsWith(month));
     const referenceIncome = sumBy(ofMonth.filter((e) => e.kind === 'income'), (e) => e.amount);
-    // Lo anterior a asOf ya está dentro del saldo
-    const events = sortEvents(ofMonth.filter((e) => e.date > input.asOf));
+    // Lo anterior a asOf ya está dentro del saldo; el mismo día, solo lo registrado después de confirmarlo
+    const events = sortEvents(
+      ofMonth.filter((e) => e.date > input.asOf || (e.date === input.asOf && e.afterBalance === true)),
+    );
 
     const openingBalance = balance;
     let lowestBalance = openingBalance;

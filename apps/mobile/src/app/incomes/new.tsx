@@ -137,8 +137,8 @@ export default function NewIncome() {
 
       {alreadyIn && account !== undefined && asOf !== null && (
         <Banner action={{ label: 'Confirmar saldo en Productos', href: '/products' }}>
-          Tu proyección parte del saldo confirmado el {formatDay(asOf)}. Si este ingreso ya estaba en ese saldo, no
-          cambia tu proyección. Si llegó después, confirma de nuevo el saldo de {account.name}.
+          Tu proyección parte del saldo confirmado el {formatDay(asOf)}, y este ingreso es anterior. Si ya estaba en ese
+          saldo, no cambia tu proyección. Si llegó después, confirma de nuevo el saldo de {account.name}.
         </Banner>
       )}
 
