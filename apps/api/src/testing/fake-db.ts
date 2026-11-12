@@ -98,7 +98,9 @@ export class FakeDb {
     const list = tables.get(type) ?? [];
 
     // Como TypeORM: guardar una entidad con un id que ya existe la actualiza
-    const existing = entity.id === undefined ? undefined : list.find((r) => r.id === entity.id);
+    // La llave es id, o productId en las entidades que comparten la llave de product
+    const key = this.withoutId.has(type) ? 'productId' : 'id';
+    const existing = entity[key] === undefined ? undefined : list.find((r) => r[key] === entity[key]);
     if (existing) {
       // Como TypeORM, las propiedades undefined no pisan lo que ya está guardado
       const changes = Object.fromEntries(Object.entries(entity).filter(([, v]) => v !== undefined));

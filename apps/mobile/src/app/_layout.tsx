@@ -28,6 +28,9 @@ const MONTHLY_MODALS = [
   { name: 'recurring-incomes/[id]', title: 'Editar ingreso' },
   { name: 'fixed-expenses/new', title: 'Nuevo gasto fijo' },
   { name: 'fixed-expenses/[id]', title: 'Editar gasto fijo' },
+  { name: 'accounts/new', title: 'Nueva cuenta' },
+  { name: 'cards/new', title: 'Nueva tarjeta' },
+  { name: 'cards/[id]', title: 'Editar tarjeta' },
 ];
 
 export default function RootLayout() {

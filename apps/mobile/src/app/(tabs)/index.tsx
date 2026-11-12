@@ -41,7 +41,7 @@ export default function Home() {
       errorAction={(error, retry) =>
         isStaleBalance(error) ? (
           // Reintentar no sirve: el saldo sigue viejo hasta que lo confirmes
-          <Link href="/balances" asChild>
+          <Link href="/products" asChild>
             <Button label="Confirmar saldo" />
           </Link>
         ) : (
@@ -73,12 +73,12 @@ export default function Home() {
             </Text>
 
             {daysSinceBalance > STALE_DAYS && (
-              <Banner action={{ label: 'Confirmar saldo', href: '/balances' }}>
+              <Banner action={{ label: 'Confirmar saldo', href: '/products' }}>
                 Tu último saldo tiene {daysSinceBalance} días: confírmalo para que la proyección sea fiable.
               </Banner>
             )}
             {staleAccounts.length > 0 && (
-              <Banner action={{ label: 'Confirmar saldo', href: '/balances' }}>
+              <Banner action={{ label: 'Confirmar saldo', href: '/products' }}>
                 {staleAccounts.length === 1
                   ? 'Una cuenta tiene un saldo más viejo que el resto.'
                   : `${staleAccounts.length} cuentas tienen un saldo más viejo que el resto.`}{' '}

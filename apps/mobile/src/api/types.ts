@@ -72,6 +72,35 @@ export interface AccountSummary {
   latestBalance: { asOf: string; balanceCents: number } | null;
 }
 
+export type AccountType = 'savings' | 'checking';
+export type MinPaymentMethod = 'constant_capital' | 'fixed_installment';
+export type FirstPeriodInterest = 'prorated' | 'full_month' | 'none';
+
+/** La tasa vigente de un producto. Los decimales llegan como texto: '0.2899' es 28,99 %. */
+export interface CurrentRate {
+  effectiveFrom: string;
+  ea: string;
+  mv: string;
+}
+
+/** Un elemento de GET /cards: la tarjeta activa con todo lo editable y su tasa vigente. */
+export interface CardSummary {
+  id: number;
+  name: string;
+  bank: string;
+  last4: string;
+  creditLimitCents: number;
+  cutDay: number;
+  dueDay: number;
+  handlingFeeCents: number;
+  insuranceCents: number;
+  minPaymentMethod: MinPaymentMethod;
+  singleInstallmentInterestFree: boolean;
+  firstPeriodInterest: FirstPeriodInterest;
+  /** null: ninguna tasa rige todavía. */
+  currentRate: CurrentRate | null;
+}
+
 export type MonthlyStatus = 'upcoming' | 'active' | 'ended';
 
 /** Lo que comparten un ingreso recurrente y un gasto fijo (GET /recurring-incomes y /fixed-expenses). */

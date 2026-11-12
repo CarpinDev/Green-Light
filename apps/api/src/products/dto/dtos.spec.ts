@@ -2,6 +2,8 @@ import { ValidationPipe } from '@nestjs/common';
 import { ConfirmBalanceDto } from './confirm-balance.dto';
 import { CreateAccountDto } from './create-account.dto';
 import { CreateLoanDto } from './create-loan.dto';
+import { RateDto } from './rate.dto';
+import { UpdateCardDto } from './update-card.dto';
 
 // Las reglas de forma del cuerpo, con el mismo ValidationPipe que usa main.ts. Datos ficticios.
 
@@ -63,5 +65,48 @@ describe('ConfirmBalanceDto', () => {
     await expect(validate(ConfirmBalanceDto, { asOf: '2026-04-01', balanceCents: -1_000 })).resolves.toBeDefined();
     await expect(validate(ConfirmBalanceDto, { balanceCents: 1_000 })).rejects.toThrow();
     await expect(validate(ConfirmBalanceDto, { asOf: '2026-13-01', balanceCents: 1_000 })).rejects.toThrow();
+  });
+});
+
+describe('UpdateCardDto', () => {
+  it('acepta cualquier subconjunto de campos, incluso vacío', async () => {
+    await expect(validate(UpdateCardDto, {})).resolves.toBeDefined();
+    await expect(validate(UpdateCardDto, { name: 'Visa Oro', cutDay: 20 })).resolves.toBeDefined();
+    await expect(
+      validate(UpdateCardDto, { minPaymentMethod: 'fixed_installment', firstPeriodInterest: 'none' }),
+    ).resolves.toBeDefined();
+  });
+
+  it('rechaza bank y last4: son la identidad de la tarjeta', async () => {
+    await expect(validate(UpdateCardDto, { last4: '9999' })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { bank: 'Otro' })).rejects.toThrow();
+  });
+
+  it('rechaza día fuera de 1..31, cupo 0, nombre vacío y valores de enum inventados', async () => {
+    await expect(validate(UpdateCardDto, { cutDay: 0 })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { dueDay: 32 })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { creditLimitCents: 0 })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { name: '' })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { minPaymentMethod: 'otro' })).rejects.toThrow();
+    await expect(validate(UpdateCardDto, { firstPeriodInterest: 'otro' })).rejects.toThrow();
+  });
+
+  it('los cargos pueden ser 0 pero no negativos', async () => {
+    await expect(validate(UpdateCardDto, { handlingFeeCents: 0, insuranceCents: 0 })).resolves.toBeDefined();
+    await expect(validate(UpdateCardDto, { handlingFeeCents: -1 })).rejects.toThrow();
+  });
+});
+
+describe('RateDto (POST /products/:id/rates)', () => {
+  it('pide la fecha y acepta la E.A., la M.V. o las dos como texto', async () => {
+    await expect(validate(RateDto, { effectiveFrom: '2026-07-01', ea: '0.2899' })).resolves.toBeDefined();
+    await expect(validate(RateDto, { effectiveFrom: '2026-07-01', mv: '0.0214' })).resolves.toBeDefined();
+    await expect(validate(RateDto, { ea: '0.2899' })).rejects.toThrow();
+  });
+
+  it('rechaza una tasa que llega como number, una fecha imposible y campos de más', async () => {
+    await expect(validate(RateDto, { effectiveFrom: '2026-07-01', ea: 0.2899 })).rejects.toThrow();
+    await expect(validate(RateDto, { effectiveFrom: '2026-02-30', ea: '0.2899' })).rejects.toThrow();
+    await expect(validate(RateDto, { effectiveFrom: '2026-07-01', ea: '0.2', source: 'ea' })).rejects.toThrow();
   });
 });
