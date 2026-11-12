@@ -24,6 +24,8 @@ export interface LoanPrepayment {
   date: IsoDate;
   amount: Cents;
   mode: PrepaymentMode;
+  /** El dinero no sale de las cuentas: baja la deuda igual, pero no el disponible. */
+  external?: boolean;
 }
 
 export interface LoanRow extends ScheduleRow {
@@ -34,6 +36,8 @@ export interface LoanRow extends ScheduleRow {
   total: Cents;
   /** Fecha en que se hizo el abono de esta cuota (la del último si hubo varios). */
   prepaymentDate?: IsoDate;
+  /** Cuánto de `prepayment` fue externo (no sale del disponible). */
+  externalPrepayment?: Cents;
 }
 
 /** Fechas de pago: una por mes con el día de `firstPaymentDate` (se recorta en los meses cortos). */
@@ -72,6 +76,7 @@ export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] 
     // Si un abono liquidó la deuda, esa fila ya no paga cuota ni seguro
     const insurance = row.payment > 0 ? loan.insurance : 0;
     const paidOn = row.prepayment > 0 ? grouped.get(i)?.date : undefined;
+    const external = Math.min(row.prepayment, grouped.get(i)?.externalAmount ?? 0);
     return {
       ...row,
       loanId: loan.id,
@@ -79,6 +84,7 @@ export function loanSchedule(loan: Loan, prepayments: readonly LoanPrepayment[] 
       insurance,
       total: row.payment + insurance,
       ...(paidOn !== undefined && { prepaymentDate: paidOn }),
+      ...(external > 0 && { externalPrepayment: external }),
     };
   });
 }

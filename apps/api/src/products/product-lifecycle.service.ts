@@ -2,6 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { payoffAmount } from '@greenlight/engine';
 import { DataSource, type EntityManager } from 'typeorm';
 import { isoDateOf } from '../common/dates';
+import { formatCop } from '../common/format-cop';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
 import { RecurringIncome } from '../incomes/entities/recurring-income.entity';
@@ -40,11 +41,6 @@ const NOUN: Record<ProductKind, { word: string; this: string; clitic: 'la' | 'lo
   account: { word: 'cuenta', this: 'Esta', clitic: 'la' },
   loan: { word: 'préstamo', this: 'Este', clitic: 'lo' },
 };
-
-const pesosText = (cents: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 })
-    .format(cents / 100)
-    .replace(/\s/g, ' ');
 
 /**
  * Eliminar y archivar productos. Eliminar borra el producto con todo lo suyo; archivar solo lo apaga
@@ -113,7 +109,7 @@ export class ProductLifecycleService {
         clitic === 'la'
           ? 'Archívala cuando la termines de pagar, o elimínala si fue un error.'
           : 'Archívalo cuando lo termines de pagar, o elimínalo si fue un error.';
-      throw new ConflictException(`Todavía debes ${pesosText(owed)} en ${that} ${word}. ${advice}`);
+      throw new ConflictException(`Todavía debes ${formatCop(owed)} en ${that} ${word}. ${advice}`);
     }
 
     await this.dataSource.getRepository(Product).save({ ...product, active: false });

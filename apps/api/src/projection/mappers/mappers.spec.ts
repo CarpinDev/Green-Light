@@ -220,6 +220,13 @@ describe('abonos a capital', () => {
     });
   });
 
+  it('un abono externo lo marca; uno de una cuenta o sin origen, no', () => {
+    expect(toCardCapitalPayment({ ...abono, isExternal: true }).external).toBe(true);
+    expect(toLoanPrepayment({ ...abono, productId: 9, expenseId: null, isExternal: true }).external).toBe(true);
+    expect('external' in toCardCapitalPayment({ ...abono, isExternal: false })).toBe(false);
+    expect('external' in toCardCapitalPayment({ ...abono, sourceAccountId: 4 })).toBe(false);
+  });
+
   it('un abono a préstamo no puede apuntar a una compra', () => {
     expect(() => toLoanPrepayment(abono)).toThrow(/compra/i);
   });

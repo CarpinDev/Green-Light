@@ -15,6 +15,7 @@ const movement = (overrides: Partial<Movement> = {}): Movement => ({
   product: null,
   installments: null,
   isOpeningDebt: false,
+  sourceLabel: null,
   scheduled: false,
   ...overrides,
 });
@@ -23,6 +24,14 @@ const VISA = { id: 1, name: 'Visa', last4: '1234', kind: 'credit_card' as const 
 const AHORROS = { id: 2, name: 'Ahorros', last4: '5678', kind: 'account' as const };
 
 describe('sourceText', () => {
+  it('un abono dice de dónde salió el dinero', () => {
+    const abono = { type: 'capital_payment' as const, product: VISA };
+    expect(sourceText(movement({ ...abono, sourceLabel: 'desde Ahorros ••1357' }))).toBe(
+      'Tarjeta Visa ••1234 · desde Ahorros ••1357',
+    );
+    expect(sourceText(movement({ ...abono, sourceLabel: 'externo' }))).toBe('Tarjeta Visa ••1234 · externo');
+    expect(sourceText(movement({ ...abono, sourceLabel: null }))).toBe('Tarjeta Visa ••1234');
+  });
   it('una tarjeta con cuotas: "Tarjeta Visa ••1234 · 3 cuotas"', () => {
     expect(sourceText(movement({ product: VISA, installments: 3 }))).toBe('Tarjeta Visa ••1234 · 3 cuotas');
   });

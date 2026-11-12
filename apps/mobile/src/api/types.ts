@@ -212,6 +212,15 @@ export interface CardPlan {
   cuts: PlanCut[];
 }
 
+/** Un abono de GET /cards/:id/capital-payments. `source` es null en los abonos de antes de registrar el origen. */
+export interface CapitalPaymentItem {
+  id: number;
+  date: string;
+  amountCents: number;
+  mode: 'reduce_term' | 'reduce_payment';
+  source: { kind: 'account'; id: number; name: string; last4: string } | { kind: 'external' } | null;
+}
+
 /** Un grupo de GET /cards/:id/opening-debt (la deuda que la tarjeta ya traía). */
 export interface OpeningDebtGroup {
   id: number;
@@ -251,6 +260,8 @@ export interface Movement {
   /** Solo en gastos con tarjeta. */
   installments: number | null;
   isOpeningDebt: boolean;
+  /** Solo en abonos: de dónde salió el dinero, "desde Ahorros ••1357" o "externo"; null si no se sabe. */
+  sourceLabel: string | null;
   /** Una ocurrencia de lo programado (salario, gasto fijo): se calcula, no se registra. */
   scheduled: boolean;
 }

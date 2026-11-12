@@ -8,11 +8,15 @@ export interface DatedPayment {
   date: IsoDate;
   amount: Cents;
   mode: PrepaymentMode;
+  /** El dinero no sale de las cuentas (va directo al banco): baja la deuda igual, pero no el disponible. */
+  external?: boolean;
 }
 
 export interface GroupedPrepayment {
   afterPeriod: number;
   amount: Cents;
+  /** Cuánto de `amount` es externo (la suma de los abonos externos del periodo). */
+  externalAmount: Cents;
   mode: PrepaymentMode;
   date: IsoDate;
 }
@@ -42,6 +46,7 @@ export function groupPrepayments(
     grouped.set(afterPeriod, {
       afterPeriod,
       amount: (prev?.amount ?? 0) + p.amount,
+      externalAmount: (prev?.externalAmount ?? 0) + (p.external === true ? p.amount : 0),
       mode: p.mode,
       date: p.date,
     });
