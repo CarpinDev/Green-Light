@@ -1,18 +1,22 @@
 // La lógica pura de la pestaña "Mensual": separar vigentes y terminados, totales y fechas.
 
+import type { MonthlyStatus } from '@/api/types';
 import { today } from '@/dates';
 
-/** Los vigentes y los terminados, cada grupo en el orden en que llegaron (la API ya los ordena). */
-export function splitByActive<T extends { active: boolean }>(items: readonly T[]): { active: T[]; ended: T[] } {
+/** Los próximos, los vigentes y los terminados, cada grupo en el orden en que llegaron (la API ya los ordena). */
+export function splitByStatus<T extends { status: MonthlyStatus }>(
+  items: readonly T[],
+): { upcoming: T[]; active: T[]; ended: T[] } {
   return {
-    active: items.filter((item) => item.active),
-    ended: items.filter((item) => !item.active),
+    upcoming: items.filter((item) => item.status === 'upcoming'),
+    active: items.filter((item) => item.status === 'active'),
+    ended: items.filter((item) => item.status === 'ended'),
   };
 }
 
-/** Cuánto suma al mes lo que sigue vigente (centavos). Lo terminado no cuenta. */
-export function activeTotal(items: readonly { active: boolean; amountCents: number }[]): number {
-  return items.reduce((sum, item) => (item.active ? sum + item.amountCents : sum), 0);
+/** Cuánto suma al mes lo que rige hoy (centavos). Lo próximo y lo terminado no cuentan: sumarlos contaría doble un cambio de monto. */
+export function activeTotal(items: readonly { status: MonthlyStatus; amountCents: number }[]): number {
+  return items.reduce((sum, item) => (item.status === 'active' ? sum + item.amountCents : sum), 0);
 }
 
 /**

@@ -53,10 +53,10 @@ describe('CreateOneOffIncomeDto', () => {
 });
 
 describe('UpdateRecurringIncomeDto y UpdateFixedExpenseDto', () => {
-  it('acepta cualquier subconjunto de campos, incluso vacío, y null para quitar', async () => {
+  it('acepta cualquier subconjunto de campos, incluso vacío, y null para quitar cuenta, tarjeta o categoría', async () => {
     for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
       await expect(validate(Dto, {})).resolves.toBeDefined();
-      await expect(validate(Dto, { name: 'Otro', dayOfMonth: 31, endDate: null })).resolves.toBeDefined();
+      await expect(validate(Dto, { name: 'Otro', dayOfMonth: 31, endDate: '2026-12-31' })).resolves.toBeDefined();
     }
     await expect(validate(UpdateRecurringIncomeDto, { destinationAccountId: null })).resolves.toBeDefined();
     await expect(validate(UpdateFixedExpenseDto, { cardId: null, categoryId: 3 })).resolves.toBeDefined();
@@ -66,6 +66,12 @@ describe('UpdateRecurringIncomeDto y UpdateFixedExpenseDto', () => {
     for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
       await expect(validate(Dto, { amountCents: 100 })).rejects.toThrow();
       await expect(validate(Dto, { startDate: '2026-01-01' })).rejects.toThrow();
+    }
+  });
+
+  it('rechaza endDate null: un terminado no se reactiva, se crea uno nuevo', async () => {
+    for (const Dto of [UpdateRecurringIncomeDto, UpdateFixedExpenseDto]) {
+      await expect(validate(Dto, { endDate: null })).rejects.toThrow();
     }
   });
 
@@ -88,10 +94,10 @@ describe('AmountChangeDto', () => {
 });
 
 describe('ListMonthlyQuery', () => {
-  it('active es opcional y solo true o false', async () => {
+  it('status es opcional y solo upcoming, active o ended', async () => {
     await expect(validate(ListMonthlyQuery, {})).resolves.toBeDefined();
-    await expect(validate(ListMonthlyQuery, { active: 'true' })).resolves.toBeDefined();
-    await expect(validate(ListMonthlyQuery, { active: 'si' })).rejects.toThrow();
+    await expect(validate(ListMonthlyQuery, { status: 'upcoming' })).resolves.toBeDefined();
+    await expect(validate(ListMonthlyQuery, { status: 'si' })).rejects.toThrow();
   });
 });
 

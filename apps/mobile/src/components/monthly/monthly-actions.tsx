@@ -51,7 +51,7 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
     onSuccess: done,
   });
   const setEnd = useMutation({
-    mutationFn: (endDate: string | null) => patchJson<{ id: number }>(url, { endDate }),
+    mutationFn: (endDate: string) => patchJson<{ id: number }>(url, { endDate }),
     onSuccess: done,
   });
   const remove = useMutation({ mutationFn: () => deleteJson(url), onSuccess: done });
@@ -68,49 +68,50 @@ export function MonthlyActions({ kind, item }: MonthlyActionsProps) {
 
   return (
     <View style={styles.wrap}>
-      {item.endDate !== null && (
+      {item.status === 'upcoming' && <Text style={styles.status}>Empieza el {formatDay(item.startDate)}.</Text>}
+      {item.status === 'active' && item.endDate !== null && (
+        <Text style={styles.status}>Termina el {formatDay(item.endDate)}.</Text>
+      )}
+      {item.status === 'ended' && item.endDate !== null && (
         <Text style={styles.status}>
-          {item.active ? `Termina el ${formatDay(item.endDate)}.` : `Terminó el ${formatDay(item.endDate)}.`}
+          Terminó el {formatDay(item.endDate)}. Un {text.noun} terminado no se reactiva: para retomarlo, crea uno nuevo.
         </Text>
       )}
 
-      <Card style={styles.card}>
-        <Text style={type.subtitle}>Cambiar monto</Text>
-        <Text style={styles.muted}>
-          Hoy es {formatCop(item.amountCents)}. El monto nuevo rige desde la fecha que elijas: los meses anteriores no
-          cambian.
-        </Text>
-        {changing ? (
-          <>
-            <Label>Monto nuevo</Label>
-            <MoneyInput value={newAmount} onChangeCents={setNewAmount} placeholder="$ 0" />
-            <Label>Desde cuándo</Label>
-            <DateField value={effectiveFrom} onChange={setEffectiveFrom} />
-            <Button
-              label={changeAmount.isPending ? 'Aplicando…' : 'Aplicar cambio'}
-              loading={changeAmount.isPending}
-              disabled={busy}
-              onPress={submitChange}
-            />
-          </>
-        ) : (
-          <Button label="Cambiar monto" variant="secondary" disabled={busy} onPress={() => setChanging(true)} />
-        )}
-      </Card>
+      {item.status !== 'ended' && (
+        <Card style={styles.card}>
+          <Text style={type.subtitle}>Cambiar monto</Text>
+          <Text style={styles.muted}>
+            {item.status === 'upcoming'
+              ? `Empieza en ${formatCop(item.amountCents)}.`
+              : `Hoy es ${formatCop(item.amountCents)}.`}{' '}
+            El monto nuevo rige desde la fecha que elijas: los meses anteriores no cambian.
+          </Text>
+          {changing ? (
+            <>
+              <Label>Monto nuevo</Label>
+              <MoneyInput value={newAmount} onChangeCents={setNewAmount} placeholder="$ 0" />
+              <Label>Desde cuándo</Label>
+              <DateField value={effectiveFrom} onChange={setEffectiveFrom} />
+              <Button
+                label={changeAmount.isPending ? 'Aplicando…' : 'Aplicar cambio'}
+                loading={changeAmount.isPending}
+                disabled={busy}
+                onPress={submitChange}
+              />
+            </>
+          ) : (
+            <Button label="Cambiar monto" variant="secondary" disabled={busy} onPress={() => setChanging(true)} />
+          )}
+        </Card>
+      )}
 
-      {item.active ? (
+      {item.status === 'active' && (
         <Button
           label={setEnd.isPending ? 'Terminando…' : 'Terminar'}
           variant="secondary"
           disabled={busy}
           onPress={() => setEnd.mutate(terminationDate(item.startDate))}
-        />
-      ) : (
-        <Button
-          label={setEnd.isPending ? 'Reactivando…' : 'Reactivar'}
-          variant="secondary"
-          disabled={busy}
-          onPress={() => setEnd.mutate(null)}
         />
       )}
 

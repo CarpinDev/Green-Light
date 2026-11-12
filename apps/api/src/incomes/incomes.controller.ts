@@ -8,7 +8,12 @@ import {
   UpdateFixedExpenseDto,
   UpdateRecurringIncomeDto,
 } from './dto/incomes.dto';
-import { type FixedExpenseSummary, IncomesService, type RecurringIncomeSummary } from './incomes.service';
+import {
+  type FixedExpenseSummary,
+  IncomesService,
+  type ListFilter,
+  type RecurringIncomeSummary,
+} from './incomes.service';
 
 /** Cada POST/PATCH responde con solo el id (el POST con 201); DELETE responde 204 sin cuerpo. */
 @Controller()
@@ -21,7 +26,7 @@ export class IncomesController {
     return { id };
   }
 
-  /** Todos, con `active`; `?active=true` deja solo los vigentes. */
+  /** Todos, con su `status`; `?status=active|upcoming|ended` deja solo ese grupo. */
   @Get('recurring-incomes')
   listRecurringIncomes(@Query() query: ListMonthlyQuery): Promise<RecurringIncomeSummary[]> {
     return this.incomes.listRecurringIncomes(filterOf(query));
@@ -89,6 +94,6 @@ export class IncomesController {
   }
 }
 
-function filterOf(query: ListMonthlyQuery): { active?: boolean } {
-  return query.active === undefined ? {} : { active: query.active === 'true' };
+function filterOf(query: ListMonthlyQuery): ListFilter {
+  return query.status === undefined ? {} : { status: query.status };
 }

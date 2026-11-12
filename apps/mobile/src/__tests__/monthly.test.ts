@@ -1,33 +1,41 @@
 import { describe, expect, it } from '@jest/globals';
 
-import { activeTotal, parseDayOfMonth, splitByActive, terminationDate } from '@/monthly/logic';
+import type { MonthlyStatus } from '@/api/types';
+import { activeTotal, parseDayOfMonth, splitByStatus, terminationDate } from '@/monthly/logic';
 
-const item = (amountCents: number, active: boolean) => ({ amountCents, active });
+const item = (amountCents: number, status: MonthlyStatus) => ({ amountCents, status });
 
-describe('splitByActive', () => {
+describe('splitByStatus', () => {
   it('separa vigentes de terminados sin cambiar el orden', () => {
-    const items = [
-      { id: 1, active: true },
-      { id: 2, active: false },
-      { id: 3, active: true },
+    const items: { id: number; status: MonthlyStatus }[] = [
+      { id: 1, status: 'active' },
+      { id: 2, status: 'ended' },
+      { id: 3, status: 'upcoming' },
+      { id: 4, status: 'active' },
     ];
-    const { active, ended } = splitByActive(items);
-    expect(active.map((i) => i.id)).toEqual([1, 3]);
+    const { upcoming, active, ended } = splitByStatus(items);
+    expect(active.map((i) => i.id)).toEqual([1, 4]);
+    expect(upcoming.map((i) => i.id)).toEqual([3]);
     expect(ended.map((i) => i.id)).toEqual([2]);
   });
 
   it('una lista vacía da dos grupos vacíos', () => {
-    expect(splitByActive([])).toEqual({ active: [], ended: [] });
+    expect(splitByStatus([])).toEqual({ upcoming: [], active: [], ended: [] });
   });
 });
 
 describe('activeTotal', () => {
-  it('suma solo los vigentes', () => {
-    expect(activeTotal([item(300, true), item(100, false), item(50, true)])).toBe(350);
+  it('suma solo los que rigen hoy', () => {
+    expect(activeTotal([item(300, 'active'), item(100, 'ended'), item(50, 'active')])).toBe(350);
+  });
+
+  it('un cambio de monto futuro no cuenta doble: el próximo no suma', () => {
+    // El salario viejo rige hasta el 30 de noviembre; el nuevo todavía no empieza
+    expect(activeTotal([item(300_000_000, 'active'), item(350_000_000, 'upcoming')])).toBe(300_000_000);
   });
 
   it('sin vigentes, 0', () => {
-    expect(activeTotal([item(100, false)])).toBe(0);
+    expect(activeTotal([item(100, 'ended'), item(100, 'upcoming')])).toBe(0);
     expect(activeTotal([])).toBe(0);
   });
 });

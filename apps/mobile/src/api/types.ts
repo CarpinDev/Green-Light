@@ -72,6 +72,8 @@ export interface AccountSummary {
   latestBalance: { asOf: string; balanceCents: number } | null;
 }
 
+export type MonthlyStatus = 'upcoming' | 'active' | 'ended';
+
 /** Lo que comparten un ingreso recurrente y un gasto fijo (GET /recurring-incomes y /fixed-expenses). */
 interface MonthlyItem {
   id: number;
@@ -82,8 +84,8 @@ interface MonthlyItem {
   startDate: string;
   /** null: no termina. */
   endDate: string | null;
-  /** Vigente hoy: sin fin, o con un fin que es hoy o después. */
-  active: boolean;
+  /** upcoming: empieza después de hoy; active: rige hoy; ended: ya terminó. */
+  status: MonthlyStatus;
 }
 
 /** El salario y otros ingresos que llegan cada mes. */

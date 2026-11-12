@@ -1,4 +1,4 @@
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min, ValidateIf } from 'class-validator';
 import { IsIsoDate } from '../../common/validators';
 import type {
   AmountChangeInput,
@@ -7,6 +7,7 @@ import type {
   CreateRecurringIncomeInput,
   UpdateFixedExpenseInput,
   UpdateRecurringIncomeInput,
+  MonthlyStatus,
 } from '../incomes.service';
 
 export class CreateRecurringIncomeDto implements CreateRecurringIncomeInput {
@@ -115,10 +116,10 @@ export class UpdateRecurringIncomeDto implements UpdateRecurringIncomeInput {
   @Max(31)
   dayOfMonth?: number;
 
-  /** null lo reactiva; si es una fecha, no puede ser anterior al inicio (lo revisa el service). */
-  @IsOptional()
+  /** Una fecha no anterior al inicio (lo revisa el service). null no vale: un terminado no se reactiva. */
+  @ValidateIf((o: { endDate?: unknown }) => o.endDate !== undefined)
   @IsIsoDate()
-  endDate?: string | null;
+  endDate?: string;
 
   @IsOptional()
   @IsInt()
@@ -139,9 +140,9 @@ export class UpdateFixedExpenseDto implements UpdateFixedExpenseInput {
   @Max(31)
   dayOfMonth?: number;
 
-  @IsOptional()
+  @ValidateIf((o: { endDate?: unknown }) => o.endDate !== undefined)
   @IsIsoDate()
-  endDate?: string | null;
+  endDate?: string;
 
   @IsOptional()
   @IsInt()
@@ -164,9 +165,9 @@ export class AmountChangeDto implements AmountChangeInput {
   effectiveFrom!: string;
 }
 
-/** GET ...?active=true|false. Llega como texto (la query no se transforma): se compara con 'true'. */
+/** GET ...?status=active|upcoming|ended. */
 export class ListMonthlyQuery {
   @IsOptional()
-  @IsIn(['true', 'false'])
-  active?: 'true' | 'false';
+  @IsIn(['upcoming', 'active', 'ended'])
+  status?: MonthlyStatus;
 }

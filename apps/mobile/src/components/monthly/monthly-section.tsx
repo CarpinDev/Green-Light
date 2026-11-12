@@ -7,7 +7,7 @@ import { Card } from '@/components/card';
 import { Text } from '@/components/text';
 import { formatDay } from '@/dates';
 import { editHref, MONTHLY, type MonthlyKind, newHref, placeOf } from '@/monthly/kinds';
-import { activeTotal, splitByActive } from '@/monthly/logic';
+import { activeTotal, splitByStatus } from '@/monthly/logic';
 import { formatCop } from '@/money';
 import { colors, space, type } from '@/theme/tokens';
 
@@ -19,7 +19,7 @@ interface MonthlySectionProps {
 /** Una sección de la pestaña Mensual: vigentes con su total, y aparte los terminados, atenuados. */
 export function MonthlySection({ kind, items }: MonthlySectionProps) {
   const text = MONTHLY[kind];
-  const { active, ended } = splitByActive(items);
+  const { upcoming, active, ended } = splitByStatus(items);
 
   return (
     <View style={styles.section}>
@@ -58,6 +58,17 @@ export function MonthlySection({ kind, items }: MonthlySectionProps) {
             <Text style={styles.muted}>No hay {text.section.toLowerCase()} vigentes.</Text>
           )}
 
+          {upcoming.length > 0 && (
+            <View style={styles.ended}>
+              <Text style={styles.endedTitle}>Próximos</Text>
+              <Card style={styles.list}>
+                {upcoming.map((item) => (
+                  <Row key={item.id} kind={kind} item={item} />
+                ))}
+              </Card>
+            </View>
+          )}
+
           {ended.length > 0 && (
             <View style={styles.ended}>
               <Text style={styles.endedTitle}>Terminados</Text>
@@ -75,9 +86,15 @@ export function MonthlySection({ kind, items }: MonthlySectionProps) {
 }
 
 function Row({ kind, item }: { kind: MonthlyKind; item: RecurringIncome | FixedExpense }) {
-  // Vigente pero con fin: dice hasta cuándo
-  const note = item.endDate === null ? null : item.active ? `termina el ${formatDay(item.endDate)}` : null;
-  const ended = !item.active && item.endDate !== null ? `terminó el ${formatDay(item.endDate)}` : null;
+  // Lo que dice la fila además del día y el lugar: cuándo empieza o cuándo termina
+  const note =
+    item.status === 'upcoming'
+      ? `empieza el ${formatDay(item.startDate)}`
+      : item.endDate === null
+        ? null
+        : item.status === 'active'
+          ? `termina el ${formatDay(item.endDate)}`
+          : `terminó el ${formatDay(item.endDate)}`;
 
   return (
     <Link href={editHref(kind, item.id)} asChild>
@@ -89,7 +106,6 @@ function Row({ kind, item }: { kind: MonthlyKind; item: RecurringIncome | FixedE
           <Text style={styles.muted} numberOfLines={1}>
             día {item.dayOfMonth} · {placeOf(kind, item)}
             {note !== null && ` · ${note}`}
-            {ended !== null && ` · ${ended}`}
           </Text>
         </View>
         <Text style={styles.amount}>{formatCop(item.amountCents)}</Text>

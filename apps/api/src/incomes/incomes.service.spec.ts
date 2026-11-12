@@ -169,12 +169,12 @@ describe('IncomesService', () => {
       ]);
     });
 
-    it('ingresos: por día y nombre, con active y el nombre de la cuenta (o null)', async () => {
+    it('ingresos: por día y nombre, con status y el nombre de la cuenta (o null)', async () => {
       const list = await service.listRecurringIncomes({}, TODAY);
-      expect(list.map((r) => [r.name, r.active])).toEqual([
-        ['Arriendo recibido', true], // termina hoy: todavía vigente
-        ['Freelance', false],
-        ['Salario', true],
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Arriendo recibido', 'active'], // termina hoy: todavía rige
+        ['Freelance', 'ended'],
+        ['Salario', 'active'],
       ]);
       expect(list[2]).toMatchObject({
         destinationAccountId: AHORROS,
@@ -184,23 +184,48 @@ describe('IncomesService', () => {
       expect(list[1]).toMatchObject({ destinationAccountId: null, destinationAccountName: null });
     });
 
-    it('?active filtra por vigencia', async () => {
-      const active = await service.listRecurringIncomes({ active: true }, TODAY);
+    it('?status filtra por estado', async () => {
+      const active = await service.listRecurringIncomes({ status: 'active' }, TODAY);
       expect(active.map((r) => r.name)).toEqual(['Arriendo recibido', 'Salario']);
-      const ended = await service.listRecurringIncomes({ active: false }, TODAY);
+      const ended = await service.listRecurringIncomes({ status: 'ended' }, TODAY);
       expect(ended.map((r) => r.name)).toEqual(['Freelance']);
+      expect(await service.listRecurringIncomes({ status: 'upcoming' }, TODAY)).toEqual([]);
+    });
+
+    it('upcoming: empieza después de hoy; el día que empieza ya es active', async () => {
+      db.seed(RecurringIncome, [
+        { id: 1, name: 'Nuevo', amountCents: 1, dayOfMonth: 1, startDate: '2026-06-16', endDate: null },
+        { id: 2, name: 'Hoy', amountCents: 1, dayOfMonth: 2, startDate: '2026-06-15', endDate: null },
+      ]);
+      const list = await service.listRecurringIncomes({}, TODAY);
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Nuevo', 'upcoming'],
+        ['Hoy', 'active'],
+      ]);
+    });
+
+    it('un cambio de monto futuro deja uno solo active: el viejo rige hasta el día anterior, el nuevo es upcoming', async () => {
+      db.seed(RecurringIncome, [
+        { id: 1, name: 'Salario', amountCents: 300, dayOfMonth: 30, startDate: '2026-01-01', endDate: null },
+      ]);
+      await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2026-12-01' });
+      const list = await service.listRecurringIncomes({}, TODAY);
+      expect(list.map((r) => [r.amountCents, r.status])).toEqual([
+        [300, 'active'],
+        [350, 'upcoming'],
+      ]);
     });
 
     it('gastos fijos: con el nombre de la tarjeta y la categoría', async () => {
       const list = await service.listFixedExpenses({}, TODAY);
-      expect(list.map((r) => [r.name, r.active])).toEqual([
-        ['Arriendo', true],
-        ['Gimnasio', false],
-        ['Netflix', true],
+      expect(list.map((r) => [r.name, r.status])).toEqual([
+        ['Arriendo', 'active'],
+        ['Gimnasio', 'ended'],
+        ['Netflix', 'active'],
       ]);
       expect(list[2]).toMatchObject({ cardId: VISA, cardName: 'Visa', categoryId: MERCADO });
       expect(list[0]).toMatchObject({ cardId: null, cardName: null });
-      const active = await service.listFixedExpenses({ active: true }, TODAY);
+      const active = await service.listFixedExpenses({ status: 'active' }, TODAY);
       expect(active.map((r) => r.name)).toEqual(['Arriendo', 'Netflix']);
     });
   });
@@ -232,11 +257,9 @@ describe('IncomesService', () => {
       expect(db.rows(RecurringIncome)[0]?.endDate).toBeNull();
     });
 
-    it('endDate null reactiva uno terminado', async () => {
+    it('pone un fin; no hay forma de quitarlo desde aquí (ver el DTO)', async () => {
       await service.updateRecurringIncome(1, { endDate: '2026-04-30' });
       expect(db.rows(RecurringIncome)[0]?.endDate).toBe('2026-04-30');
-      await service.updateRecurringIncome(1, { endDate: null });
-      expect(db.rows(RecurringIncome)[0]?.endDate).toBeNull();
     });
 
     it('aplica las reglas del create: cuenta, tarjeta activa y categoría de gasto', async () => {

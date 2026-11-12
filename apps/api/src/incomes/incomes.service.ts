@@ -43,19 +43,20 @@ export interface CreateFixedExpenseInput {
 /**
  * Lo que se puede editar de un ingreso recurrente. No incluye el monto ni el inicio: cambiarlos
  * reescribiría la proyección de los meses pasados (para el monto está `changeAmount`).
- * `null` en endDate lo reactiva; en la cuenta, la quita.
+ * No hay forma de quitar el endDate: un registro terminado no se reactiva (se superpondría con el que lo
+ * reemplazó y la proyección contaría dos veces); para retomarlo se crea uno nuevo. `null` en la cuenta, la tarjeta o la categoría las quita.
  */
 export interface UpdateRecurringIncomeInput {
   name?: string;
   dayOfMonth?: number;
-  endDate?: IsoDate | null;
+  endDate?: IsoDate;
   destinationAccountId?: number | null;
 }
 
 export interface UpdateFixedExpenseInput {
   name?: string;
   dayOfMonth?: number;
-  endDate?: IsoDate | null;
+  endDate?: IsoDate;
   categoryId?: number | null;
   cardId?: number | null;
 }
@@ -66,9 +67,12 @@ export interface AmountChangeInput {
   effectiveFrom: IsoDate;
 }
 
-/** `active` filtra por vigencia: true solo los vigentes, false solo los terminados, sin él todos. */
+/** Dónde está un registro respecto de hoy: todavía no empieza, rige, o ya terminó. */
+export type MonthlyStatus = 'upcoming' | 'active' | 'ended';
+
+/** `status` filtra por estado; sin él, todos. */
 export interface ListFilter {
-  active?: boolean;
+  status?: MonthlyStatus;
 }
 
 interface RecurringBase {
@@ -78,8 +82,8 @@ interface RecurringBase {
   dayOfMonth: number;
   startDate: IsoDate;
   endDate: IsoDate | null;
-  /** Vigente hoy: no tiene fin, o el fin es hoy o después. */
-  active: boolean;
+  /** upcoming: empieza después de hoy; active: rige hoy (el fin, si hay, es hoy o después); ended: ya terminó. */
+  status: MonthlyStatus;
 }
 
 export interface RecurringIncomeSummary extends RecurringBase {
@@ -163,7 +167,7 @@ export class IncomesService {
         destinationAccountId: r.destinationAccountId ?? null,
         destinationAccountName: names.get(r.destinationAccountId ?? -1) ?? null,
       }))
-      .filter((r) => matches(filter, r.active));
+      .filter((r) => matches(filter, r.status));
   }
 
   /** Todos los gastos fijos, por día del mes y nombre, con el nombre de su tarjeta. */
@@ -178,7 +182,7 @@ export class IncomesService {
         cardId: r.cardId ?? null,
         cardName: names.get(r.cardId ?? -1) ?? null,
       }))
-      .filter((r) => matches(filter, r.active));
+      .filter((r) => matches(filter, r.status));
   }
 
   /** Edita solo lo que llega. Las reglas del create se revisan contra el inicio que ya está guardado. */
@@ -187,7 +191,7 @@ export class IncomesService {
     const current = await repository.findOneBy({ id });
     if (!current) throw notFound('El ingreso recurrente', id);
 
-    if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate ?? undefined);
+    if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate);
     if (typeof input.destinationAccountId === 'number')
       await assertAccountExists(this.dataSource, input.destinationAccountId);
 
@@ -200,7 +204,7 @@ export class IncomesService {
     const current = await repository.findOneBy({ id });
     if (!current) throw notFound('El gasto fijo', id);
 
-    if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate ?? undefined);
+    if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate);
     if (typeof input.categoryId === 'number') await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
     if (typeof input.cardId === 'number') await assertActiveCard(this.dataSource, input.cardId);
 
@@ -287,12 +291,18 @@ function baseOf(r: MonthlyEntity, today: IsoDate): RecurringBase {
     dayOfMonth: r.dayOfMonth,
     startDate: r.startDate,
     endDate,
-    active: endDate === null || endDate >= today,
+    status: statusOf(r.startDate, endDate, today),
   };
 }
 
-function matches(filter: ListFilter, active: boolean): boolean {
-  return filter.active === undefined || filter.active === active;
+/** El fin cuenta hasta el final de ese día; el inicio, desde el principio del suyo. */
+export function statusOf(startDate: IsoDate, endDate: IsoDate | null, today: IsoDate): MonthlyStatus {
+  if (endDate !== null && endDate < today) return 'ended';
+  return startDate > today ? 'upcoming' : 'active';
+}
+
+function matches(filter: ListFilter, status: MonthlyStatus): boolean {
+  return filter.status === undefined || filter.status === status;
 }
 
 /** Quita los campos undefined: un campo que no llegó no se toca (null sí: es "quitar"). */
