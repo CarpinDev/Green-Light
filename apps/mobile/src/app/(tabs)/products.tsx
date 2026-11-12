@@ -3,7 +3,7 @@ import { Link } from 'expo-router';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { getJson } from '@/api/client';
-import type { AccountSummary, CardSummary, Product } from '@/api/types';
+import type { AccountSummary, CardSummary, Product, ProjectionResponse } from '@/api/types';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { BalanceCard } from '@/components/products/balance-card';
@@ -23,6 +23,11 @@ export default function Products() {
     queryFn: () => getJson<Product[]>('/products?archived=true'),
   });
   const archivedCount = archived.data?.length ?? 0;
+  // La misma consulta de Inicio (comparte caché). Si falla (p. ej. saldo viejo), simplemente no hay saldo estimado
+  const projection = useQuery({
+    queryKey: ['projection'],
+    queryFn: () => getJson<ProjectionResponse>('/projection?months=6'),
+  });
   const clearance = useTabBarClearance();
 
   // Cada sección con su propio estado: si una falla o carga, la otra no se queda esperando
@@ -46,7 +51,12 @@ export default function Products() {
             ) : (
               <View style={styles.accounts}>
                 {data.map((account) => (
-                  <BalanceCard key={account.id} account={account} />
+                  <BalanceCard
+                    key={account.id}
+                    account={account}
+                    // El saldo actual se calcula para el total de las cuentas: solo con una es el de esa cuenta
+                    estimatedCents={data.length === 1 ? projection.data?.currentBalanceCents : undefined}
+                  />
                 ))}
               </View>
             )

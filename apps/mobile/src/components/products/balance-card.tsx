@@ -16,7 +16,14 @@ import { formatCop } from '@/money';
 import { colors, light, type } from '@/theme/tokens';
 
 /** Una cuenta y su campo para confirmar el saldo de hoy. Cada una tiene su propia mutación: confirmar una no bloquea las demás. */
-export function BalanceCard({ account }: { account: AccountSummary }) {
+export function BalanceCard({
+  account,
+  estimatedCents,
+}: {
+  account: AccountSummary;
+  /** Lo que se estima que tiene hoy (con una sola cuenta): el saldo confirmado más los movimientos desde entonces. */
+  estimatedCents?: number;
+}) {
   const queryClient = useQueryClient();
   const [cents, setCents] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -62,6 +69,13 @@ export function BalanceCard({ account }: { account: AccountSummary }) {
           : `Último saldo: ${formatCop(latest.balanceCents)} ${age === 0 ? 'hoy' : `al ${formatDay(latest.asOf)}`}`}
       </Text>
 
+      {estimatedCents !== undefined && (
+        <>
+          <Text style={styles.estimated}>Saldo estimado hoy: {formatCop(estimatedCents)}</Text>
+          <Text style={styles.muted}>Se calcula con tus movimientos desde ese saldo</Text>
+        </>
+      )}
+
       <MoneyInput value={cents} onChangeCents={setCents} allowNegative placeholder="Saldo de hoy" />
       <Button label={confirm.isPending ? 'Confirmando…' : 'Confirmar'} loading={confirm.isPending} onPress={submit} />
 
@@ -75,6 +89,7 @@ const styles = StyleSheet.create({
   card: { gap: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   name: { ...type.subtitle, flexShrink: 1 },
+  estimated: { ...type.bodyMedium },
   options: { ...type.caption, color: colors.primary, fontWeight: '700' },
   muted: { ...type.caption, color: colors.textMuted },
   staleText: { color: light.yellow.bg },
