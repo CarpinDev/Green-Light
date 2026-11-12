@@ -72,6 +72,33 @@ export interface AccountSummary {
   latestBalance: { asOf: string; balanceCents: number } | null;
 }
 
+/** Lo que comparten un ingreso recurrente y un gasto fijo (GET /recurring-incomes y /fixed-expenses). */
+interface MonthlyItem {
+  id: number;
+  name: string;
+  amountCents: number;
+  /** 1..31; si el mes es más corto cae el último día. */
+  dayOfMonth: number;
+  startDate: string;
+  /** null: no termina. */
+  endDate: string | null;
+  /** Vigente hoy: sin fin, o con un fin que es hoy o después. */
+  active: boolean;
+}
+
+/** El salario y otros ingresos que llegan cada mes. */
+export interface RecurringIncome extends MonthlyItem {
+  destinationAccountId: number | null;
+  destinationAccountName: string | null;
+}
+
+/** Arriendo, servicios, suscripciones. Con tarjeta, es una compra a 1 cuota cada mes. */
+export interface FixedExpense extends MonthlyItem {
+  categoryId: number | null;
+  cardId: number | null;
+  cardName: string | null;
+}
+
 /** Un elemento de GET /categories?kind=... */
 export interface Category {
   id: number;
