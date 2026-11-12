@@ -18,7 +18,9 @@ export function movementLabel(m: Pick<Movement, 'description' | 'type'>): string
 }
 
 /** De dónde salió o a dónde llegó: "Tarjeta Visa ••1234 · 3 cuotas", "Ahorros ••5678" o "Sin cuenta". */
-export function sourceText(m: Pick<Movement, 'product' | 'installments' | 'direction' | 'scheduled'>): string {
+export function sourceText(
+  m: Pick<Movement, 'product' | 'installments' | 'direction' | 'scheduled'> & { sourceLabel?: string | null },
+): string {
   const { product, installments } = m;
   // Un gasto fijo sin tarjeta no tiene producto: sale del saldo, no es que falte la cuenta
   if (product === null) return m.direction === 'out' && m.scheduled ? 'Del saldo' : 'Sin cuenta';
@@ -26,7 +28,9 @@ export function sourceText(m: Pick<Movement, 'product' | 'installments' | 'direc
   const name = `${product.name} ••${product.last4}`;
   const prefix = product.kind === 'credit_card' ? 'Tarjeta ' : product.kind === 'loan' ? 'Préstamo ' : '';
   const cuotas = installments === null ? '' : ` · ${installments} ${installments === 1 ? 'cuota' : 'cuotas'}`;
-  return `${prefix}${name}${cuotas}`;
+  // Un abono dice además de dónde salió el dinero: "Tarjeta Nu ••4174 · desde Ahorros ••1357" o "· externo"
+  const from = m.sourceLabel ? ` · ${m.sourceLabel}` : '';
+  return `${prefix}${name}${cuotas}${from}`;
 }
 
 const MINUS = '\u2212';

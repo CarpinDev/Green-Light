@@ -32,6 +32,7 @@ const MONTHLY_MODALS = [
   { name: 'accounts/new', title: 'Nueva cuenta' },
   { name: 'cards/new', title: 'Nueva tarjeta' },
   { name: 'cards/[id]/edit', title: 'Editar tarjeta' },
+  { name: 'cards/[id]/payment', title: 'Abonar a la deuda' },
 ];
 
 export default function RootLayout() {

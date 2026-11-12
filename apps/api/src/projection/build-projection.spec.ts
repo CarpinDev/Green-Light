@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { CreditCard } from '../products/entities/credit-card.entity';
 import { AccountBalance } from '../products/entities/account-balance.entity';
+import { CapitalPayment } from '../movements/entities/capital-payment.entity';
 import { Expense } from '../movements/entities/expense.entity';
 import { Settings } from '../settings/entities/settings.entity';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
@@ -97,6 +98,44 @@ describe('buildProjection: la cuenta de un gasto fijo es solo información de or
     // Y sí descuenta el arriendo: sin él, los cierres serían otros
     const none = buildProjection(base, 6);
     expect(without.months.map((m) => m.closingBalance)).not.toEqual(none.months.map((m) => m.closingBalance));
+  });
+});
+
+describe('buildProjection: de dónde sale el dinero de un abono', () => {
+  const abono = (extra: Partial<CapitalPayment>) =>
+    make(CapitalPayment, {
+      id: 21,
+      productId: VISA,
+      date: '2026-03-25',
+      amountCents: pesos(200_000),
+      mode: 'reduce_term',
+      expenseId: null,
+      ...extra,
+    });
+  const closings = (capitalPayments: CapitalPayment[]) =>
+    buildProjection(facts({ capitalPayments }), 4).months.map((m) => m.closingBalance);
+
+  it('un abono de una cuenta baja el cierre de mes; uno externo lo deja como si no hubiera abono', () => {
+    const none = closings([]);
+    const fromAccount = closings([abono({ sourceAccountId: AHORROS, isExternal: false })]);
+    const external = closings([abono({ sourceAccountId: null, isExternal: true })]);
+
+    // En el mes del abono: de una cuenta baja 200.000; externo lo deja como si no hubiera abono
+    expect(fromAccount[0]).toBe((none[0] ?? 0) - pesos(200_000));
+    expect(external[0]).toBe(none[0]);
+    // Después, la deuda baja igual en los dos (menos intereses): la única diferencia es la plata que sí salió de la cuenta
+    expect(external.map((c, i) => c - (fromAccount[i] ?? 0))).toEqual(external.map(() => pesos(200_000)));
+  });
+
+  it('el abono externo baja la deuda igual: los pagos de tarjeta siguientes son los mismos que con un abono normal', () => {
+    const payments = (capitalPayments: CapitalPayment[]) =>
+      buildProjection(facts({ capitalPayments }), 4)
+        .months.flatMap((m) => m.events)
+        .filter((e) => e.kind === 'card_payment')
+        .map((e) => e.amount);
+    const normal = payments([abono({ isExternal: false })]);
+    expect(payments([abono({ isExternal: true })])).toEqual(normal);
+    expect(normal).not.toEqual(payments([]));
   });
 });
 

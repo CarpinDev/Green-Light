@@ -318,6 +318,32 @@ describe('MovementsFeedService', () => {
       expect((await service.list(20, TODAY))[0]?.product).toMatchObject({ id: PRESTAMO, kind: 'loan' });
     });
 
+    it('un abono dice de dónde salió el dinero: la cuenta, "externo" o nada (los de antes)', async () => {
+      const payment = (id: number, extra: Partial<CapitalPayment>): Partial<CapitalPayment> => ({
+        id,
+        productId: VISA,
+        date: '2026-11-10',
+        amountCents: 1,
+        expenseId: null,
+        sourceAccountId: null,
+        isExternal: false,
+        createdAt: at('2026-11-10', 8 + id),
+        ...extra,
+      });
+      db.seed(CapitalPayment, [
+        payment(1, { sourceAccountId: AHORROS }),
+        payment(2, { isExternal: true }),
+        payment(3, {}),
+      ]);
+      const list = await service.list(20, TODAY);
+      const labelOf = (id: string) => list.find((m) => m.id === id)?.sourceLabel;
+      expect(labelOf('capital:1')).toBe('desde Ahorros ••5678');
+      expect(labelOf('capital:2')).toBe('externo');
+      expect(labelOf('capital:3')).toBeNull();
+      // Los demás tipos no traen origen
+      expect(list.filter((m) => m.type !== 'capital_payment').every((m) => m.sourceLabel === null)).toBe(true);
+    });
+
     it('un gasto fijo con tarjeta trae la tarjeta; sin tarjeta, ningún producto; un salario, su cuenta', async () => {
       db.seed(FixedExpense, [
         {

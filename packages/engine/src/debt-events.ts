@@ -95,9 +95,14 @@ export function loanEvents(
 interface PrepaidRow {
   prepayment: number;
   prepaymentDate?: IsoDate;
+  externalPrepayment?: number;
 }
 
-/** Un capital_payment por cada abono hecho en (from, to], el día en que se hizo. */
+/**
+ * Un capital_payment por cada abono hecho en (from, to], el día en que se hizo. Sale del disponible solo lo que
+ * no es externo; si todo el abono fue externo no hay evento. Se calcula sobre las filas (lo que el motor sí aplicó),
+ * no sobre el abono original: uno que no cupo en ninguna deuda no inventa plata.
+ */
 function capitalPayments<R extends PrepaidRow>(
   rows: readonly R[],
   from: IsoDate,
@@ -105,9 +110,10 @@ function capitalPayments<R extends PrepaidRow>(
   label: string,
   refId: (row: R) => string,
 ): CashEvent[] {
-  return rows.flatMap((r) =>
-    r.prepayment > 0 && r.prepaymentDate !== undefined && inWindow(r.prepaymentDate, from, to)
-      ? [{ date: r.prepaymentDate, kind: 'capital_payment' as const, amount: -r.prepayment, label, refId: refId(r) }]
-      : [],
-  );
+  return rows.flatMap((r) => {
+    const fromCash = r.prepayment - (r.externalPrepayment ?? 0);
+    return fromCash > 0 && r.prepaymentDate !== undefined && inWindow(r.prepaymentDate, from, to)
+      ? [{ date: r.prepaymentDate, kind: 'capital_payment' as const, amount: -fromCash, label, refId: refId(r) }]
+      : [];
+  });
 }

@@ -41,6 +41,8 @@ export interface MovementItem {
   /** Solo en gastos con tarjeta. */
   installments: number | null;
   isOpeningDebt: boolean;
+  /** Solo en abonos a capital: de dónde salió el dinero, "desde Ahorros ••1357" o "externo". */
+  sourceLabel: string | null;
   /** Una ocurrencia de lo programado (salario, gasto fijo): nunca se "registra", se calcula. */
   scheduled: boolean;
 }
@@ -81,6 +83,12 @@ export class MovementsFeedService {
       const p = id === null ? undefined : products.find((x) => x.id === id);
       return p === undefined ? null : { id: p.id, name: p.name, last4: p.last4, kind: p.kind };
     };
+    // De dónde salió el dinero de un abono: la cuenta ("desde Ahorros ••1357") o "externo"; los de antes, nada
+    const sourceLabelOf = (c: CapitalPayment): string | null => {
+      if (c.isExternal) return 'externo';
+      const account = c.sourceAccountId === null ? undefined : products.find((x) => x.id === c.sourceAccountId);
+      return account === undefined ? null : `desde ${account.name} ••${account.last4}`;
+    };
     const categoryName = (id: number | null): string | null => categories.find((c) => c.id === id)?.name ?? null;
 
     const ranked: Ranked[] = [
@@ -97,6 +105,7 @@ export class MovementsFeedService {
           product: productOf(e.sourceProductId),
           installments: e.installments,
           isOpeningDebt: e.isOpeningDebt,
+          sourceLabel: null,
           scheduled: false,
         },
       })),
@@ -113,6 +122,7 @@ export class MovementsFeedService {
           product: productOf(i.destinationAccountId),
           installments: null,
           isOpeningDebt: false,
+          sourceLabel: null,
           scheduled: false,
         },
       })),
@@ -129,6 +139,7 @@ export class MovementsFeedService {
           product: productOf(c.productId),
           installments: null,
           isOpeningDebt: false,
+          sourceLabel: sourceLabelOf(c),
           scheduled: false,
         },
       })),
@@ -153,6 +164,7 @@ export class MovementsFeedService {
             product: productOf(r.destinationAccountId),
             installments: null,
             isOpeningDebt: false,
+            sourceLabel: null,
             scheduled: true,
           },
         });
@@ -174,6 +186,7 @@ export class MovementsFeedService {
             product: productOf(f.cardId ?? f.accountId),
             installments: null,
             isOpeningDebt: false,
+            sourceLabel: null,
             scheduled: true,
           },
         });

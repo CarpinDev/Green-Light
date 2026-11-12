@@ -50,6 +50,11 @@ export interface CapitalPayment {
   date: IsoDate;
   amount: Cents;
   mode: PrepaymentMode;
+  /**
+   * El dinero no sale de las cuentas (va directo al banco de la tarjeta). Para el plan y los intereses es un
+   * abono más; solo cambia la salida de caja: el abono externo no resta del disponible.
+   */
+  external?: boolean;
 }
 
 export interface PurchaseRow extends ScheduleRow {
@@ -59,6 +64,8 @@ export interface PurchaseRow extends ScheduleRow {
   dueDate: IsoDate;
   /** Fecha en que se hizo el abono de esta cuota (la del último si hubo varios). */
   prepaymentDate?: IsoDate;
+  /** Cuánto de `prepayment` fue externo (no sale del disponible). Solo viene si hubo un abono externo. */
+  externalPrepayment?: Cents;
 }
 
 /** Cortes en que se factura cada cuota de la compra. */
@@ -119,6 +126,8 @@ export function planPurchase(
     const cutDate = cuts[i];
     if (cutDate === undefined) throw new Error(`no hay corte para la cuota ${i + 1}`);
     const paidOn = row.prepayment > 0 ? grouped.get(i)?.date : undefined;
+    // Si el motor aplicó menos de lo abonado, lo externo se aplica primero (lo que sobra es dinero de las cuentas)
+    const external = Math.min(row.prepayment, grouped.get(i)?.externalAmount ?? 0);
     return {
       ...row,
       purchaseId: purchase.id,
@@ -126,6 +135,7 @@ export function planPurchase(
       cutDate,
       dueDate: dueDateFor(cutDate, card.dueDay),
       ...(paidOn !== undefined && { prepaymentDate: paidOn }),
+      ...(external > 0 && { externalPrepayment: external }),
     };
   });
 }

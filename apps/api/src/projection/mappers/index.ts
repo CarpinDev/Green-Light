@@ -92,6 +92,8 @@ export function toCardCapitalPayment(payment: CapitalPayment): Engine.CapitalPay
     date: payment.date,
     amount: payment.amountCents,
     mode: payment.mode,
+    // El abono externo baja la deuda igual, pero no resta del disponible (lo resuelve el motor)
+    ...(payment.isExternal && { external: true }),
   };
 }
 
@@ -105,6 +107,7 @@ export function toLoanPrepayment(payment: CapitalPayment): Engine.LoanPrepayment
     date: payment.date,
     amount: payment.amountCents,
     mode: payment.mode,
+    ...(payment.isExternal && { external: true }),
   };
 }
 
