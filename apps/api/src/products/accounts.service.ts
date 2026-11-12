@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { isUniqueViolation } from '../common/pg-errors';
@@ -6,6 +6,7 @@ import type { AccountType } from './account-type';
 import { AccountBalance } from './entities/account-balance.entity';
 import { Account } from './entities/account.entity';
 import { Product } from './entities/product.entity';
+import { duplicateProductError } from './product-checks';
 
 export interface CreateAccountInput {
   name: string;
@@ -67,7 +68,13 @@ export class AccountsService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
-        throw new ConflictException(`Ya existe una cuenta de ${input.bank} terminada en ${input.last4}`);
+        throw await duplicateProductError(
+          this.dataSource,
+          'account',
+          input.bank,
+          input.last4,
+          `Ya existe una cuenta de ${input.bank} terminada en ${input.last4}`,
+        );
       }
       throw err;
     }

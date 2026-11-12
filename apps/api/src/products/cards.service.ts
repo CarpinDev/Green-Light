@@ -1,9 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import type { AmortizationMethod, Cents, FirstPeriodInterest, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { isoDateOf } from '../common/dates';
 import { definedOnly } from '../common/defined-only';
 import { isUniqueViolation } from '../common/pg-errors';
+import { duplicateProductError } from './product-checks';
 import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
@@ -111,7 +112,13 @@ export class CardsService {
       });
     } catch (err) {
       if (isUniqueViolation(err)) {
-        throw new ConflictException(`Ya existe una tarjeta de ${input.bank} terminada en ${input.last4}`);
+        throw await duplicateProductError(
+          this.dataSource,
+          'credit_card',
+          input.bank,
+          input.last4,
+          `Ya existe una tarjeta de ${input.bank} terminada en ${input.last4}`,
+        );
       }
       throw err;
     }

@@ -63,6 +63,22 @@ export interface Product {
   last4: string;
 }
 
+/** Algo que usa un producto y se resuelve antes de eliminarlo o archivarlo (GET /products/:id/usage). */
+export interface ProductBlocker {
+  kind: 'fixed_expense' | 'recurring_income' | 'one_off_income';
+  id: number;
+  name: string;
+}
+
+/** Lo que se borraría con un producto y lo que lo bloquea. */
+export interface ProductUsage {
+  expenses: number;
+  capitalPayments: number;
+  balances: number;
+  rates: number;
+  blockers: ProductBlocker[];
+}
+
 /** Un elemento de GET /accounts: la cuenta y su saldo confirmado más reciente. */
 export interface AccountSummary {
   id: number;

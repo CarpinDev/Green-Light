@@ -10,8 +10,10 @@ import { AccountBalance } from '../products/entities/account-balance.entity';
 import { CreditCard } from '../products/entities/credit-card.entity';
 import { Loan } from '../products/entities/loan.entity';
 import { ProductRate } from '../products/entities/product-rate.entity';
+import { Product } from '../products/entities/product.entity';
 import { Settings } from '../settings/entities/settings.entity';
 import { type ProjectionFacts, type ProjectionResult, buildProjection } from './build-projection';
+import { excludeArchived } from './exclude-archived';
 
 const SETTINGS_ID = 1;
 
@@ -38,6 +40,7 @@ export class ProjectionService {
       oneOffIncomes,
       fixedExpenses,
       settings,
+      archived,
     ] = await Promise.all([
       db.getRepository(AccountBalance).find(),
       db.getRepository(CreditCard).find(),
@@ -49,18 +52,23 @@ export class ProjectionService {
       db.getRepository(OneOffIncome).find(),
       db.getRepository(FixedExpense).find(),
       db.getRepository(Settings).findOneByOrFail({ id: SETTINGS_ID }),
+      db.getRepository(Product).find({ where: { active: false } }),
     ]);
-    return {
-      balances,
-      cards,
-      loans,
-      rates,
-      expenses,
-      capitalPayments,
-      recurringIncomes,
-      oneOffIncomes,
-      fixedExpenses,
-      settings,
-    };
+    // Un producto archivado ya no cuenta: ni su saldo, ni su deuda, ni sus gastos (el único lugar donde se filtra)
+    return excludeArchived(
+      {
+        balances,
+        cards,
+        loans,
+        rates,
+        expenses,
+        capitalPayments,
+        recurringIncomes,
+        oneOffIncomes,
+        fixedExpenses,
+        settings,
+      },
+      new Set(archived.map((p) => p.id)),
+    );
   }
 }

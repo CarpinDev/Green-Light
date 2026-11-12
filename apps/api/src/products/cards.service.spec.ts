@@ -32,6 +32,8 @@ class FakeDb {
         this.tables = staged; // commit solo si work no lanzó
         return result;
       },
+      // Para saber si el producto repetido está archivado (aquí nunca lo está)
+      getRepository: () => ({ findOneBy: () => Promise.resolve(null) }),
     } as unknown as DataSource;
   }
 

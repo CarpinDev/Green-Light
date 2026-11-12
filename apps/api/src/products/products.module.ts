@@ -16,6 +16,7 @@ import { StatementCheck } from './entities/statement-check.entity';
 import { LoansController } from './loans.controller';
 import { LoansService } from './loans.service';
 import { OpeningDebtService } from './opening-debt.service';
+import { ProductLifecycleService } from './product-lifecycle.service';
 import { ProductsController } from './products.controller';
 import { ProductsService } from './products.service';
 
@@ -24,7 +25,15 @@ import { ProductsService } from './products.service';
     TypeOrmModule.forFeature([Product, ProductRate, CreditCard, Loan, Account, AccountBalance, StatementCheck]),
   ],
   controllers: [CardsController, CardDebtController, LoansController, AccountsController, ProductsController],
-  providers: [CardsService, CardPlanService, OpeningDebtService, LoansService, AccountsService, ProductsService],
+  providers: [
+    CardsService,
+    CardPlanService,
+    OpeningDebtService,
+    LoansService,
+    AccountsService,
+    ProductsService,
+    ProductLifecycleService,
+  ],
   exports: [CardsService, LoansService, AccountsService],
 })
 export class ProductsModule {}
