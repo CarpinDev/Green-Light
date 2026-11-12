@@ -146,6 +146,9 @@ export interface FixedExpense extends MonthlyItem {
   categoryId: number | null;
   cardId: number | null;
   cardName: string | null;
+  /** La cuenta de la que sale; es información de origen (no cambia la proyección). */
+  accountId: number | null;
+  accountName: string | null;
 }
 
 /** Un elemento de GET /categories?kind=... */

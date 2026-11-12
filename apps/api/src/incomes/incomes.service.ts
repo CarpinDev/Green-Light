@@ -39,6 +39,8 @@ export interface CreateFixedExpenseInput {
   categoryId?: number;
   /** Si se paga con tarjeta: tiene que ser una tarjeta activa. Es una compra a 1 cuota cada mes. */
   cardId?: number;
+  /** Si sale de una cuenta: tiene que existir. No se combina con `cardId`. */
+  accountId?: number;
 }
 
 /**
@@ -60,6 +62,7 @@ export interface UpdateFixedExpenseInput {
   endDate?: IsoDate;
   categoryId?: number | null;
   cardId?: number | null;
+  accountId?: number | null;
 }
 
 /** El monto nuevo rige desde `effectiveFrom`; lo anterior queda como estaba. */
@@ -96,6 +99,8 @@ export interface FixedExpenseSummary extends RecurringBase {
   categoryId: number | null;
   cardId: number | null;
   cardName: string | null;
+  accountId: number | null;
+  accountName: string | null;
 }
 
 /** Lo que tienen en común los dos recursos que se repiten cada mes. */
@@ -143,6 +148,8 @@ export class IncomesService {
     assertDateRange(input.startDate, input.endDate);
     if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
     if (input.cardId !== undefined) await assertActiveCard(this.dataSource, input.cardId);
+    if (input.accountId !== undefined) await assertAccountExists(this.dataSource, input.accountId);
+    assertOneSource(input.cardId, input.accountId);
 
     return this.dataSource.getRepository(FixedExpense).save({
       name: input.name,
@@ -152,6 +159,7 @@ export class IncomesService {
       ...(input.endDate !== undefined && { endDate: input.endDate }),
       ...(input.categoryId !== undefined && { categoryId: input.categoryId }),
       ...(input.cardId !== undefined && { cardId: input.cardId }),
+      ...(input.accountId !== undefined && { accountId: input.accountId }),
     });
   }
 
@@ -182,6 +190,8 @@ export class IncomesService {
         categoryId: r.categoryId ?? null,
         cardId: r.cardId ?? null,
         cardName: names.get(r.cardId ?? -1) ?? null,
+        accountId: r.accountId ?? null,
+        accountName: names.get(r.accountId ?? -1) ?? null,
       }))
       .filter((r) => matches(filter, r.status));
   }
@@ -208,8 +218,15 @@ export class IncomesService {
     if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate);
     if (typeof input.categoryId === 'number') await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
     if (typeof input.cardId === 'number') await assertActiveCard(this.dataSource, input.cardId);
+    if (typeof input.accountId === 'number') await assertAccountExists(this.dataSource, input.accountId);
 
-    await repository.save({ ...current, ...definedOnly(input) });
+    // Se valida lo que quedaría guardado, no solo lo que llega: pasar de tarjeta a cuenta llega como
+    // { cardId: null, accountId }, y mandar solo accountId no debe dejar las dos
+    const changes = definedOnly(input);
+    const result = { ...current, ...changes };
+    assertOneSource(result.cardId, result.accountId);
+
+    await repository.save(result);
     return { id };
   }
 
@@ -276,6 +293,13 @@ export class IncomesService {
   private async productNames(): Promise<Map<number, string>> {
     const products = await this.dataSource.getRepository(Product).find();
     return new Map(products.map((p) => [p.id, p.name]));
+  }
+}
+
+/** Un gasto fijo sale de una tarjeta o de una cuenta, no de las dos. */
+function assertOneSource(cardId: number | null | undefined, accountId: number | null | undefined): void {
+  if (cardId != null && accountId != null) {
+    throw new BadRequestException('Un gasto fijo sale de una tarjeta o de una cuenta, no de las dos');
   }
 }
 

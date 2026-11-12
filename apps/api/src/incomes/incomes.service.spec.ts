@@ -119,6 +119,27 @@ describe('IncomesService', () => {
       expect(db.rows(FixedExpense)).toHaveLength(0);
     });
 
+    it('con una cuenta: guarda accountId y no cardId', async () => {
+      await service.createFixedExpense({ ...rent, accountId: AHORROS });
+      const [saved] = db.rows(FixedExpense);
+      expect(saved).toMatchObject({ accountId: AHORROS });
+      expect(saved?.cardId).toBeUndefined();
+    });
+
+    it('con tarjeta y cuenta a la vez: 400 y no escribe', async () => {
+      await expect(service.createFixedExpense({ ...rent, cardId: VISA, accountId: AHORROS })).rejects.toThrow(
+        'Un gasto fijo sale de una tarjeta o de una cuenta, no de las dos',
+      );
+      expect(db.rows(FixedExpense)).toHaveLength(0);
+    });
+
+    it('con una cuenta que no existe, o que es una tarjeta o un préstamo: 400', async () => {
+      for (const accountId of [999, VISA, PRESTAMO]) {
+        await expect(service.createFixedExpense({ ...rent, accountId })).rejects.toThrow(BadRequestException);
+      }
+      expect(db.rows(FixedExpense)).toHaveLength(0);
+    });
+
     it('un fin anterior al inicio: 400', async () => {
       await expect(service.createFixedExpense({ ...rent, endDate: '2025-12-31' })).rejects.toThrow(BadRequestException);
       expect(db.rows(FixedExpense)).toHaveLength(0);
@@ -224,6 +245,7 @@ describe('IncomesService', () => {
         ['Netflix', 'active'],
       ]);
       expect(list[2]).toMatchObject({ cardId: VISA, cardName: 'Visa', categoryId: MERCADO });
+      expect(list[2]).toMatchObject({ accountId: null, accountName: null });
       expect(list[0]).toMatchObject({ cardId: null, cardName: null });
       const active = await service.listFixedExpenses({ status: 'active' }, TODAY);
       expect(active.map((r) => r.name)).toEqual(['Arriendo', 'Netflix']);
@@ -268,6 +290,50 @@ describe('IncomesService', () => {
       await expect(service.updateFixedExpense(1, { categoryId: SALARIO })).rejects.toThrow(/categor/i);
       await service.updateFixedExpense(1, { cardId: VISA, categoryId: MERCADO });
       expect(db.rows(FixedExpense)[0]).toMatchObject({ cardId: VISA, categoryId: MERCADO });
+    });
+
+    describe('el origen de un gasto fijo (tarjeta o cuenta)', () => {
+      const stored = () => db.rows(FixedExpense)[0];
+
+      it('de tarjeta a cuenta: llega como { cardId: null, accountId }', async () => {
+        await service.updateFixedExpense(1, { cardId: VISA });
+        await service.updateFixedExpense(1, { cardId: null, accountId: AHORROS });
+        expect(stored()).toMatchObject({ cardId: null, accountId: AHORROS });
+      });
+
+      it('de cuenta a tarjeta, y a ninguno', async () => {
+        await service.updateFixedExpense(1, { accountId: AHORROS });
+        await service.updateFixedExpense(1, { accountId: null, cardId: VISA });
+        expect(stored()).toMatchObject({ accountId: null, cardId: VISA });
+        await service.updateFixedExpense(1, { cardId: null, accountId: null });
+        expect(stored()).toMatchObject({ accountId: null, cardId: null });
+      });
+
+      it('si el resultado deja las dos es 400 y no cambia nada', async () => {
+        await service.updateFixedExpense(1, { cardId: VISA });
+        // Solo manda la cuenta: lo guardado (la tarjeta) más lo que llega dejaría las dos
+        await expect(service.updateFixedExpense(1, { accountId: AHORROS })).rejects.toThrow(
+          'Un gasto fijo sale de una tarjeta o de una cuenta, no de las dos',
+        );
+        await expect(service.updateFixedExpense(1, { cardId: VISA, accountId: AHORROS })).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(stored()).toMatchObject({ cardId: VISA });
+        expect(stored()?.accountId ?? null).toBeNull();
+      });
+
+      it('cambiar otra cosa no pierde la cuenta, y null la quita', async () => {
+        await service.updateFixedExpense(1, { accountId: AHORROS });
+        await service.updateFixedExpense(1, { name: 'Gym' });
+        expect(stored()).toMatchObject({ name: 'Gym', accountId: AHORROS });
+        await service.updateFixedExpense(1, { accountId: null });
+        expect(stored()?.accountId).toBeNull();
+      });
+
+      it('una cuenta que no existe es 400', async () => {
+        await expect(service.updateFixedExpense(1, { accountId: VISA })).rejects.toThrow(/cuenta/i);
+        await expect(service.updateFixedExpense(1, { accountId: 999 })).rejects.toThrow(BadRequestException);
+      });
     });
 
     it('un id que no existe es 404', async () => {
@@ -321,6 +387,24 @@ describe('IncomesService', () => {
     it('el día anterior cruza meses y años (1 de enero -> 31 de diciembre)', async () => {
       await service.changeRecurringIncomeAmount(1, { amountCents: 350, effectiveFrom: '2027-01-01' });
       expect(db.rows(RecurringIncome)[0]?.endDate).toBe('2026-12-31');
+    });
+
+    it('el cambio de monto de un gasto fijo conserva la cuenta en el registro nuevo', async () => {
+      db.seed(FixedExpense, [
+        {
+          id: 1,
+          name: 'Arriendo',
+          amountCents: 1200,
+          dayOfMonth: 1,
+          startDate: '2026-01-01',
+          endDate: null,
+          accountId: AHORROS,
+        },
+      ]);
+      await service.changeFixedExpenseAmount(1, { amountCents: 1300, effectiveFrom: '2026-07-01' });
+      const [old, created] = db.rows(FixedExpense);
+      expect(old).toMatchObject({ accountId: AHORROS, endDate: '2026-06-30' });
+      expect(created).toMatchObject({ amountCents: 1300, accountId: AHORROS });
     });
 
     it('conserva el fin que ya tenía el registro en el nuevo', async () => {
