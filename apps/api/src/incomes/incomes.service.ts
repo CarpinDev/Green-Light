@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
+import { definedOnly } from '../common/defined-only';
 import { assertDateRange, dayBefore, isoDateOf } from '../common/dates';
 import { assertCategoryOfKind } from '../movements/category-check';
 import { Product } from '../products/entities/product.entity';
@@ -303,9 +304,4 @@ export function statusOf(startDate: IsoDate, endDate: IsoDate | null, today: Iso
 
 function matches(filter: ListFilter, status: MonthlyStatus): boolean {
   return filter.status === undefined || filter.status === status;
-}
-
-/** Quita los campos undefined: un campo que no llegó no se toca (null sí: es "quitar"). */
-function definedOnly<T extends object>(input: T): Partial<T> {
-  return Object.fromEntries(Object.entries(input).filter(([, v]) => v !== undefined)) as Partial<T>;
 }

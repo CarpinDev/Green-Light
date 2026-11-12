@@ -1,47 +1,21 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
-import { getJson, postJson } from '@/api/client';
+import { postJson } from '@/api/client';
 import { errorText } from '@/api/errors';
 import type { AccountSummary } from '@/api/types';
 import { Button } from '@/components/button';
 import { Card } from '@/components/card';
 import { LightBadge } from '@/components/light-badge';
 import { MoneyInput } from '@/components/money-input';
-import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
 import { daysBetween, formatDay, STALE_DAYS, today } from '@/dates';
 import { formatCop } from '@/money';
-import { useTabBarClearance } from '@/navigation';
 import { colors, light, type } from '@/theme/tokens';
 
-export default function Balances() {
-  const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
-  const clearance = useTabBarClearance();
-
-  return (
-    <QueryState
-      query={accounts}
-      errorTitle="No se pudieron cargar tus cuentas"
-      emptyText="Todavía no tienes cuentas: créalas primero."
-    >
-      {(data) => (
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
-          keyboardShouldPersistTaps="handled"
-        >
-          {data.map((account) => (
-            <AccountCard key={account.id} account={account} />
-          ))}
-        </ScrollView>
-      )}
-    </QueryState>
-  );
-}
-
-/** Cada tarjeta tiene su propio campo y su propia mutación: confirmar una no bloquea las demás. */
-function AccountCard({ account }: { account: AccountSummary }) {
+/** Una cuenta y su campo para confirmar el saldo de hoy. Cada una tiene su propia mutación: confirmar una no bloquea las demás. */
+export function BalanceCard({ account }: { account: AccountSummary }) {
   const queryClient = useQueryClient();
   const [cents, setCents] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -92,7 +66,6 @@ function AccountCard({ account }: { account: AccountSummary }) {
 }
 
 const styles = StyleSheet.create({
-  content: { padding: 16, gap: 12, maxWidth: 640, width: '100%', alignSelf: 'center' },
   card: { gap: 8 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
   name: { ...type.subtitle, flexShrink: 1 },

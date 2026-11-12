@@ -1,0 +1,67 @@
+import { useQuery } from '@tanstack/react-query';
+import { Link } from 'expo-router';
+import { ScrollView, StyleSheet, View } from 'react-native';
+
+import { getJson } from '@/api/client';
+import type { AccountSummary, CardSummary } from '@/api/types';
+import { Button } from '@/components/button';
+import { Card } from '@/components/card';
+import { BalanceCard } from '@/components/products/balance-card';
+import { CardsSection } from '@/components/products/cards-section';
+import { QueryState } from '@/components/query-state';
+import { SectionHeader } from '@/components/section-header';
+import { Text } from '@/components/text';
+import { useTabBarClearance } from '@/navigation';
+import { colors, space, type } from '@/theme/tokens';
+
+export default function Products() {
+  const accounts = useQuery({ queryKey: ['accounts'], queryFn: () => getJson<AccountSummary[]>('/accounts') });
+  const cards = useQuery({ queryKey: ['cards'], queryFn: () => getJson<CardSummary[]>('/cards') });
+  const clearance = useTabBarClearance();
+
+  // Cada sección con su propio estado: si una falla o carga, la otra no se queda esperando
+  return (
+    <ScrollView
+      contentContainerStyle={[styles.content, { paddingBottom: clearance }]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.section}>
+        <SectionHeader title="Cuentas" addHref="/accounts/new" />
+        <QueryState inline query={accounts} errorTitle="No se pudieron cargar tus cuentas.">
+          {(data) =>
+            data.length === 0 ? (
+              <Card style={styles.empty}>
+                <Text style={type.subtitle}>Agrega tu primera cuenta</Text>
+                <Text style={styles.muted}>Con el saldo de tus cuentas la app proyecta cuánto te queda cada mes.</Text>
+                <Link href="/accounts/new" asChild>
+                  <Button label="Agregar cuenta" />
+                </Link>
+              </Card>
+            ) : (
+              <View style={styles.accounts}>
+                {data.map((account) => (
+                  <BalanceCard key={account.id} account={account} />
+                ))}
+              </View>
+            )
+          }
+        </QueryState>
+      </View>
+
+      <View style={styles.section}>
+        <SectionHeader title="Tarjetas de crédito" addHref="/cards/new" />
+        <QueryState inline query={cards} errorTitle="No se pudieron cargar tus tarjetas.">
+          {(data) => <CardsSection cards={data} />}
+        </QueryState>
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { padding: space.lg, gap: space.xxl, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  section: { gap: space.md },
+  accounts: { gap: space.md },
+  empty: { gap: space.md },
+  muted: { ...type.caption, color: colors.textMuted },
+});

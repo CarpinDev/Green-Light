@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import type { IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
+import { isUniqueViolation } from '../common/pg-errors';
+import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import type { ProductKind } from './product-kind';
+import { type RateInput, resolveRate } from './resolve-rate';
 
 /** Lo que la app necesita para elegir un producto: no la entidad completa. */
 export interface ProductSummary {
@@ -12,6 +16,9 @@ export interface ProductSummary {
   bank: string;
   last4: string;
 }
+
+/** Una tasa nueva para el historial: la E.A., la M.V. o las dos, desde una fecha. */
+export type AddRateInput = RateInput & { effectiveFrom: IsoDate };
 
 @Injectable()
 export class ProductsService {
@@ -24,5 +31,35 @@ export class ProductsService {
       order: { name: 'ASC' },
     });
     return products.map(({ id, kind, name, bank, last4 }) => ({ id, kind, name, bank, last4 }));
+  }
+
+  /**
+   * Agrega una tasa al historial (las variables cambian mes a mes). Sirve para tarjetas y préstamos;
+   * una cuenta no tiene tasa. 409 si ya hay una con esa misma fecha.
+   */
+  async addRate(productId: number, input: AddRateInput): Promise<{ id: number }> {
+    const repository = this.dataSource.getRepository(Product);
+    const product = await repository.findOneBy({ id: productId });
+    if (!product) throw new NotFoundException(`El producto ${productId} no existe`);
+    if (product.kind === 'account') {
+      throw new BadRequestException(`El producto ${productId} es una cuenta: las cuentas no tienen tasa`);
+    }
+
+    const rate = resolveRate({ ea: input.ea, mv: input.mv });
+    try {
+      const saved = await this.dataSource.getRepository(ProductRate).save({
+        productId,
+        effectiveFrom: input.effectiveFrom,
+        ea: rate.ea,
+        mv: rate.mv,
+        source: rate.source,
+      });
+      return { id: saved.id };
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictException(`El producto ${productId} ya tiene una tasa desde el ${input.effectiveFrom}`);
+      }
+      throw err;
+    }
   }
 }

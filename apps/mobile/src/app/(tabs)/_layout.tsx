@@ -57,8 +57,8 @@ export default function TabsLayout() {
       {/* El hueco del centro: un botón, no una pestaña */}
       <Tabs.Screen name="add" options={{ title: 'Registrar gasto', tabBarButton: () => <AddExpenseButton /> }} />
       <Tabs.Screen
-        name="balances"
-        options={{ title: 'Saldos', headerTitle: 'Confirmar saldos', tabBarIcon: icon('credit-card') }}
+        name="products"
+        options={{ title: 'Productos', headerTitle: 'Mis productos', tabBarIcon: icon('credit-card') }}
       />
       <Tabs.Screen
         name="monthly"
