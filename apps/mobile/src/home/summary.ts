@@ -161,6 +161,36 @@ export function alertMessage(alert: Alert, products: readonly Product[]): string
   return `En ${formatMonthName(alert.refId)} tus pagos de deuda son el ${pct(alert.value)} % de tu ingreso; lo recomendable es no pasar del ${pct(alert.threshold)} %.`;
 }
 
+/** El nombre de un evento: el de un pago de tarjeta sin la fecha ISO del corte (esa se muestra aparte, "corte 14 nov"). */
+export function eventTitle(event: Pick<CashEvent, 'kind' | 'label' | 'cutDate'>): string {
+  return event.kind === 'card_payment' && event.cutDate !== undefined ? 'Pago mínimo tarjeta' : event.label;
+}
+
+export interface MonthEvents {
+  month: string;
+  /** Lo que viene en ese mes, por fecha. */
+  events: CashEvent[];
+  /** Lo que entra y lo que sale de esos próximos (este último en positivo). */
+  income: number;
+  outflow: number;
+}
+
+/**
+ * Los próximos movimientos agrupados por mes: todos los meses de la proyección desde `now`, con lo que viene
+ * desde mañana (lo de hoy ya pasó). Incluye los meses sin nada, para que se vea que no hay.
+ */
+export function upcomingByMonth(months: readonly MonthSummary[], now: string, today: string): MonthEvents[] {
+  return visibleMonths(months, now).map((m) => {
+    const events = m.events.filter((e) => e.date > today).sort(byDate);
+    return {
+      month: m.month,
+      events,
+      income: events.filter((e) => e.amount > 0).reduce((sum, e) => sum + e.amount, 0),
+      outflow: events.filter((e) => e.amount < 0).reduce((sum, e) => sum - e.amount, 0),
+    };
+  });
+}
+
 /**
  * Todo lo que viene desde mañana en el mes actual y el siguiente, por fecha (de la proyección). Lo de hoy no
  * entra: ya pasó para "Movimientos recientes" (que llega hasta hoy incluido), y así no sale en las dos listas.

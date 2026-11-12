@@ -101,6 +101,25 @@ describe('buildProjection: la cuenta de un gasto fijo es solo información de or
   });
 });
 
+describe('buildProjection: los pagos de tarjeta traen su corte', () => {
+  it('cutDate y fullPayment llegan en los eventos y sobreviven al JSON tal cual', () => {
+    const events = buildProjection(facts(), 4).months.flatMap((m) => m.events);
+    const payments = events.filter((e) => e.kind === 'card_payment');
+
+    expect(payments.length).toBeGreaterThan(0);
+    for (const p of payments) {
+      expect(p.cutDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(p.fullPayment).toBeGreaterThanOrEqual(-p.amount);
+      expect(p.cutDate && p.cutDate < p.date).toBe(true);
+    }
+    // Lo que sale por HTTP es el JSON de esos objetos: los dos campos no se pierden
+    const wire = JSON.parse(JSON.stringify(payments)) as typeof payments;
+    expect(wire.map((p) => [p.cutDate, p.fullPayment])).toEqual(payments.map((p) => [p.cutDate, p.fullPayment]));
+    // Y el resto de eventos no los trae
+    expect(events.filter((e) => e.kind !== 'card_payment').every((e) => !('cutDate' in e))).toBe(true);
+  });
+});
+
 describe('buildProjection: de dónde sale el dinero de un abono', () => {
   const abono = (extra: Partial<CapitalPayment>) =>
     make(CapitalPayment, {

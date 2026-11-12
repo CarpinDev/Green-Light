@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import type { CashEvent, CashEventKind } from '@/api/types';
 import { Text } from '@/components/text';
 import { formatDayShort } from '@/dates';
-import { KIND_LABEL } from '@/home/summary';
+import { eventTitle, KIND_LABEL } from '@/home/summary';
 import { formatCop } from '@/money';
 import { colors, light, radius, space, type } from '@/theme/tokens';
 
@@ -29,11 +29,12 @@ export function EventRow({ event, showDate = true }: { event: CashEvent; showDat
       </View>
       <View style={styles.text}>
         <Text style={styles.name} numberOfLines={1}>
-          {event.label}
+          {eventTitle(event)}
         </Text>
         <Text style={styles.caption}>
           {KIND_LABEL[event.kind]}
           {showDate && ` · ${formatDayShort(event.date)}`}
+          {event.cutDate !== undefined && ` · corte ${formatDayShort(event.cutDate)}`}
         </Text>
       </View>
       <Text style={[styles.amount, income && styles.income]}>

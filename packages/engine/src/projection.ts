@@ -71,6 +71,13 @@ export interface CashEvent {
    * quien arma la entrada calcula el booleano.
    */
   afterBalance?: boolean;
+  /**
+   * Solo en `card_payment`: el corte del extracto que se paga (la `date` es su vencimiento). Un campo y no el
+   * texto del `label` porque el texto es para mostrar: cambia de redacción y parsearlo rompe en silencio.
+   */
+  cutDate?: IsoDate;
+  /** Solo en `card_payment`: lo que saldaría todo el extracto, en positivo (la `amount` es solo el mínimo). */
+  fullPayment?: Cents;
 }
 
 export type TrafficLight = 'green' | 'yellow' | 'red';
