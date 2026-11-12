@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { getJson } from '@/api/client';
 import type { CardPlan, PlanCut } from '@/api/types';
+import { BAR_LABEL_SPACE, BarValue } from '@/components/bar-value';
 import { Card } from '@/components/card';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
@@ -58,6 +59,7 @@ function PlanBarsCard({ cuts }: { cuts: readonly PlanCut[] }) {
         <View style={styles.plot}>
           {bars.map((bar, i) => (
             <View key={bar.cutDate} style={styles.column}>
+              <BarValue cents={bar.value} highlighted={bar.highlighted} />
               <View
                 style={[
                   styles.bar,
@@ -106,9 +108,9 @@ const styles = StyleSheet.create({
   section: { gap: space.md },
   bars: { gap: space.lg },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  plot: { flexDirection: 'row', gap: space.sm, height: MAX_BAR, alignItems: 'flex-end' },
+  plot: { flexDirection: 'row', gap: space.sm, height: MAX_BAR + BAR_LABEL_SPACE, alignItems: 'flex-end' },
   column: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
-  bar: { width: '70%', borderRadius: radius.sm },
+  bar: { width: '70%', borderRadius: radius.sm, marginTop: 4 },
   labels: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
   label: { ...type.caption, flex: 1, textAlign: 'center', color: colors.textMuted },
   labelNow: { fontFamily: fonts.bodyBold, color: colors.text },

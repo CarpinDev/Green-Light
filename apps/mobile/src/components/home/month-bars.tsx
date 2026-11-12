@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import type { Light } from '@/api/types';
+import { BAR_LABEL_SPACE, BarValue } from '@/components/bar-value';
 import { Card } from '@/components/card';
 import { Text } from '@/components/text';
 import { formatMonthShort } from '@/dates';
@@ -19,7 +20,7 @@ const LEGEND: Light[] = ['green', 'yellow', 'red'];
  * cierres positivos crecen hacia arriba desde la línea base y los negativos cuelgan hacia abajo.
  */
 export function MonthBars({ bars }: { bars: readonly ChartBar[] }) {
-  const { up, down, shapes } = barGeometry(bars, MAX_BAR, MIN_BAR);
+  const { up, down, shapes } = barGeometry(bars, MAX_BAR, MIN_BAR, BAR_LABEL_SPACE);
 
   const summary = bars
     .map((b) => `${formatMonthShort(b.month)} ${formatCop(b.value)}, ${light[b.light].label}`)
@@ -45,6 +46,15 @@ export function MonthBars({ bars }: { bars: readonly ChartBar[] }) {
                     { height: shape.height, backgroundColor: light[bar.light].bg },
                     // Sobre la línea base (que está a `up` del borde superior) o colgando de ella
                     shape.below ? { top: up } : { top: up - shape.height },
+                  ]}
+                />
+                <BarValue
+                  cents={bar.value}
+                  highlighted={i === 0}
+                  style={[
+                    styles.value,
+                    // Encima de la barra, o debajo si cuelga de la línea base
+                    shape.below ? { top: up + shape.height + 2 } : { top: up - shape.height - BAR_LABEL_SPACE + 2 },
                   ]}
                 />
               </View>
@@ -82,6 +92,7 @@ const styles = StyleSheet.create({
   plot: { flexDirection: 'row', gap: space.sm },
   column: { flex: 1 },
   bar: { position: 'absolute', alignSelf: 'center', left: '15%', right: '15%', borderRadius: radius.sm },
+  value: { position: 'absolute', left: 0, right: 0 },
   baseline: { position: 'absolute', left: 0, right: 0, height: 1, backgroundColor: colors.border },
   labels: { flexDirection: 'row', gap: space.sm, marginTop: space.sm },
   label: { ...type.caption, flex: 1, textAlign: 'center', color: colors.textMuted },

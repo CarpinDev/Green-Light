@@ -216,6 +216,16 @@ describe('barGeometry', () => {
     expect(down).toBe(100);
   });
 
+  it('labelSpace deja sitio a la etiqueta solo del lado donde hay barras', () => {
+    const bars = chartBars([month({ closingBalance: 200 }), month({ closingBalance: -100 })]);
+    expect(barGeometry(bars, 100, 4, 20)).toMatchObject({ up: 120, down: 70 });
+    // Sin negativos no se reserva nada debajo; con todos negativos, nada encima
+    expect(barGeometry(chartBars([month({ closingBalance: 5 })]), 100, 4, 20)).toMatchObject({ up: 120, down: 0 });
+    expect(barGeometry(chartBars([month({ closingBalance: -5 })]), 100, 4, 20)).toMatchObject({ up: 0, down: 120 });
+    // Las formas no cambian: solo el espacio
+    expect(barGeometry(bars, 100, 4, 20).shapes).toEqual(barGeometry(bars, 100, 4).shapes);
+  });
+
   it('una barra diminuta, o de 0, no baja del mínimo', () => {
     const bars = chartBars([
       month({ closingBalance: 1_000_000 }),

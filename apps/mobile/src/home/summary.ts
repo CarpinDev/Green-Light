@@ -89,18 +89,22 @@ export interface BarShape {
  * Pasa las proporciones a píxeles. `maxHeight` es lo que mide la barra más grande; ninguna baja de
  * `minHeight`, para que un cierre diminuto (o cero) siga viéndose. `up` y `down` son lo que la gráfica
  * necesita por encima y por debajo de la línea base: sin meses negativos, `down` es 0 y no se reserva nada.
+ * `labelSpace` es el alto de la etiqueta de cada barra (encima de las positivas, debajo de las negativas): se
+ * suma a `up` y a `down`, pero solo del lado donde hay barras, para que la más alta no deje su texto fuera.
  */
 export function barGeometry(
   bars: readonly ChartBar[],
   maxHeight: number,
   minHeight: number,
+  labelSpace = 0,
 ): { up: number; down: number; shapes: BarShape[] } {
   const shapes = bars.map((b) => ({
     height: Math.max(minHeight, Math.round(b.heightRatio * maxHeight)),
     below: b.value < 0,
   }));
   const tallest = (below: boolean) => Math.max(0, ...shapes.filter((s) => s.below === below).map((s) => s.height));
-  return { up: tallest(false), down: tallest(true), shapes };
+  const room = (below: boolean) => (shapes.some((s) => s.below === below) ? tallest(below) + labelSpace : 0);
+  return { up: room(false), down: room(true), shapes };
 }
 
 const pct = (ratio: string) => Math.round(Number(ratio) * 100);
