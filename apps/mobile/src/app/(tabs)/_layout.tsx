@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { AddExpenseButton } from '@/components/add-expense-button';
+import { AddButton } from '@/components/add-button';
 import { TAB_BAR_HEIGHT, TAB_BAR_MARGIN } from '@/navigation';
 import { colors, fonts, radius } from '@/theme/tokens';
 
@@ -55,7 +55,7 @@ export default function TabsLayout() {
         options={{ title: 'Simular', headerTitle: '¿Puedo comprar esto?', tabBarIcon: icon('sliders') }}
       />
       {/* El hueco del centro: un botón, no una pestaña */}
-      <Tabs.Screen name="add" options={{ title: 'Registrar gasto', tabBarButton: () => <AddExpenseButton /> }} />
+      <Tabs.Screen name="add" options={{ title: 'Agregar movimiento', tabBarButton: () => <AddButton /> }} />
       <Tabs.Screen
         name="products"
         options={{ title: 'Productos', headerTitle: 'Mis productos', tabBarIcon: icon('credit-card') }}
