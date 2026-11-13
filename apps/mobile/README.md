@@ -1,4 +1,3 @@
-# GreenLight (app móvil)
+# Green Light (app móvil)
 
-Arranca con `npm run web -w @greenlight/mobile` desde la raíz del monorepo, con la API corriendo en el puerto 3001.
-Necesita un archivo `apps/mobile/.env` con `EXPO_PUBLIC_API_URL=http://localhost:3001` (no se sube a git).
+App de Expo Router del monorepo. La instalación, el arranque y los scripts están en el [README de la raíz](../../README.md).
