@@ -9,6 +9,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
 import type { CardPlan } from './build-card-plan';
 import { CardPlanService, DEFAULT_CUTS, MAX_CUTS } from './card-plan.service';
 import { OpeningDebtDto } from './dto/opening-debt.dto';
@@ -24,25 +25,30 @@ export class CardDebtController {
 
   /** Los grupos actuales de la deuda inicial, para precargar el formulario. */
   @Get('opening-debt')
-  list(@Param('id', ParseIntPipe) id: number): Promise<OpeningDebtGroup[]> {
-    return this.debt.list(id);
+  list(@CurrentUser() userId: number, @Param('id', ParseIntPipe) id: number): Promise<OpeningDebtGroup[]> {
+    return this.debt.list(userId, id);
   }
 
   /** Reemplaza la deuda inicial (de 1 a 30 grupos). 201 con los ids; 409 si hay abonos ligados a la anterior. */
   @Post('opening-debt')
-  replace(@Param('id', ParseIntPipe) id: number, @Body() dto: OpeningDebtDto): Promise<{ ids: number[] }> {
-    return this.debt.replace(id, dto);
+  replace(
+    @CurrentUser() userId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: OpeningDebtDto,
+  ): Promise<{ ids: number[] }> {
+    return this.debt.replace(userId, id, dto);
   }
 
   /** Los próximos cortes con su mínimo y su pago total. `cuts` de 1 a 24 (6 por defecto). */
   @Get('plan')
   plan(
+    @CurrentUser() userId: number,
     @Param('id', ParseIntPipe) id: number,
     @Query('cuts', new DefaultValuePipe(DEFAULT_CUTS), ParseIntPipe) cuts: number,
   ): Promise<CardPlan> {
     if (cuts < 1 || cuts > MAX_CUTS) {
       throw new BadRequestException(`cuts debe estar entre 1 y ${MAX_CUTS}, llegó ${cuts}`);
     }
-    return this.plans.plan(id, cuts);
+    return this.plans.plan(userId, id, cuts);
   }
 }

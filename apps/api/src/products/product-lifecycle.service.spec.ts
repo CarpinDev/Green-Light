@@ -24,6 +24,7 @@ import { LoansService } from './loans.service';
 import { OpeningDebtService } from './opening-debt.service';
 import { ProductLifecycleService } from './product-lifecycle.service';
 import { ProductsService } from './products.service';
+import { USER } from '../testing/users';
 
 // Eliminar y archivar productos. Datos ficticios.
 
@@ -128,7 +129,7 @@ describe('eliminar y archivar productos', () => {
     });
 
     it('se lleva todo lo suyo y deja intactos los otros productos', async () => {
-      await lifecycle.remove(NU);
+      await lifecycle.remove(USER, NU);
 
       expect(db.rows(Product).map((p) => p.id)).toEqual([OTRA, AHORROS, PRESTAMO]);
       expect(db.rows(CreditCard).map((c) => c.productId)).toEqual([OTRA]);
@@ -145,8 +146,8 @@ describe('eliminar y archivar productos', () => {
     });
 
     it('borra también una cuenta con sus saldos y un préstamo con su tasa', async () => {
-      await lifecycle.remove(AHORROS);
-      await lifecycle.remove(PRESTAMO);
+      await lifecycle.remove(USER, AHORROS);
+      await lifecycle.remove(USER, PRESTAMO);
       expect(db.rows(Account)).toHaveLength(0);
       expect(db.rows(AccountBalance)).toHaveLength(0);
       expect(db.rows(Loan)).toHaveLength(0);
@@ -154,7 +155,7 @@ describe('eliminar y archivar productos', () => {
     });
 
     it('404 si no existe', async () => {
-      await expect(lifecycle.remove(999)).rejects.toThrow(NotFoundException);
+      await expect(lifecycle.remove(USER, 999)).rejects.toThrow(NotFoundException);
     });
 
     it('409 si un gasto fijo se paga con la tarjeta, y no se borra nada', async () => {
@@ -163,7 +164,7 @@ describe('eliminar y archivar productos', () => {
         { id: 2, name: 'Netflix', cardId: NU },
         { id: 3, name: 'Gimnasio', cardId: OTRA },
       ]);
-      const error = await lifecycle.remove(NU).catch((e: unknown) => e);
+      const error = await lifecycle.remove(USER, NU).catch((e: unknown) => e);
 
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as Error).message).toBe(
@@ -177,7 +178,7 @@ describe('eliminar y archivar productos', () => {
       db.seed(RecurringIncome, [{ id: 1, name: 'Salario', destinationAccountId: AHORROS }]);
       db.seed(OneOffIncome, [{ id: 1, description: 'Prima', destinationAccountId: AHORROS }]);
 
-      await expect(lifecycle.remove(AHORROS)).rejects.toThrow(
+      await expect(lifecycle.remove(USER, AHORROS)).rejects.toThrow(
         'A esta cuenta llegan 2 ingresos (Salario, Prima). Cámbialos o elimínalos antes de eliminarla.',
       );
       expect(db.rows(Product)).toHaveLength(4);
@@ -187,16 +188,18 @@ describe('eliminar y archivar productos', () => {
     it('409 si un gasto fijo sale de la cuenta, y el mensaje ofrece archivarla', async () => {
       db.seed(FixedExpense, [{ id: 1, name: 'Arriendo', cardId: null, accountId: AHORROS }]);
 
-      await expect(lifecycle.remove(AHORROS)).rejects.toThrow(
+      await expect(lifecycle.remove(USER, AHORROS)).rejects.toThrow(
         'De esta cuenta sale 1 gasto fijo (Arriendo). Cámbialo o elimínalo antes de eliminarla. O archívala para conservar su historial.',
       );
-      expect((await lifecycle.usage(AHORROS)).blockers).toEqual([{ kind: 'fixed_expense', id: 1, name: 'Arriendo' }]);
+      expect((await lifecycle.usage(USER, AHORROS)).blockers).toEqual([
+        { kind: 'fixed_expense', id: 1, name: 'Arriendo' },
+      ]);
       expect(db.rows(Account)).toHaveLength(1);
     });
 
     it('una cuenta con gastos fijos sí se archiva (cerrarla conserva el historial)', async () => {
       db.seed(FixedExpense, [{ id: 1, name: 'Arriendo', cardId: null, accountId: AHORROS }]);
-      await expect(lifecycle.archive(AHORROS, TODAY)).resolves.toEqual({ id: AHORROS, active: false });
+      await expect(lifecycle.archive(USER, AHORROS, TODAY)).resolves.toEqual({ id: AHORROS, active: false });
       expect(db.rows(FixedExpense)).toHaveLength(1);
     });
 
@@ -211,7 +214,9 @@ describe('eliminar y archivar productos', () => {
           }),
       } as unknown as typeof real;
 
-      await expect(new ProductLifecycleService(failing, {} as CardPlanService).remove(NU)).rejects.toThrow('se cayó');
+      await expect(new ProductLifecycleService(failing, {} as CardPlanService).remove(USER, NU)).rejects.toThrow(
+        'se cayó',
+      );
       expect(countOf(Expense, 'sourceProductId', NU)).toBe(2);
       expect(db.rows(Product)).toHaveLength(4);
     });
@@ -223,27 +228,27 @@ describe('eliminar y archivar productos', () => {
       db.seed(CapitalPayment, [{ id: 1, productId: NU, date: TODAY, amountCents: 1, expenseId: null }]);
       db.seed(FixedExpense, [{ id: 7, name: 'Arriendo', cardId: NU }]);
 
-      expect(await lifecycle.usage(NU)).toEqual({
+      expect(await lifecycle.usage(USER, NU)).toEqual({
         expenses: 2,
         capitalPayments: 1,
         balances: 0,
         rates: 1,
         blockers: [{ kind: 'fixed_expense', id: 7, name: 'Arriendo' }],
       });
-      expect((await lifecycle.usage(AHORROS)).balances).toBe(1);
+      expect((await lifecycle.usage(USER, AHORROS)).balances).toBe(1);
     });
 
     it('404 si no existe', async () => {
-      await expect(lifecycle.usage(999)).rejects.toThrow(NotFoundException);
+      await expect(lifecycle.usage(USER, 999)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('archivar y desarchivar', () => {
     it('una tarjeta con deuda pendiente da 409 y sigue activa', async () => {
-      await debt.replace(NU, { items: [{ amountCents: 3_933_883_00, installments: 12 }] }, TODAY);
+      await debt.replace(USER, NU, { items: [{ amountCents: 3_933_883_00, installments: 12 }] }, TODAY);
       asInDb();
 
-      const error = await lifecycle.archive(NU, TODAY).catch((e: unknown) => e);
+      const error = await lifecycle.archive(USER, NU, TODAY).catch((e: unknown) => e);
       expect(error).toBeInstanceOf(ConflictException);
       expect((error as Error).message).toMatch(
         /^Todavía debes \$ 3\.933\.883 en esta tarjeta\. Archívala cuando la termines de pagar/,
@@ -252,46 +257,48 @@ describe('eliminar y archivar productos', () => {
     });
 
     it('una tarjeta sin deuda se archiva, sale de GET /cards y se puede desarchivar', async () => {
-      expect(await lifecycle.archive(NU, TODAY)).toEqual({ id: NU, active: false });
+      expect(await lifecycle.archive(USER, NU, TODAY)).toEqual({ id: NU, active: false });
 
-      expect((await cards.listActive(TODAY)).map((c) => c.id)).toEqual([OTRA]);
-      expect((await products.listActive()).map((p) => p.id)).not.toContain(NU);
-      expect((await products.listArchived()).map((p) => p.id)).toEqual([NU]);
+      expect((await cards.listActive(USER, TODAY)).map((c) => c.id)).toEqual([OTRA]);
+      expect((await products.listActive(USER)).map((p) => p.id)).not.toContain(NU);
+      expect((await products.listArchived(USER)).map((p) => p.id)).toEqual([NU]);
 
-      expect(await lifecycle.unarchive(NU)).toEqual({ id: NU, active: true });
-      expect((await cards.listActive(TODAY)).map((c) => c.id)).toEqual([NU, OTRA]);
-      expect(await products.listArchived()).toEqual([]);
+      expect(await lifecycle.unarchive(USER, NU)).toEqual({ id: NU, active: true });
+      expect((await cards.listActive(USER, TODAY)).map((c) => c.id)).toEqual([NU, OTRA]);
+      expect(await products.listArchived(USER)).toEqual([]);
     });
 
     it('un préstamo con saldo da 409; uno ya pagado se archiva', async () => {
-      await expect(lifecycle.archive(PRESTAMO, TODAY)).rejects.toThrow(/Todavía debes .* en este préstamo\. Archívalo/);
+      await expect(lifecycle.archive(USER, PRESTAMO, TODAY)).rejects.toThrow(
+        /Todavía debes .* en este préstamo\. Archívalo/,
+      );
       // 12 cuotas desde el 10 dic 2026: pagado del todo después de la última
-      await expect(lifecycle.archive(PRESTAMO, '2027-12-11')).resolves.toEqual({ id: PRESTAMO, active: false });
+      await expect(lifecycle.archive(USER, PRESTAMO, '2027-12-11')).resolves.toEqual({ id: PRESTAMO, active: false });
     });
 
     it('una cuenta con saldo sí se archiva y conserva su historial', async () => {
-      await expect(lifecycle.archive(AHORROS, TODAY)).resolves.toEqual({ id: AHORROS, active: false });
+      await expect(lifecycle.archive(USER, AHORROS, TODAY)).resolves.toEqual({ id: AHORROS, active: false });
       expect(db.rows(AccountBalance)).toHaveLength(1);
     });
 
     it('los mismos 409 que borrar si un gasto fijo o un ingreso lo usa', async () => {
       db.seed(FixedExpense, [{ id: 1, name: 'Netflix', cardId: NU }]);
-      await expect(lifecycle.archive(NU, TODAY)).rejects.toThrow(
+      await expect(lifecycle.archive(USER, NU, TODAY)).rejects.toThrow(
         'Esta tarjeta paga 1 gasto fijo (Netflix). Cámbialo o elimínalo antes de archivarla.',
       );
       db.seed(RecurringIncome, [{ id: 1, name: 'Salario', destinationAccountId: AHORROS }]);
-      await expect(lifecycle.archive(AHORROS, TODAY)).rejects.toThrow(ConflictException);
+      await expect(lifecycle.archive(USER, AHORROS, TODAY)).rejects.toThrow(ConflictException);
     });
 
     it('404 si no existe', async () => {
-      await expect(lifecycle.archive(999, TODAY)).rejects.toThrow(NotFoundException);
-      await expect(lifecycle.unarchive(999)).rejects.toThrow(NotFoundException);
+      await expect(lifecycle.archive(USER, 999, TODAY)).rejects.toThrow(NotFoundException);
+      await expect(lifecycle.unarchive(USER, 999)).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('crear algo igual a un producto archivado', () => {
     it('409 que dice que lo desarchive; si el repetido está activo, el mensaje de siempre', async () => {
-      db.unique.set(Product, [['kind', 'bank', 'last4']]);
+      db.unique.set(Product, [['userId', 'kind', 'bank', 'last4']]);
       const input = {
         name: 'Nu 2',
         bank: 'Nu',
@@ -302,17 +309,22 @@ describe('eliminar y archivar productos', () => {
         rate: { effectiveFrom: '2026-01-01', ea: '0.3' },
       };
 
-      await expect(cards.create(input)).rejects.toThrow('Ya existe una tarjeta de Nu terminada en 1234');
-      await lifecycle.archive(NU, TODAY);
-      await expect(cards.create(input)).rejects.toThrow('Ya tienes esta tarjeta archivada: desarchívala.');
+      await expect(cards.create(USER, input)).rejects.toThrow('Ya existe una tarjeta de Nu terminada en 1234');
+      await lifecycle.archive(USER, NU, TODAY);
+      await expect(cards.create(USER, input)).rejects.toThrow('Ya tienes esta tarjeta archivada: desarchívala.');
 
-      await lifecycle.archive(AHORROS, TODAY);
+      await lifecycle.archive(USER, AHORROS, TODAY);
       await expect(
-        new AccountsService(db.dataSource()).create({ name: 'Otra', bank: 'B', last4: '2222', accountType: 'savings' }),
+        new AccountsService(db.dataSource()).create(USER, {
+          name: 'Otra',
+          bank: 'B',
+          last4: '2222',
+          accountType: 'savings',
+        }),
       ).rejects.toThrow('Ya tienes esta cuenta archivada: desarchívala.');
 
       await expect(
-        new LoansService(db.dataSource()).create({
+        new LoansService(db.dataSource()).create(USER, {
           name: 'x',
           bank: 'B',
           last4: '3333',

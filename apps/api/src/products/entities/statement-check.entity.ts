@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -11,14 +12,23 @@ import {
 } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { CreditCard } from './credit-card.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** El mínimo del extracto del banco contra el que calculó el motor. Un registro por corte. */
 @Entity('statement_check')
+@Index(['userId'])
 @Unique(['productId', 'cutDate'])
 @Check(`"due_date" > "cut_date"`)
 @Check(`"statement_minimum_cents" >= 0 AND "calculated_minimum_cents" >= 0`)
 export class StatementCheck {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column() productId!: number;
 

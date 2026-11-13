@@ -65,7 +65,7 @@ export class LoansService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Crea el producto, el préstamo y su primera tasa en una sola transacción. */
-  async create(input: CreateLoanInput): Promise<Product> {
+  async create(userId: number, input: CreateLoanInput): Promise<Product> {
     // Primero lo que se puede validar sin base: si algo está mal, ni se abre la transacción
     const rate = resolveRate({ ea: input.rate.ea, mv: input.rate.mv });
     const insuranceRate = toRate(input.insuranceRatePct);
@@ -77,6 +77,7 @@ export class LoansService {
     try {
       return await this.dataSource.transaction(async (manager) => {
         const product = await manager.save(Product, {
+          userId,
           kind: 'loan',
           name: input.name,
           bank: input.bank,
@@ -95,6 +96,7 @@ export class LoansService {
         });
 
         await manager.save(ProductRate, {
+          userId,
           productId: product.id,
           effectiveFrom: input.rate.effectiveFrom,
           ea: rate.ea,
@@ -108,6 +110,7 @@ export class LoansService {
       if (isUniqueViolation(err)) {
         throw await duplicateProductError(
           this.dataSource,
+          userId,
           'loan',
           input.bank,
           input.last4,
@@ -119,17 +122,18 @@ export class LoansService {
   }
 
   /** Los préstamos activos, por nombre, con su saldo, su próxima cuota y cuántas faltan. Todo sale del cronograma. */
-  async listActive(today: IsoDate = isoDateOf()): Promise<LoanSummary[]> {
+  async listActive(userId: number, today: IsoDate = isoDateOf()): Promise<LoanSummary[]> {
     const db = this.dataSource;
     const products = await db.getRepository(Product).find({
-      where: { kind: 'loan', active: true },
+      where: { userId, kind: 'loan', active: true },
       order: { name: 'ASC' },
     });
-    // Con pocos préstamos basta traer todo y cruzarlo en memoria
+    // Con pocos préstamos basta traer todo y cruzarlo en memoria. loan no tiene user_id (comparte la llave con
+    // product): el dueño sale de `products`, ya filtrado, y solo se usan las filas de esos productos.
     const [loans, rates, payments] = await Promise.all([
       db.getRepository(Loan).find(),
-      db.getRepository(ProductRate).find(),
-      db.getRepository(CapitalPayment).find(),
+      db.getRepository(ProductRate).find({ where: { userId } }),
+      db.getRepository(CapitalPayment).find({ where: { userId } }),
     ]);
 
     return products.flatMap((product) => {
@@ -150,8 +154,8 @@ export class LoansService {
   }
 
   /** Un préstamo con su cronograma completo. 404 si no existe o no es un préstamo. */
-  async get(id: number, today: IsoDate = isoDateOf()): Promise<LoanDetail> {
-    return buildLoanDetail(await this.loadFacts(id), today);
+  async get(userId: number, id: number, today: IsoDate = isoDateOf()): Promise<LoanDetail> {
+    return buildLoanDetail(await this.loadFacts(userId, id), today);
   }
 
   /**
@@ -160,7 +164,7 @@ export class LoansService {
    * de los abonos ya hechos (un abono de reducir plazo apunta a "la cuota N" de ese cronograma). Para corregir uno de
    * esos tres, se elimina el préstamo y se crea de nuevo. La tasa se cambia con `POST /products/:id/rates`.
    */
-  async update(id: number, input: UpdateLoanInput): Promise<{ id: number }> {
+  async update(userId: number, id: number, input: UpdateLoanInput): Promise<{ id: number }> {
     const hasRate = input.insuranceRatePct !== undefined;
     const hasFixed = input.insuranceCents !== undefined;
     if (hasRate && input.insuranceRatePct !== null && hasFixed && (input.insuranceCents ?? 0) > 0) {
@@ -170,7 +174,7 @@ export class LoansService {
 
     try {
       return await this.dataSource.transaction(async (manager) => {
-        const product = await manager.findOneBy(Product, { id });
+        const product = await manager.findOneBy(Product, { id, userId });
         const loan = await manager.findOneBy(Loan, { productId: id });
         assertLoanProduct(product, id);
         if (!product || !loan) throw new NotFoundException(`El préstamo ${id} no existe`);
@@ -203,6 +207,7 @@ export class LoansService {
       if (isUniqueViolation(err) && input.bank !== undefined && input.last4 !== undefined) {
         throw await duplicateProductError(
           this.dataSource,
+          userId,
           'loan',
           input.bank,
           input.last4,
@@ -220,11 +225,12 @@ export class LoansService {
    * del saldo es 400, igual que al registrar el abono.
    */
   async previewPrepayment(
+    userId: number,
     id: number,
     input: { date: IsoDate; amountCents: Cents; mode: PrepaymentMode },
     today: IsoDate = isoDateOf(),
   ): Promise<LoanPrepaymentPreview> {
-    const facts = await this.loadFacts(id);
+    const facts = await this.loadFacts(userId, id);
     const before = buildLoanSummary(facts, today);
 
     const owed = buildLoanSummary(facts, input.date).balanceCents;
@@ -239,6 +245,7 @@ export class LoansService {
     // Un abono hipotético: no se guarda, solo se suma a los que ya hay para recalcular el cronograma
     const hypothetical = Object.assign(new CapitalPayment(), {
       id: 0,
+      userId,
       productId: id,
       date: input.date,
       amountCents: input.amountCents,
@@ -251,16 +258,17 @@ export class LoansService {
     return { before: pick(before), after: pick(after) };
   }
 
-  private async loadFacts(id: number): Promise<LoanFacts> {
+  private async loadFacts(userId: number, id: number): Promise<LoanFacts> {
     const db = this.dataSource;
-    const product = await db.getRepository(Product).findOneBy({ id });
+    // El préstamo de otra persona es "no existe": 404
+    const product = await db.getRepository(Product).findOneBy({ id, userId });
     assertLoanProduct(product, id);
     const loan = await db.getRepository(Loan).findOneBy({ productId: id });
     if (!product || !loan) throw new NotFoundException(`El préstamo ${id} no existe`);
 
     const [rates, payments] = await Promise.all([
-      db.getRepository(ProductRate).find({ where: { productId: id } }),
-      db.getRepository(CapitalPayment).find({ where: { productId: id } }),
+      db.getRepository(ProductRate).find({ where: { userId, productId: id } }),
+      db.getRepository(CapitalPayment).find({ where: { userId, productId: id } }),
     ]);
     return { product, loan, rates, payments };
   }

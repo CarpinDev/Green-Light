@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { Cents, IsoDate } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
@@ -26,10 +26,11 @@ export interface CreateExpenseInput {
  * valida en dos lugares distintos, y una mala es un 400 antes de escribir nada. Pura: la comparten el alta de
  * un gasto y la deuda inicial de una tarjeta (que escribe varios dentro de una transacción).
  */
-export function expenseValues(input: CreateExpenseInput): Partial<Expense> {
+export function expenseValues(userId: number, input: CreateExpenseInput): Partial<Expense> {
   const promo = input.promo ? resolveRate({ ea: input.promo.ea, mv: input.promo.mv }) : undefined;
 
   return {
+    userId,
     date: input.date,
     amountCents: input.amountCents,
     sourceProductId: input.sourceProductId,
@@ -54,17 +55,20 @@ export class ExpensesService {
    * se validan todas antes de escribir: un rechazo no deja nada guardado. Se escribe una sola
    * tabla, así que no hace falta transacción.
    */
-  async create(input: CreateExpenseInput): Promise<Expense> {
-    const product = await this.dataSource.getRepository(Product).findOneBy({ id: input.sourceProductId });
-    if (!product) throw new BadRequestException(`El producto ${input.sourceProductId} no existe`);
+  async create(userId: number, input: CreateExpenseInput): Promise<Expense> {
+    // El producto debe ser del usuario: el de otra persona responde 404, igual que uno que no existe
+    const product = await this.dataSource.getRepository(Product).findOneBy({ id: input.sourceProductId, userId });
+    if (!product) throw new NotFoundException(`El producto ${input.sourceProductId} no existe`);
     if (!product.active) {
       throw new BadRequestException(`El producto ${product.id} está desactivado: no admite gastos nuevos`);
     }
 
     this.assertRulesFor(product, input);
-    if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
+    if (input.categoryId !== undefined) {
+      await assertCategoryOfKind(this.dataSource, userId, input.categoryId, 'expense');
+    }
 
-    return this.dataSource.getRepository(Expense).save(expenseValues(input));
+    return this.dataSource.getRepository(Expense).save(expenseValues(userId, input));
   }
 
   /**

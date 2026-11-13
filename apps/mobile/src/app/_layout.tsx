@@ -8,10 +8,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { ApiError } from '@/api/client';
+import { AuthProvider, useAuth } from '@/auth/auth-provider';
 import { CancelButton } from '@/components/cancel-button';
 import { colors, fonts } from '@/theme/tokens';
 
-// La splash se queda hasta que las fuentes carguen: sin esto, la app parpadea con la fuente del sistema
+// La splash se queda hasta que las fuentes carguen Y se sepa si hay sesión guardada: sin esto, la app parpadea con
+// la fuente del sistema, o muestra el login un instante a quien ya había entrado
 void SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
@@ -50,25 +52,48 @@ export default function RootLayout() {
 
   // Si una fuente falla, la app abre igual con la del sistema: mejor eso que una splash eterna
   const ready = loaded || fontError !== null;
-  useEffect(() => {
-    if (ready) void SplashScreen.hideAsync();
-  }, [ready]);
-
   if (!ready) return null;
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StatusBar style="light" />
-      <Stack
-        screenOptions={{
-          title: 'GreenLight',
-          headerStyle: { backgroundColor: colors.bg },
-          headerTintColor: colors.text,
-          headerTitleStyle: { fontFamily: fonts.title },
-          headerShadowVisible: false,
-          contentStyle: { backgroundColor: colors.bg },
-        }}
-      >
+      {/* Dentro del QueryClientProvider: al cerrar sesión el AuthProvider vacía su caché */}
+      <AuthProvider>
+        <StatusBar style="light" />
+        <RootNavigator />
+      </AuthProvider>
+    </QueryClientProvider>
+  );
+}
+
+/**
+ * Qué pantallas existen según la sesión. Stack.Protected con `guard` hace que las pantallas de un grupo solo existan
+ * mientras su guard sea true: con sesión, las de la app; sin ella, solo login y registro. Expo Router redirige solo
+ * cuando el guard cambia (al entrar o al salir), así que ninguna pantalla repite un "si no hay sesión, ve al login",
+ * y una URL de la app abierta sin sesión no la muestra.
+ */
+function RootNavigator() {
+  const { status } = useAuth();
+
+  useEffect(() => {
+    if (status !== 'loading') void SplashScreen.hideAsync();
+  }, [status]);
+
+  // Leyendo la sesión guardada: la splash sigue visible, así que no hay parpadeo del login
+  if (status === 'loading') return null;
+  const signedIn = status === 'signedIn';
+
+  return (
+    <Stack
+      screenOptions={{
+        title: 'GreenLight',
+        headerStyle: { backgroundColor: colors.bg },
+        headerTintColor: colors.text,
+        headerTitleStyle: { fontFamily: fonts.title },
+        headerShadowVisible: false,
+        contentStyle: { backgroundColor: colors.bg },
+      }}
+    >
+      <Stack.Protected guard={signedIn}>
         {/* Las pestañas traen su propio encabezado: el del Stack sobraría */}
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         {/* El formulario de gasto se abre encima de las pestañas, como modal */}
@@ -91,7 +116,13 @@ export default function RootLayout() {
             options={{ presentation: 'modal', title, headerLeft: () => <CancelButton /> }}
           />
         ))}
-      </Stack>
-    </QueryClientProvider>
+      </Stack.Protected>
+
+      <Stack.Protected guard={!signedIn}>
+        {/* Traen su propia marca: sin encabezado */}
+        <Stack.Screen name="login" options={{ headerShown: false }} />
+        <Stack.Screen name="register" options={{ headerShown: false }} />
+      </Stack.Protected>
+    </Stack>
   );
 }

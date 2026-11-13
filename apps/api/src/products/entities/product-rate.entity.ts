@@ -1,16 +1,25 @@
 import type Decimal from 'decimal.js';
 import type { IsoDate } from '@greenlight/engine';
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
 import { RATE_SOURCES, type RateSource } from '../rate-source';
 import { Product } from './product.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** Historial de tasas: la tasa de un día es la última vigente antes de esa fecha. */
 @Entity('product_rate')
+@Index(['userId'])
 @Unique(['productId', 'effectiveFrom'])
 @Check(`"ea" >= 0 AND "mv" >= 0`)
 export class ProductRate {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column() productId!: number;
 

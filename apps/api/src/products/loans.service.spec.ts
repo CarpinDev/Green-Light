@@ -5,6 +5,7 @@ import { Loan } from './entities/loan.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import { LoansService, type CreateLoanInput } from './loans.service';
+import { USER } from '../testing/users';
 
 // Mismo patrón que CardsService: product + loan + primera tasa en una transacción. Datos ficticios.
 
@@ -26,12 +27,12 @@ describe('LoansService.create', () => {
   beforeEach(() => {
     db = new FakeDb();
     db.withoutId.add(Loan);
-    db.unique.set(Product, [['kind', 'bank', 'last4']]);
+    db.unique.set(Product, [['userId', 'kind', 'bank', 'last4']]);
     service = new LoansService(db.dataSource());
   });
 
   it('escribe product (kind loan), loan y su primera tasa, enlazados por el id', async () => {
-    const created = await service.create(input());
+    const created = await service.create(USER, input());
 
     const [product] = db.rows(Product);
     expect(product).toMatchObject({ kind: 'loan', name: 'Libre inversión', bank: 'Banco Ejemplo', last4: '9876' });
@@ -49,7 +50,7 @@ describe('LoansService.create', () => {
   });
 
   it('sin cuota informada ni seguro: no escribe esos campos y la base usa sus defaults', async () => {
-    await service.create(input());
+    await service.create(USER, input());
     const [loan] = db.rows(Loan);
     // undefined (no null): TypeORM omite la columna y Postgres aplica su default
     expect(loan?.fixedPaymentCents).toBeUndefined();
@@ -58,6 +59,7 @@ describe('LoansService.create', () => {
 
   it('pasa la cuota del banco, el seguro y el método cuando vienen', async () => {
     await service.create(
+      USER,
       input({ fixedPaymentCents: 91_679_993, insuranceCents: 1_200_000, method: 'constant_capital' }),
     );
     expect(db.rows(Loan)[0]).toMatchObject({
@@ -68,37 +70,37 @@ describe('LoansService.create', () => {
   });
 
   it('con E.A. y M.V. equivalentes guarda ambas con source = both', async () => {
-    await service.create(input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0214' } }));
+    await service.create(USER, input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0214' } }));
     expect(db.rows(ProductRate)[0]).toMatchObject({ source: 'both' });
   });
 
   it('si falla una escritura no queda nada a medias', async () => {
     db.failOn = ProductRate;
-    await expect(service.create(input())).rejects.toThrow();
+    await expect(service.create(USER, input())).rejects.toThrow();
     expect(db.rows(Product)).toHaveLength(0);
     expect(db.rows(Loan)).toHaveLength(0);
   });
 
   it('una tasa inválida es un 400 y no toca la base', async () => {
     await expect(
-      service.create(input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } })),
+      service.create(USER, input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } })),
     ).rejects.toThrow(BadRequestException);
     expect(db.rows(Product)).toHaveLength(0);
   });
 
   it('un préstamo repetido (banco + últimos 4): 409', async () => {
-    await service.create(input());
-    await expect(service.create(input({ name: 'Otro' }))).rejects.toThrow(ConflictException);
+    await service.create(USER, input());
+    await expect(service.create(USER, input({ name: 'Otro' }))).rejects.toThrow(ConflictException);
     expect(db.rows(Product)).toHaveLength(1);
   });
 
   it('el mismo banco y últimos 4 que una tarjeta no es repetido: cambia el tipo', async () => {
     db.seed(Product, [{ id: 50, kind: 'credit_card', bank: 'Banco Ejemplo', last4: '9876' }]);
-    await expect(service.create(input())).resolves.toBeDefined();
+    await expect(service.create(USER, input())).resolves.toBeDefined();
   });
 
   it('otros errores de la base no se disfrazan de 409', async () => {
     db.failOn = Product;
-    await expect(service.create(input())).rejects.not.toThrow(ConflictException);
+    await expect(service.create(USER, input())).rejects.not.toThrow(ConflictException);
   });
 });

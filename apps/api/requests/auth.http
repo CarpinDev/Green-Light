@@ -1,0 +1,33 @@
+### Pruebas manuales de /auth (extensión REST Client de VS Code). Datos ficticios.
+### Copia el accessToken que devuelva 2 (o 3) en la variable @token de los demás archivos .http.
+@host = http://localhost:3001
+
+### 1. Crear una cuenta (el código es INVITE_CODE de tu .env) -> 201 { accessToken, expiresAt, user }
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "ana@example.com",
+  "name": "Ana",
+  "password": "una-clave-larga-123",
+  "inviteCode": "el-codigo-de-tu-env"
+}
+
+### 2. Iniciar sesión -> 200 { accessToken, expiresAt, user }
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "ana@example.com", "password": "una-clave-larga-123" }
+
+### 3. Contraseña incorrecta -> 401 "Email o contraseña incorrectos" (igual con un email que no existe)
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "ana@example.com", "password": "otra-clave" }
+
+### 4. Quién soy (pega el token) -> 200 { id, email, name }
+GET {{host}}/auth/me
+Authorization: Bearer pega-aqui-el-accessToken
+
+### 5. Sin token -> 401
+GET {{host}}/projection

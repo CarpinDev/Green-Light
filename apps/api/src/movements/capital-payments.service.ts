@@ -44,9 +44,10 @@ export class CapitalPaymentsService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Guarda un abono extra a capital. Valida todo antes de escribir. */
-  async create(input: CreateCapitalPaymentInput): Promise<CapitalPayment> {
-    const product = await this.dataSource.getRepository(Product).findOneBy({ id: input.productId });
-    if (!product) throw new BadRequestException(`El producto ${input.productId} no existe`);
+  async create(userId: number, input: CreateCapitalPaymentInput): Promise<CapitalPayment> {
+    // Un producto de otra persona responde 404, igual que uno que no existe
+    const product = await this.dataSource.getRepository(Product).findOneBy({ id: input.productId, userId });
+    if (!product) throw new NotFoundException(`El producto ${input.productId} no existe`);
     if (!product.active) {
       throw new BadRequestException(`El producto ${product.id} está desactivado: no admite abonos nuevos`);
     }
@@ -57,7 +58,7 @@ export class CapitalPaymentsService {
     if (input.sourceAccountId !== undefined && input.external === true) {
       throw new BadRequestException('El dinero del abono sale de una cuenta o es externo, no de las dos');
     }
-    if (input.sourceAccountId !== undefined) await this.assertActiveAccount(input.sourceAccountId);
+    if (input.sourceAccountId !== undefined) await this.assertActiveAccount(userId, input.sourceAccountId);
 
     if (input.expenseId !== undefined) {
       if (product.kind === 'loan') {
@@ -65,11 +66,12 @@ export class CapitalPaymentsService {
           'Un abono a un préstamo no puede apuntar a una compra: los préstamos no tienen compras',
         );
       }
-      await this.assertPurchaseOf(product.id, input.expenseId, input.date);
+      await this.assertPurchaseOf(userId, product.id, input.expenseId, input.date);
     }
-    await this.assertWithinDebt(product, input);
+    await this.assertWithinDebt(userId, product, input);
 
     return this.dataSource.getRepository(CapitalPayment).save({
+      userId,
       productId: input.productId,
       date: input.date,
       amountCents: input.amountCents,
@@ -84,17 +86,21 @@ export class CapitalPaymentsService {
    * Los abonos de una tarjeta o de un préstamo, del más reciente al más viejo, con el origen del dinero.
    * `kind` dice qué se espera: la tarjeta da 404/400 como siempre y el préstamo, 404.
    */
-  async listOfProduct(productId: number, kind: 'credit_card' | 'loan'): Promise<CapitalPaymentSummary[]> {
+  async listOfProduct(
+    userId: number,
+    productId: number,
+    kind: 'credit_card' | 'loan',
+  ): Promise<CapitalPaymentSummary[]> {
     const db = this.dataSource;
-    const product = await db.getRepository(Product).findOneBy({ id: productId });
+    const product = await db.getRepository(Product).findOneBy({ id: productId, userId });
     if (kind === 'credit_card') assertCardProduct(product, productId);
     else assertLoanProduct(product, productId);
     const [payments, products] = await Promise.all([
       db.getRepository(CapitalPayment).find({
-        where: { productId },
+        where: { userId, productId },
         order: { date: 'DESC', createdAt: 'DESC', id: 'DESC' },
       }),
-      db.getRepository(Product).find(),
+      db.getRepository(Product).find({ where: { userId } }),
     ]);
 
     return payments.map((p) => {
@@ -117,24 +123,26 @@ export class CapitalPaymentsService {
    * Borra un abono (para corregir uno mal puesto). Es seguro porque nada guarda un resultado del abono: el plan,
    * los intereses y la proyección se recalculan siempre desde los datos, y ninguna otra tabla apunta a él.
    */
-  async remove(id: number): Promise<void> {
-    const { affected } = await this.dataSource.getRepository(CapitalPayment).delete({ id });
+  async remove(userId: number, id: number): Promise<void> {
+    // El userId en el delete: el abono de otra persona no coincide y responde 404 sin borrar nada
+    const { affected } = await this.dataSource.getRepository(CapitalPayment).delete({ id, userId });
     if (!affected) throw new NotFoundException(`El abono ${id} no existe`);
   }
 
-  /** La cuenta debe existir, ser una cuenta y estar activa. */
-  private async assertActiveAccount(accountId: number): Promise<void> {
-    const product = await this.dataSource.getRepository(Product).findOneBy({ id: accountId });
-    if (!product || product.kind !== 'account') throw new BadRequestException(`La cuenta ${accountId} no existe`);
+  /** La cuenta debe ser del usuario (404 si no), ser una cuenta y estar activa. */
+  private async assertActiveAccount(userId: number, accountId: number): Promise<void> {
+    const product = await this.dataSource.getRepository(Product).findOneBy({ id: accountId, userId });
+    if (!product) throw new NotFoundException(`La cuenta ${accountId} no existe`);
+    if (product.kind !== 'account') throw new BadRequestException(`El producto ${accountId} no es una cuenta`);
     if (!product.active) throw new BadRequestException(`La cuenta ${accountId} está desactivada`);
   }
 
   /** El monto no puede pasar de lo que todavía se puede abonar: lo que no está facturado (tarjeta) o el saldo (préstamo). */
-  private async assertWithinDebt(product: Product, input: CreateCapitalPaymentInput): Promise<void> {
+  private async assertWithinDebt(userId: number, product: Product, input: CreateCapitalPaymentInput): Promise<void> {
     const limit =
       product.kind === 'credit_card'
-        ? abonableDebt(await loadCardPlanFacts(this.dataSource, product.id), input.date, input.expenseId)
-        : await this.loanBalance(product.id, input.date);
+        ? abonableDebt(await loadCardPlanFacts(this.dataSource, userId, product.id), input.date, input.expenseId)
+        : await this.loanBalance(userId, product.id, input.date);
 
     if (input.amountCents > limit) {
       throw new BadRequestException(
@@ -147,20 +155,25 @@ export class CapitalPaymentsService {
     }
   }
 
-  private async loanBalance(loanId: number, date: IsoDate): Promise<Cents> {
+  private async loanBalance(userId: number, loanId: number, date: IsoDate): Promise<Cents> {
     const db = this.dataSource;
     const loan = await db.getRepository(Loan).findOneBy({ productId: loanId });
     if (!loan) throw new NotFoundException(`El préstamo ${loanId} no tiene datos de préstamo`);
     const [rates, payments] = await Promise.all([
-      db.getRepository(ProductRate).find({ where: { productId: loanId } }),
-      db.getRepository(CapitalPayment).find({ where: { productId: loanId } }),
+      db.getRepository(ProductRate).find({ where: { userId, productId: loanId } }),
+      db.getRepository(CapitalPayment).find({ where: { userId, productId: loanId } }),
     ]);
     return payoffAmount(toEngineLoan(loan, rates), date, payments.filter((p) => p.date <= date).map(toLoanPrepayment));
   }
 
   /** La compra debe existir, ser de esta tarjeta y no ser posterior al abono. */
-  private async assertPurchaseOf(cardId: number, expenseId: number, paymentDate: IsoDate): Promise<void> {
-    const expense = await this.dataSource.getRepository(Expense).findOneBy({ id: expenseId });
+  private async assertPurchaseOf(
+    userId: number,
+    cardId: number,
+    expenseId: number,
+    paymentDate: IsoDate,
+  ): Promise<void> {
+    const expense = await this.dataSource.getRepository(Expense).findOneBy({ id: expenseId, userId });
     if (!expense) throw new BadRequestException(`La compra ${expenseId} no existe`);
     if (expense.sourceProductId !== cardId) {
       throw new BadRequestException(

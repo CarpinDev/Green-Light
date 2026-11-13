@@ -24,17 +24,19 @@ export class ProductsService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Los productos activos, ordenados por nombre. */
-  listActive(): Promise<ProductSummary[]> {
-    return this.list(true);
+  listActive(userId: number): Promise<ProductSummary[]> {
+    return this.list(userId, true);
   }
 
   /** Los archivados, ordenados por nombre. */
-  listArchived(): Promise<ProductSummary[]> {
-    return this.list(false);
+  listArchived(userId: number): Promise<ProductSummary[]> {
+    return this.list(userId, false);
   }
 
-  private async list(active: boolean): Promise<ProductSummary[]> {
-    const products = await this.dataSource.getRepository(Product).find({ where: { active }, order: { name: 'ASC' } });
+  private async list(userId: number, active: boolean): Promise<ProductSummary[]> {
+    const products = await this.dataSource
+      .getRepository(Product)
+      .find({ where: { userId, active }, order: { name: 'ASC' } });
     return products.map(({ id, kind, name, bank, last4 }) => ({ id, kind, name, bank, last4 }));
   }
 
@@ -42,9 +44,10 @@ export class ProductsService {
    * Agrega una tasa al historial (las variables cambian mes a mes). Sirve para tarjetas y préstamos;
    * una cuenta no tiene tasa. Si ya hay una con esa misma fecha, la corrige (`replaced: true`).
    */
-  async addRate(productId: number, input: AddRateInput): Promise<{ id: number; replaced: boolean }> {
+  async addRate(userId: number, productId: number, input: AddRateInput): Promise<{ id: number; replaced: boolean }> {
     const repository = this.dataSource.getRepository(Product);
-    const product = await repository.findOneBy({ id: productId });
+    // Con el userId en la búsqueda, un producto ajeno es "no existe": 404
+    const product = await repository.findOneBy({ id: productId, userId });
     if (!product) throw new NotFoundException(`El producto ${productId} no existe`);
     if (product.kind === 'account') {
       throw new BadRequestException(`El producto ${productId} es una cuenta: las cuentas no tienen tasa`);
@@ -55,12 +58,12 @@ export class ProductsService {
     const rates = this.dataSource.getRepository(ProductRate);
 
     // Una tasa con la misma fecha se corrige (como RateHistory.add del motor): así se arregla una mal puesta
-    const existing = await rates.findOneBy({ productId, effectiveFrom: input.effectiveFrom });
+    const existing = await rates.findOneBy({ userId, productId, effectiveFrom: input.effectiveFrom });
     if (existing) {
       await rates.save({ ...existing, ...values });
       return { id: existing.id, replaced: true };
     }
-    const saved = await rates.save({ productId, effectiveFrom: input.effectiveFrom, ...values });
+    const saved = await rates.save({ userId, productId, effectiveFrom: input.effectiveFrom, ...values });
     return { id: saved.id, replaced: false };
   }
 }

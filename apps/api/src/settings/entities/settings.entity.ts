@@ -1,6 +1,7 @@
 import type Decimal from 'decimal.js';
-import { Check, Column, Entity, PrimaryColumn } from 'typeorm';
+import { Check, Column, Entity, JoinColumn, OneToOne, PrimaryColumn } from 'typeorm';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
+import { User } from '../../users/entities/user.entity';
 
 // El default va como expresión SQL (sin comillas): Postgres lo guarda como número y,
 // con comillas, TypeORM lo vería distinto en cada migration:generate
@@ -14,16 +15,19 @@ const pct = (defaultValue: string) =>
   }) as const;
 
 /**
- * Una sola fila. Los nombres y defaults son los de DEFAULT_SETTINGS del motor.
- * La fila se inserta en la migración; el CHECK impide que exista una segunda.
+ * Una fila por usuario: la llave es el propio user_id (1 a 1 con app_user, como credit_card con product).
+ * Los nombres y defaults son los de DEFAULT_SETTINGS del motor. La fila se crea junto con el usuario.
  */
 @Entity('settings')
-@Check(`"id" = 1`)
 @Check(
   `"yellow_below_income_pct" BETWEEN 0 AND 1 AND "card_utilization_pct" BETWEEN 0 AND 1 AND "debt_to_income_pct" BETWEEN 0 AND 1 AND "statement_tolerance_pct" BETWEEN 0 AND 1`,
 )
 export class Settings {
-  @PrimaryColumn({ type: 'smallint', default: 1 }) id!: number;
+  @PrimaryColumn() userId!: number;
+
+  @OneToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   /** Semáforo amarillo si el mes cierra con menos de esta fracción del ingreso. */
   @Column(pct('0.10')) yellowBelowIncomePct!: Decimal;

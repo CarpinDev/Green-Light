@@ -62,21 +62,22 @@ interface Ranked {
 export class MovementsFeedService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async list(limit: number = DEFAULT_LIMIT, today: IsoDate = isoDateOf()): Promise<MovementItem[]> {
+  async list(userId: number, limit: number = DEFAULT_LIMIT, today: IsoDate = isoDateOf()): Promise<MovementItem[]> {
     // Lo registrado: de cada tabla, solo los `limit` más recientes (ver la nota de abajo)
     const recent = {
-      where: { date: LessThanOrEqual(today) },
+      where: { userId, date: LessThanOrEqual(today) },
       order: { date: 'DESC', createdAt: 'DESC', id: 'DESC' },
     } as const;
+    const mine = { where: { userId } };
     const [expenses, incomes, capital, recurring, fixed, products, categories] = await Promise.all([
       this.dataSource.getRepository(Expense).find({ ...recent, take: limit }),
       this.dataSource.getRepository(OneOffIncome).find({ ...recent, take: limit }),
       this.dataSource.getRepository(CapitalPayment).find({ ...recent, take: limit }),
-      this.dataSource.getRepository(RecurringIncome).find(),
-      this.dataSource.getRepository(FixedExpense).find(),
+      this.dataSource.getRepository(RecurringIncome).find(mine),
+      this.dataSource.getRepository(FixedExpense).find(mine),
       // Pocos productos y categorías: se cargan una vez y se cruzan en memoria
-      this.dataSource.getRepository(Product).find(),
-      this.dataSource.getRepository(Category).find(),
+      this.dataSource.getRepository(Product).find(mine),
+      this.dataSource.getRepository(Category).find(mine),
     ]);
 
     const productOf = (id: number | null): MovementProduct | null => {

@@ -1,4 +1,5 @@
-import { DataSource, EntityManager, FindOperator, QueryFailedError } from 'typeorm';
+import { DataSource, EntityManager, FindOperator, QueryFailedError, getMetadataArgsStorage } from 'typeorm';
+import { USER } from './users';
 
 // Un DataSource falso para probar los services sin Postgres. Guarda en memoria y respeta lo que
 // importa de una transacción: si algo lanza, no queda nada escrito. Solo para pruebas.
@@ -21,12 +22,24 @@ export class FakeDb {
   unique = new Map<EntityClass, string[][]>();
   /** Entidades cuya llave es su propio productId: no reciben un id autogenerado. */
   withoutId = new Set<EntityClass>();
+  /** Entidades cuya llave no es id ni productId (settings: userId). Tampoco reciben un id autogenerado. */
+  keyBy = new Map<EntityClass, string>();
   private nextId = 1;
 
+  /**
+   * Siembra filas. Si la entidad tiene dueño (columna userId) y la fila no dice de quién es, es de USER:
+   * así las pruebas de un solo usuario no repiten el dueño en cada fila.
+   */
   seed<T extends object>(Entity: new () => T, rows: readonly Partial<T>[]): void {
+    const owned = hasUserColumn(Entity);
     this.tables.set(
       Entity,
-      rows.map((r) => Object.assign(new Entity(), r) as unknown as Row),
+      rows.map((r) => {
+        const row = Object.assign(new Entity(), r) as unknown as Row;
+        // `=== undefined` y no `in`: una entidad ya armada trae userId como propiedad vacía
+        if (owned && row.userId === undefined) row.userId = USER;
+        return row;
+      }),
     );
   }
 
@@ -45,6 +58,11 @@ export class FakeDb {
       },
       getRepository: (Entity: new () => object) => ({
         findOneBy: async (where: Row) => this.find(this.tables, Entity, where),
+        findOneByOrFail: async (where: Row) => {
+          const found = this.find(this.tables, Entity, where);
+          if (!found) throw new Error(`no hay ${Entity.name} con ${JSON.stringify(where)}`);
+          return found;
+        },
         find: async (options: FindOptions = {}) =>
           this.findAll(this.tables, Entity, options.where ?? {}, options.order, options.take),
         save: async (data: Row) => this.insert(this.tables, Object.assign(new Entity(), data)),
@@ -120,7 +138,7 @@ export class FakeDb {
 
     // Como TypeORM: guardar una entidad con un id que ya existe la actualiza
     // La llave es id, o productId en las entidades que comparten la llave de product
-    const key = this.withoutId.has(type) ? 'productId' : 'id';
+    const key = this.keyBy.get(type) ?? (this.withoutId.has(type) ? 'productId' : 'id');
     const existing = entity[key] === undefined ? undefined : list.find((r) => r[key] === entity[key]);
     if (existing) {
       // Como TypeORM, las propiedades undefined no pisan lo que ya está guardado
@@ -137,7 +155,7 @@ export class FakeDb {
         );
       }
     }
-    if (!this.withoutId.has(type) && entity.id === undefined) {
+    if (!this.withoutId.has(type) && !this.keyBy.has(type) && entity.id === undefined) {
       // Los ids que se sembraron a mano no se pisan: el siguiente es mayor que todos los de la tabla
       const highest = Math.max(0, ...list.map((r) => Number(r.id ?? 0)));
       entity.id = Math.max(this.nextId++, highest + 1);
@@ -145,4 +163,9 @@ export class FakeDb {
     tables.set(type, [...list, entity]);
     return entity;
   }
+}
+
+/** ¿La entidad tiene una columna userId? Se lee de los metadatos de TypeORM, no de la instancia. */
+function hasUserColumn(Entity: EntityClass): boolean {
+  return getMetadataArgsStorage().columns.some((c) => c.target === Entity && c.propertyName === 'userId');
 }

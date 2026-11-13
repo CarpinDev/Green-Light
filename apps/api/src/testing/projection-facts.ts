@@ -131,7 +131,7 @@ export const facts = (overrides: Partial<ProjectionFacts> = {}): ProjectionFacts
     }),
   ],
   settings: make(Settings, {
-    id: 1,
+    userId: 1,
     yellowBelowIncomePct: new Decimal('0.10'),
     cardUtilizationPct: new Decimal('0.30'),
     debtToIncomePct: new Decimal('0.30'),

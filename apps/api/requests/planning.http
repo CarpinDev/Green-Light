@@ -2,6 +2,7 @@
 ### Antes: crea una cuenta, una tarjeta y un préstamo (accounts.http, cards.http, loans.http) y cambia los
 ### ids de abajo. Las categorías se crean aquí: usa el id que devuelva cada una.
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 @accountId = 1
 @cardId = 2
 @loanId = 3
@@ -10,24 +11,28 @@
 
 ### 1. Categoría de gasto -> 201 { "id": ... }
 POST {{host}}/categories
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "name": "Mercado", "kind": "expense" }
 
 ### 2. Categoría de ingreso -> 201
 POST {{host}}/categories
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "name": "Salario", "kind": "income" }
 
 ### 3. La misma categoría otra vez (mismo nombre y tipo) -> 409
 POST {{host}}/categories
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "name": "Mercado", "kind": "expense" }
 
 ### 4. Salario mensual -> 201
 POST {{host}}/recurring-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -40,12 +45,14 @@ Content-Type: application/json
 
 ### 5. Día 32 -> 400
 POST {{host}}/recurring-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "name": "Salario", "amountCents": 300000000, "dayOfMonth": 32, "startDate": "2026-01-01" }
 
 ### 6. Fin anterior al inicio -> 400
 POST {{host}}/recurring-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -58,6 +65,7 @@ Content-Type: application/json
 
 ### 7. Cuenta de destino que es un préstamo -> 400
 POST {{host}}/recurring-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -70,6 +78,7 @@ Content-Type: application/json
 
 ### 8. Ingreso puntual con categoría de ingreso -> 201
 POST {{host}}/one-off-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -82,6 +91,7 @@ Content-Type: application/json
 
 ### 9. Ingreso puntual con categoría de gasto -> 400
 POST {{host}}/one-off-incomes
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -92,6 +102,7 @@ Content-Type: application/json
 
 ### 10. Arriendo (gasto fijo sin tarjeta) -> 201
 POST {{host}}/fixed-expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -104,6 +115,7 @@ Content-Type: application/json
 
 ### 11. Netflix con tarjeta activa -> 201
 POST {{host}}/fixed-expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -116,6 +128,7 @@ Content-Type: application/json
 
 ### 12. Gasto fijo con "tarjeta" que es una cuenta -> 400
 POST {{host}}/fixed-expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -128,21 +141,25 @@ Content-Type: application/json
 
 ### 13. Ver los ajustes -> 200 con los 4 umbrales
 GET {{host}}/settings
+Authorization: Bearer {{token}}
 
 ### 14. Cambiar un umbral -> 200 con los 4 ya actualizados
 PATCH {{host}}/settings
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "cardUtilizationPct": "0.25" }
 
 ### 15. Umbral fuera de rango -> 400
 PATCH {{host}}/settings
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "cardUtilizationPct": "1.5" }
 
 ### 16. PATCH vacío -> 400
 PATCH {{host}}/settings
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {}
@@ -150,9 +167,12 @@ Content-Type: application/json
 ### Listas para la app: lo que elige el formulario de gastos
 ### GET /products -> los productos activos { id, kind, name, bank, last4 }, por nombre
 GET {{host}}/products
+Authorization: Bearer {{token}}
 
 ### GET /categories?kind=expense -> { id, name }, por nombre (kind: expense o income)
 GET {{host}}/categories?kind=expense
+Authorization: Bearer {{token}}
 
 ### GET /categories sin kind, o con uno inventado -> 400
 GET {{host}}/categories?kind=otro
+Authorization: Bearer {{token}}

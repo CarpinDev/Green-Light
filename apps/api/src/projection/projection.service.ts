@@ -15,24 +15,23 @@ import { Settings } from '../settings/entities/settings.entity';
 import { type ProjectionFacts, type ProjectionResult, buildProjection } from './build-projection';
 import { excludeArchived } from './exclude-archived';
 
-const SETTINGS_ID = 1;
-
 /** Carga las filas y llama a buildProjection: aquí no hay ninguna regla de negocio. */
 @Injectable()
 export class ProjectionService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async project(months: number): Promise<ProjectionResult> {
-    return buildProjection(await this.loadFacts(), months, isoDateOf());
+  async project(userId: number, months: number): Promise<ProjectionResult> {
+    return buildProjection(await this.loadFacts(userId), months, isoDateOf());
   }
 
-  /** Todas las filas que necesita la proyección; también las usa el simulador. */
-  async loadFacts(): Promise<ProjectionFacts> {
+  /** Todas las filas DEL USUARIO que necesita la proyección; también las usa el simulador. */
+  async loadFacts(userId: number): Promise<ProjectionFacts> {
     const db = this.dataSource;
+    const mine = { where: { userId } };
     const [
       balances,
-      cards,
-      loans,
+      allCards,
+      allLoans,
       rates,
       expenses,
       capitalPayments,
@@ -40,20 +39,28 @@ export class ProjectionService {
       oneOffIncomes,
       fixedExpenses,
       settings,
-      archived,
+      products,
     ] = await Promise.all([
-      db.getRepository(AccountBalance).find(),
+      db.getRepository(AccountBalance).find(mine),
       db.getRepository(CreditCard).find(),
       db.getRepository(Loan).find(),
-      db.getRepository(ProductRate).find(),
-      db.getRepository(Expense).find(),
-      db.getRepository(CapitalPayment).find(),
-      db.getRepository(RecurringIncome).find(),
-      db.getRepository(OneOffIncome).find(),
-      db.getRepository(FixedExpense).find(),
-      db.getRepository(Settings).findOneByOrFail({ id: SETTINGS_ID }),
-      db.getRepository(Product).find({ where: { active: false } }),
+      db.getRepository(ProductRate).find(mine),
+      db.getRepository(Expense).find(mine),
+      db.getRepository(CapitalPayment).find(mine),
+      db.getRepository(RecurringIncome).find(mine),
+      db.getRepository(OneOffIncome).find(mine),
+      db.getRepository(FixedExpense).find(mine),
+      db.getRepository(Settings).findOneByOrFail({ userId }),
+      db.getRepository(Product).find(mine),
     ]);
+
+    // credit_card y loan no tienen user_id (comparten la llave con product): sin este filtro, las tarjetas y los
+    // préstamos de TODAS las personas entrarían a la proyección de cada una. El dueño sale del producto.
+    const owned = new Set(products.map((p) => p.id));
+    const cards = allCards.filter((c) => owned.has(c.productId));
+    const loans = allLoans.filter((l) => owned.has(l.productId));
+    const archived = products.filter((p) => !p.active);
+
     // Un producto archivado ya no cuenta: ni su saldo, ni su deuda, ni sus gastos (el único lugar donde se filtra)
     return excludeArchived(
       {

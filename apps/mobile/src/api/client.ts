@@ -1,6 +1,24 @@
 /** Dirección de la API: sale de EXPO_PUBLIC_API_URL (apps/mobile/.env). */
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
+// El token de la sesión y qué hacer si la API lo rechaza. Viven aquí, en memoria, porque toda llamada pasa por
+// este archivo; quien los fija es el AuthProvider (ver auth/auth-controller.ts).
+let authToken: string | null = null;
+let onUnauthorized: (() => void) | null = null;
+
+/** Con token, cada llamada manda `Authorization: Bearer <token>`. Con null, ninguna lo manda. */
+export function setAuthToken(token: string | null): void {
+  authToken = token;
+}
+
+/** Qué hacer cuando la API responde 401 a una llamada con sesión (el token venció o ya no vale). */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  onUnauthorized = handler;
+}
+
+/** El inicio de sesión y el registro responden 401/403 por datos malos, no porque la sesión haya vencido. */
+const PUBLIC_PATHS = ['/auth/login', '/auth/register'];
+
 /** Un error de la API: guarda el status HTTP y el mensaje que mandó Nest. */
 export class ApiError extends Error {
   constructor(
@@ -41,8 +59,15 @@ export async function deleteJson(path: string): Promise<void> {
 }
 
 async function send<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, init);
-  if (!response.ok) throw new ApiError(response.status, await messageOf(response));
+  // Sin token la llamada sale exactamente como la armó quien la pidió
+  const withAuth: RequestInit | undefined =
+    authToken === null ? init : { ...init, headers: { ...init?.headers, Authorization: `Bearer ${authToken}` } };
+  const response = await fetch(`${BASE_URL}${path}`, withAuth);
+  if (!response.ok) {
+    // Un 401 con sesión: el token ya no sirve. Se avisa para volver al login (no en el login mismo)
+    if (response.status === 401 && authToken !== null && !PUBLIC_PATHS.includes(path)) onUnauthorized?.();
+    throw new ApiError(response.status, await messageOf(response));
+  }
   // 204 No Content (un DELETE): no hay cuerpo, y response.json() fallaría
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;

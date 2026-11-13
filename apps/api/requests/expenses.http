@@ -3,12 +3,14 @@
 ### cambia los ids de abajo por los que te devolvieron:
 ###   @cardId = tarjeta, @accountId = cuenta, @loanId = préstamo
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 @cardId = 1
 @accountId = 2
 @loanId = 3
 
 ### 1. Gasto desde una cuenta -> 201 { "id": ... }
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -20,6 +22,7 @@ Content-Type: application/json
 
 ### 2. Compra con tarjeta a 12 cuotas -> 201
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -32,6 +35,7 @@ Content-Type: application/json
 
 ### 3. Con tarjeta y promoción al 0 % -> 201
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -44,6 +48,7 @@ Content-Type: application/json
 
 ### 4. Desde una cuenta con cuotas -> 400
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -55,6 +60,7 @@ Content-Type: application/json
 
 ### 5. Con tarjeta y sin cuotas -> 400
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -65,6 +71,7 @@ Content-Type: application/json
 
 ### 6. Desde un préstamo -> 400
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -75,6 +82,7 @@ Content-Type: application/json
 
 ### 7. Un producto que no existe -> 400 (el mensaje trae el id)
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -85,6 +93,7 @@ Content-Type: application/json
 
 ### 8. Promoción con una M.V. que no cuadra -> 400
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -97,6 +106,7 @@ Content-Type: application/json
 
 ### 9. Una categoría que no existe -> 400
 POST {{host}}/expenses
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {

@@ -9,6 +9,7 @@ import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import { OpeningDebtService } from './opening-debt.service';
+import { USER } from '../testing/users';
 
 // La deuda inicial por grupos de cuotas y el plan de pagos por corte. Datos ficticios.
 
@@ -73,7 +74,7 @@ describe('deuda inicial y plan de una tarjeta', () => {
 
   describe('POST /cards/:id/opening-debt', () => {
     it('crea un gasto por grupo, de deuda inicial, con la fecha de hoy y la promo donde la hay', async () => {
-      const { ids } = await debt.replace(VISA, THREE, TODAY);
+      const { ids } = await debt.replace(USER, VISA, THREE, TODAY);
 
       expect(ids).toHaveLength(3);
       const rows = openingOf(VISA);
@@ -89,8 +90,8 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('reemplaza la deuda anterior de esa tarjeta, y solo esa', async () => {
-      await debt.replace(VISA, THREE, TODAY);
-      await debt.replace(OTRA, { items: [{ amountCents: 500, installments: 3 }] }, TODAY);
+      await debt.replace(USER, VISA, THREE, TODAY);
+      await debt.replace(USER, OTRA, { items: [{ amountCents: 500, installments: 3 }] }, TODAY);
       // Un gasto normal de la misma tarjeta no es deuda inicial: no se toca
       db.seed(Expense, [
         ...db.rows(Expense),
@@ -103,7 +104,7 @@ describe('deuda inicial y plan de una tarjeta', () => {
         }),
       ]);
 
-      await debt.replace(VISA, { items: [{ amountCents: pesos(100), installments: 4 }] }, TODAY);
+      await debt.replace(USER, VISA, { items: [{ amountCents: pesos(100), installments: 4 }] }, TODAY);
 
       expect(openingOf(VISA).map((e) => e.installments)).toEqual([4]);
       expect(openingOf(OTRA)).toHaveLength(1);
@@ -111,55 +112,57 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('409 si un abono a capital apunta a la deuda anterior: no cambia nada', async () => {
-      const { ids } = await debt.replace(VISA, THREE, TODAY);
+      const { ids } = await debt.replace(USER, VISA, THREE, TODAY);
       db.seed(CapitalPayment, [{ id: 1, productId: VISA, date: TODAY, amountCents: 1, expenseId: ids[0] ?? null }]);
 
-      await expect(debt.replace(VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY)).rejects.toThrow(
+      await expect(debt.replace(USER, VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY)).rejects.toThrow(
         ConflictException,
       );
       expect(openingOf(VISA)).toHaveLength(3);
     });
 
     it('un abono sin compra asignada no impide reemplazar', async () => {
-      await debt.replace(VISA, THREE, TODAY);
+      await debt.replace(USER, VISA, THREE, TODAY);
       db.seed(CapitalPayment, [{ id: 1, productId: VISA, date: TODAY, amountCents: 1, expenseId: null }]);
-      await expect(debt.replace(VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY)).resolves.toBeDefined();
+      await expect(
+        debt.replace(USER, VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY),
+      ).resolves.toBeDefined();
     });
 
     it('todo o nada: si falla al guardar, la deuda anterior queda intacta', async () => {
-      await debt.replace(VISA, THREE, TODAY);
+      await debt.replace(USER, VISA, THREE, TODAY);
       db.failOn = Expense;
 
-      await expect(debt.replace(VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY)).rejects.toThrow();
+      await expect(debt.replace(USER, VISA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY)).rejects.toThrow();
       db.failOn = undefined;
       expect(openingOf(VISA).map((e) => e.installments)).toEqual([2, 6, 12]);
     });
 
     it('un elemento con una tasa mala es 400 y no toca lo que había ni crea los demás', async () => {
-      await debt.replace(VISA, THREE, TODAY);
+      await debt.replace(USER, VISA, THREE, TODAY);
       const bad = {
         items: [
           { amountCents: 5, installments: 1 },
           { amountCents: 5, installments: 2, promo: { ea: '2' } },
         ],
       };
-      await expect(debt.replace(VISA, bad, TODAY)).rejects.toThrow(BadRequestException);
+      await expect(debt.replace(USER, VISA, bad, TODAY)).rejects.toThrow(BadRequestException);
       expect(openingOf(VISA)).toHaveLength(3);
     });
 
     it('404 si la tarjeta no existe y 400 si el producto no es una tarjeta', async () => {
       const one = { items: [{ amountCents: 5, installments: 1 }] };
-      await expect(debt.replace(999, one, TODAY)).rejects.toThrow(NotFoundException);
-      await expect(debt.replace(AHORROS, one, TODAY)).rejects.toThrow(BadRequestException);
-      await expect(debt.replace(PRESTAMO, one, TODAY)).rejects.toThrow(/tarjeta/);
+      await expect(debt.replace(USER, 999, one, TODAY)).rejects.toThrow(NotFoundException);
+      await expect(debt.replace(USER, AHORROS, one, TODAY)).rejects.toThrow(BadRequestException);
+      await expect(debt.replace(USER, PRESTAMO, one, TODAY)).rejects.toThrow(/tarjeta/);
       expect(db.rows(Expense)).toHaveLength(0);
     });
   });
 
   describe('GET /cards/:id/opening-debt', () => {
     it('devuelve los grupos con la promo como texto, y null si no la tienen', async () => {
-      await debt.replace(VISA, THREE, TODAY);
-      const groups = await debt.list(VISA);
+      await debt.replace(USER, VISA, THREE, TODAY);
+      const groups = await debt.list(USER, VISA);
       expect(groups.map((g) => [g.amountCents, g.installments, g.promo])).toEqual([
         [pesos(1_900_000), 2, null],
         [pesos(1_200_000), 6, null],
@@ -168,14 +171,14 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('una tarjeta sin deuda inicial da una lista vacía; 404 y 400 como el resto', async () => {
-      expect(await debt.list(VISA)).toEqual([]);
-      await expect(debt.list(999)).rejects.toThrow(NotFoundException);
-      await expect(debt.list(AHORROS)).rejects.toThrow(BadRequestException);
+      expect(await debt.list(USER, VISA)).toEqual([]);
+      await expect(debt.list(USER, 999)).rejects.toThrow(NotFoundException);
+      await expect(debt.list(USER, AHORROS)).rejects.toThrow(BadRequestException);
     });
 
     it('no mezcla la deuda de otra tarjeta ni los gastos normales', async () => {
-      await debt.replace(OTRA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY);
-      expect(await debt.list(VISA)).toEqual([]);
+      await debt.replace(USER, OTRA, { items: [{ amountCents: 5, installments: 1 }] }, TODAY);
+      expect(await debt.list(USER, VISA)).toEqual([]);
     });
   });
 
@@ -190,8 +193,8 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('con tres grupos (2, 6 y 12 cuotas) el mínimo baja cuando se terminan los grupos cortos', async () => {
-      await debt.replace(VISA, THREE, TODAY);
-      const { cuts } = await plans.plan(VISA, 8, TODAY);
+      await debt.replace(USER, VISA, THREE, TODAY);
+      const { cuts } = await plans.plan(USER, VISA, 8, TODAY);
       const mins = cuts.map((c) => c.minimum.total);
 
       expect(cuts[0]?.cutDate).toBe('2026-11-22');
@@ -208,8 +211,8 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('cada corte trae el desglose del mínimo y del pago total, y la deuda que falta', async () => {
-      await debt.replace(VISA, THREE, TODAY);
-      const [first] = (await plans.plan(VISA, 3, TODAY)).cuts;
+      await debt.replace(USER, VISA, THREE, TODAY);
+      const [first] = (await plans.plan(USER, VISA, 3, TODAY)).cuts;
 
       expect(first?.minimum.total).toBe(
         (first?.minimum.capital ?? 0) + (first?.minimum.interest ?? 0) + (first?.minimum.fees ?? 0),
@@ -223,26 +226,26 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('un corte ya cerrado cuyo pago todavía no vence cuenta; uno con el pago vencido, no', async () => {
-      await debt.replace(VISA, THREE, '2026-10-12');
+      await debt.replace(USER, VISA, THREE, '2026-10-12');
       // Hoy 25 de nov: el corte del 22 de oct pagó el 4 de nov (ya venció); el del 22 de nov paga el 4 de dic
-      const { cuts } = await plans.plan(VISA, 2, '2026-11-25');
+      const { cuts } = await plans.plan(USER, VISA, 2, '2026-11-25');
       expect(cuts.map((c) => c.cutDate)).toEqual(['2026-11-22', '2026-12-22']);
       expect(cuts[0]?.dueDate).toBe('2026-12-04');
     });
 
     it('sin deuda, el mínimo es solo los cargos de la tarjeta', async () => {
-      const { cuts } = await plans.plan(VISA, 2, TODAY);
+      const { cuts } = await plans.plan(USER, VISA, 2, TODAY);
       expect(cuts.map((c) => c.minimum.total)).toEqual([0, 0]);
     });
 
     it('404 si la tarjeta no existe y 400 si el producto no es una tarjeta', async () => {
-      await expect(plans.plan(999, 6, TODAY)).rejects.toThrow(NotFoundException);
-      await expect(plans.plan(AHORROS, 6, TODAY)).rejects.toThrow(BadRequestException);
+      await expect(plans.plan(USER, 999, 6, TODAY)).rejects.toThrow(NotFoundException);
+      await expect(plans.plan(USER, AHORROS, 6, TODAY)).rejects.toThrow(BadRequestException);
     });
 
     it('el plan de una tarjeta no cuenta las compras de otra', async () => {
-      await debt.replace(OTRA, THREE, TODAY);
-      const { cuts } = await plans.plan(VISA, 2, TODAY);
+      await debt.replace(USER, OTRA, THREE, TODAY);
+      const { cuts } = await plans.plan(USER, VISA, 2, TODAY);
       expect(cuts.map((c) => c.minimum.total)).toEqual([0, 0]);
     });
   });
@@ -260,8 +263,8 @@ describe('deuda inicial y plan de una tarjeta', () => {
     const group = { items: [{ amountCents: pesos(682_500), installments: 2, promo: { mv: '0.021' } }] };
 
     it('cargada el 12 nov (2 días antes del corte) el pago del 4 dic lleva capital 341.250 + interés 14.332,50', async () => {
-      await debt.replace(VISA, group, '2026-11-12');
-      const { cuts } = await plans.plan(VISA, 3, '2026-11-12');
+      await debt.replace(USER, VISA, group, '2026-11-12');
+      const { cuts } = await plans.plan(USER, VISA, 3, '2026-11-12');
       const dec = cuts.find((c) => c.dueDate === '2026-12-04');
 
       expect(dec?.minimum.capital).toBe(pesos(341_250));
@@ -269,9 +272,9 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('cargada el 20 nov sin statementPaid también cae en el pago del 4 dic, no en el del 4 ene', async () => {
-      await debt.replace(VISA, group, '2026-11-20');
+      await debt.replace(USER, VISA, group, '2026-11-20');
       expect(openingOf(VISA)[0]?.date).toBe('2026-11-14');
-      const { cuts } = await plans.plan(VISA, 3, '2026-11-20');
+      const { cuts } = await plans.plan(USER, VISA, 3, '2026-11-20');
 
       expect(cuts[0]?.dueDate).toBe('2026-12-04');
       expect(cuts[0]?.minimum.capital).toBe(pesos(341_250));
@@ -279,9 +282,9 @@ describe('deuda inicial y plan de una tarjeta', () => {
     });
 
     it('con statementPaid la deuda cae en el siguiente corte', async () => {
-      await debt.replace(VISA, { ...group, statementPaid: true }, '2026-11-20');
+      await debt.replace(USER, VISA, { ...group, statementPaid: true }, '2026-11-20');
       expect(openingOf(VISA)[0]?.date).toBe('2026-11-20');
-      const { cuts } = await plans.plan(VISA, 3, '2026-11-20');
+      const { cuts } = await plans.plan(USER, VISA, 3, '2026-11-20');
       expect(cuts.find((c) => c.dueDate === '2026-12-04')?.minimum.capital).toBe(0);
       expect(cuts.find((c) => c.dueDate === '2027-01-04')?.minimum.capital).toBe(pesos(341_250));
     });
@@ -296,13 +299,13 @@ describe('deuda inicial y plan de una tarjeta', () => {
     );
 
     it('acepta de 1 a 24', async () => {
-      await expect(controller.plan(1, 1)).resolves.toBeDefined();
-      await expect(controller.plan(1, 24)).resolves.toBeDefined();
+      await expect(controller.plan(USER, 1, 1)).resolves.toBeDefined();
+      await expect(controller.plan(USER, 1, 24)).resolves.toBeDefined();
     });
 
     it('rechaza 0 y 25 con 400', () => {
-      expect(() => controller.plan(1, 0)).toThrow(BadRequestException);
-      expect(() => controller.plan(1, 25)).toThrow(/entre 1 y 24/);
+      expect(() => controller.plan(USER, 1, 0)).toThrow(BadRequestException);
+      expect(() => controller.plan(USER, 1, 25)).toThrow(/entre 1 y 24/);
     });
   });
 });

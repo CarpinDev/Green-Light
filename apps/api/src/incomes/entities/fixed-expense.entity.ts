@@ -1,18 +1,27 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
-import { Check, Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Category } from '../../movements/entities/category.entity';
 import { Account } from '../../products/entities/account.entity';
 import { CreditCard } from '../../products/entities/credit-card.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** Arriendo, servicios, suscripciones: un cargo cada mes. */
 @Entity('fixed_expense')
+@Index(['userId'])
 @Check(`"amount_cents" > 0`)
 @Check(`"day_of_month" BETWEEN 1 AND 31`)
 @Check(`"end_date" IS NULL OR "end_date" >= "start_date"`)
 @Check(`"card_id" IS NULL OR "account_id" IS NULL`)
 export class FixedExpense {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column() name!: string;
 

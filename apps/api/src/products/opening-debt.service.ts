@@ -44,11 +44,11 @@ export class OpeningDebtService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Los grupos actuales, en el orden en que se guardaron. */
-  async list(cardId: number): Promise<OpeningDebtGroup[]> {
-    assertCardProduct(await this.dataSource.getRepository(Product).findOneBy({ id: cardId }), cardId);
+  async list(userId: number, cardId: number): Promise<OpeningDebtGroup[]> {
+    assertCardProduct(await this.dataSource.getRepository(Product).findOneBy({ id: cardId, userId }), cardId);
     const rows = await this.dataSource
       .getRepository(Expense)
-      .find({ where: { sourceProductId: cardId, isOpeningDebt: true }, order: { id: 'ASC' } });
+      .find({ where: { userId, sourceProductId: cardId, isOpeningDebt: true }, order: { id: 'ASC' } });
 
     return rows.map((e) => ({
       id: e.id,
@@ -65,9 +65,14 @@ export class OpeningDebtService {
    * Reemplaza la deuda inicial de la tarjeta (así se puede corregir): borra los grupos anteriores y crea los
    * nuevos, todo o nada. Si un abono a capital apunta a uno de los anteriores no se puede borrar: 409.
    */
-  async replace(cardId: number, input: OpeningDebtInput, today = isoDateOf()): Promise<{ ids: number[] }> {
+  async replace(
+    userId: number,
+    cardId: number,
+    input: OpeningDebtInput,
+    today = isoDateOf(),
+  ): Promise<{ ids: number[] }> {
     return this.dataSource.transaction(async (manager) => {
-      assertCardProduct(await manager.findOneBy(Product, { id: cardId }), cardId);
+      assertCardProduct(await manager.findOneBy(Product, { id: cardId, userId }), cardId);
       const card = await manager.findOneBy(CreditCard, { productId: cardId });
       if (!card) throw new NotFoundException(`La tarjeta ${cardId} no tiene datos de tarjeta`);
 
@@ -76,7 +81,7 @@ export class OpeningDebtService {
       const date = openingDebtDate(today, card.cutDay, card.dueDay, input.statementPaid ?? false);
       // Las filas se arman antes de borrar nada: una tasa mala es un 400 y la transacción no cambia nada
       const rows = input.items.map((item) =>
-        expenseValues({
+        expenseValues(userId, {
           date,
           amountCents: item.amountCents,
           sourceProductId: cardId,
@@ -86,17 +91,17 @@ export class OpeningDebtService {
         }),
       );
 
-      const previous = await manager.find(Expense, { where: { sourceProductId: cardId, isOpeningDebt: true } });
+      const previous = await manager.find(Expense, { where: { userId, sourceProductId: cardId, isOpeningDebt: true } });
       if (previous.length > 0) {
         const ids = new Set(previous.map((e) => e.id));
-        const payments = await manager.find(CapitalPayment, { where: { productId: cardId } });
+        const payments = await manager.find(CapitalPayment, { where: { userId, productId: cardId } });
         if (payments.some((p) => p.expenseId !== null && ids.has(p.expenseId))) {
           throw new ConflictException(
             'No se puede reemplazar la deuda inicial: hay abonos a capital hechos a esas compras. ' +
               'Quita los abonos primero o agrega la corrección como un gasto nuevo.',
           );
         }
-        for (const { id } of previous) await manager.delete(Expense, { id });
+        for (const { id } of previous) await manager.delete(Expense, { id, userId });
       }
 
       const created: number[] = [];

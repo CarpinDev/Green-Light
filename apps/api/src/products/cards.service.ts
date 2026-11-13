@@ -72,7 +72,7 @@ export class CardsService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Crea el producto, la tarjeta y su primera tasa en una sola transacción. */
-  async create(input: CreateCardInput): Promise<Product> {
+  async create(userId: number, input: CreateCardInput): Promise<Product> {
     // Primero la tasa: si es inválida, ni se abre la transacción
     const rate = resolveRate({ ea: input.rate.ea, mv: input.rate.mv });
 
@@ -80,6 +80,7 @@ export class CardsService {
       return await this.dataSource.transaction(async (manager) => {
         // Siempre con este manager: solo lo que pasa por él queda dentro de la transacción
         const product = await manager.save(Product, {
+          userId,
           kind: 'credit_card',
           name: input.name,
           bank: input.bank,
@@ -101,6 +102,7 @@ export class CardsService {
         });
 
         await manager.save(ProductRate, {
+          userId,
           productId: product.id,
           effectiveFrom: input.rate.effectiveFrom,
           ea: rate.ea,
@@ -114,6 +116,7 @@ export class CardsService {
       if (isUniqueViolation(err)) {
         throw await duplicateProductError(
           this.dataSource,
+          userId,
           'credit_card',
           input.bank,
           input.last4,
@@ -125,14 +128,15 @@ export class CardsService {
   }
 
   /** Las tarjetas activas, por nombre, cada una con su tasa vigente hoy. */
-  async listActive(today: IsoDate = isoDateOf()): Promise<CardSummary[]> {
+  async listActive(userId: number, today: IsoDate = isoDateOf()): Promise<CardSummary[]> {
     const products = await this.dataSource.getRepository(Product).find({
-      where: { kind: 'credit_card', active: true },
+      where: { userId, kind: 'credit_card', active: true },
       order: { name: 'ASC' },
     });
-    // Con pocas tarjetas basta traerlas todas; si crece, se filtra en la consulta
+    // credit_card no tiene user_id: comparte la llave con product, así que el dueño sale de `products` (ya filtrado)
+    // y solo se usan las filas de esas tarjetas. Con pocas tarjetas basta traerlas todas; si crece, se filtra en SQL.
     const cards = new Map((await this.dataSource.getRepository(CreditCard).find()).map((c) => [c.productId, c]));
-    const rates = await this.dataSource.getRepository(ProductRate).find();
+    const rates = await this.dataSource.getRepository(ProductRate).find({ where: { userId } });
 
     return products.flatMap((product) => {
       const card = cards.get(product.id);
@@ -165,9 +169,10 @@ export class CardsService {
   }
 
   /** Edita solo lo que llega. El nombre vive en product y el resto en credit_card: van en una transacción. */
-  async update(id: number, input: UpdateCardInput): Promise<{ id: number }> {
+  async update(userId: number, id: number, input: UpdateCardInput): Promise<{ id: number }> {
     return this.dataSource.transaction(async (manager) => {
-      const product = await manager.findOneBy(Product, { id });
+      // Con el userId en la búsqueda, la tarjeta de otra persona es "no existe": 404
+      const product = await manager.findOneBy(Product, { id, userId });
       const card = product?.kind === 'credit_card' ? await manager.findOneBy(CreditCard, { productId: id }) : null;
       if (!product || !card) throw new NotFoundException(`La tarjeta ${id} no existe`);
 

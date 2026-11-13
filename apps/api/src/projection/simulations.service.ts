@@ -17,9 +17,9 @@ export interface SimulationInput extends Omit<SimulationCandidate, 'date'> {
 export class SimulationsService {
   constructor(private readonly projection: ProjectionService) {}
 
-  async simulate(input: SimulationInput): Promise<SimulationOutcome> {
+  async simulate(userId: number, input: SimulationInput): Promise<SimulationOutcome> {
     const today = isoDateOf();
     const { date = today, months = DEFAULT_SIMULATION_MONTHS, ...rest } = input;
-    return buildSimulation(await this.projection.loadFacts(), { ...rest, date }, months, today);
+    return buildSimulation(await this.projection.loadFacts(userId), { ...rest, date }, months, today);
   }
 }

@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { CategoriesController } from './categories.controller';
 import { CategoriesService } from './categories.service';
+import { fakeAuth } from '../testing/fake-auth';
+import { USER } from '../testing/users';
 
 // Sin base de datos: un CategoriesService falso. Prueba GET /categories y la validación de ?kind.
 
@@ -15,7 +17,7 @@ describe('GET /categories', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [CategoriesController],
-      providers: [{ provide: CategoriesService, useValue: { list } }],
+      providers: [fakeAuth, { provide: CategoriesService, useValue: { list } }],
     }).compile();
     app = module.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
@@ -29,13 +31,13 @@ describe('GET /categories', () => {
     const res = await request(server()).get('/categories?kind=expense');
     expect(res.status).toBe(200);
     expect(res.body).toEqual([{ id: 10, name: 'Mercado' }]);
-    expect(list).toHaveBeenCalledWith('expense');
+    expect(list).toHaveBeenCalledWith(USER, 'expense');
   });
 
   it('también acepta income', async () => {
     list.mockResolvedValue([]);
     expect((await request(server()).get('/categories?kind=income')).status).toBe(200);
-    expect(list).toHaveBeenCalledWith('income');
+    expect(list).toHaveBeenCalledWith(USER, 'income');
   });
 
   it('un kind inventado es 400 y no llega al service', async () => {

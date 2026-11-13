@@ -1,14 +1,23 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
-import { Check, Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { Check, Column, CreateDateColumn, Entity, Index, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Category } from '../../movements/entities/category.entity';
 import { Account } from '../../products/entities/account.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** Ingreso extra puntual. */
 @Entity('one_off_income')
+@Index(['userId', 'date'])
 @Check(`"amount_cents" > 0`)
 export class OneOffIncome {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column({ type: 'date' }) date!: IsoDate;
 
