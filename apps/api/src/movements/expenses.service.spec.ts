@@ -1,11 +1,12 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { FakeDb } from '../testing/fake-db';
 import { Product } from '../products/entities/product.entity';
 import { Category } from './entities/category.entity';
+import { CapitalPayment } from './entities/capital-payment.entity';
 import { Expense } from './entities/expense.entity';
 import { ExpensesService, type CreateExpenseInput } from './expenses.service';
-import { USER } from '../testing/users';
+import { OTHER_USER, USER } from '../testing/users';
 
 // Las reglas que en SQLite eran un trigger y en Postgres no caben en un CHECK porque cruzan
 // tablas: dependen del tipo del producto de origen.
@@ -118,5 +119,103 @@ describe('ExpensesService.create', () => {
     it('que no existe: 400', () => rejects({ categoryId: 999 }, /categor/i));
 
     it('de ingreso en un gasto: 400', () => rejects({ categoryId: SALARIO }, /categor/i));
+  });
+});
+
+describe('ExpensesService.remove y update', () => {
+  let db: FakeDb;
+  let service: ExpensesService;
+
+  beforeEach(() => {
+    db = new FakeDb();
+    db.seed(Product, [
+      { id: VISA, kind: 'credit_card', active: true },
+      { id: AHORROS, kind: 'account', active: true },
+    ]);
+    service = new ExpensesService(db.dataSource());
+  });
+
+  const seedExpense = (overrides: Partial<Expense> = {}) =>
+    db.seed(Expense, [
+      { id: 1, userId: USER, sourceProductId: VISA, installments: 3, isOpeningDebt: false, ...overrides },
+    ]);
+
+  describe('remove', () => {
+    it('borra el propio', async () => {
+      seedExpense();
+      await service.remove(USER, 1);
+      expect(db.rows(Expense)).toHaveLength(0);
+    });
+
+    it('el de otra persona: 404 y no se borra', async () => {
+      seedExpense({ userId: OTHER_USER });
+      await expect(service.remove(USER, 1)).rejects.toThrow(NotFoundException);
+      expect(db.rows(Expense)).toHaveLength(1);
+    });
+
+    it('uno que no existe: 404', async () => {
+      await expect(service.remove(USER, 99)).rejects.toThrow(NotFoundException);
+    });
+
+    it('la deuda inicial: 400, se corrige desde la tarjeta', async () => {
+      seedExpense({ isOpeningDebt: true });
+      await expect(service.remove(USER, 1)).rejects.toThrow(BadRequestException);
+      expect(db.rows(Expense)).toHaveLength(1);
+    });
+
+    it('con abonos hacia esa compra: 409 y no se borra', async () => {
+      seedExpense();
+      db.seed(CapitalPayment, [{ id: 5, userId: USER, productId: VISA, expenseId: 1 }]);
+      await expect(service.remove(USER, 1)).rejects.toThrow(ConflictException);
+      expect(db.rows(Expense)).toHaveLength(1);
+    });
+  });
+
+  describe('update', () => {
+    it('agrega una promoción al 0 % con su descripción', async () => {
+      seedExpense();
+      await service.update(USER, 1, { promo: { ea: '0', description: 'Primera compra 0 %' } });
+      const [saved] = db.rows(Expense);
+      expect((saved?.promoEa as Decimal).isZero()).toBe(true);
+      expect((saved?.promoMv as Decimal).isZero()).toBe(true);
+      expect(saved?.promoDescription).toBe('Primera compra 0 %');
+      expect(saved?.installments).toBe(3);
+    });
+
+    it('cambia las cuotas sin tocar la promoción', async () => {
+      seedExpense({ promoEa: new Decimal(0), promoMv: new Decimal(0) });
+      await service.update(USER, 1, { installments: 12 });
+      expect(db.rows(Expense)[0]).toMatchObject({ installments: 12 });
+      expect((db.rows(Expense)[0]?.promoEa as Decimal).isZero()).toBe(true);
+    });
+
+    it('promo: null quita la promoción', async () => {
+      seedExpense({ promoEa: new Decimal(0), promoMv: new Decimal(0), promoDescription: 'x' });
+      await service.update(USER, 1, { promo: null });
+      expect(db.rows(Expense)[0]).toMatchObject({ promoEa: null, promoMv: null, promoDescription: '' });
+    });
+
+    it('una tasa mala: 400 y no cambia nada', async () => {
+      seedExpense();
+      await expect(service.update(USER, 1, { installments: 6, promo: { ea: '-0.1' } })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(db.rows(Expense)[0]).toMatchObject({ installments: 3 });
+    });
+
+    it('el de otra persona: 404', async () => {
+      seedExpense({ userId: OTHER_USER });
+      await expect(service.update(USER, 1, { promo: { ea: '0' } })).rejects.toThrow(NotFoundException);
+    });
+
+    it('un gasto de cuenta (sin cuotas): 400', async () => {
+      seedExpense({ sourceProductId: AHORROS, installments: null });
+      await expect(service.update(USER, 1, { promo: { ea: '0' } })).rejects.toThrow(BadRequestException);
+    });
+
+    it('la deuda inicial: 400', async () => {
+      seedExpense({ isOpeningDebt: true });
+      await expect(service.update(USER, 1, { installments: 6 })).rejects.toThrow(BadRequestException);
+    });
   });
 });

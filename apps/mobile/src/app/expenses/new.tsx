@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { getJson, postJson } from '@/api/client';
@@ -21,11 +21,13 @@ import { Text } from '@/components/text';
 import { isValidDate, today, yesterday } from '@/dates';
 import { type Overdraft, overdraftCheck } from '@/expenses/overdraft';
 import { formatCop } from '@/money';
+import { buildPromo } from '@/movements/logic';
 import { colors, space, type } from '@/theme/tokens';
 
 type DateChoice = 'today' | 'yesterday' | 'other';
 /** Las cuotas más comunes; "Otra" abre un campo para escribir cualquier número. */
 type InstallmentChoice = 1 | 3 | 6 | 12 | 'other';
+type PromoKind = 'zero' | 'other';
 
 const DATE_ITEMS: { value: DateChoice; label: string }[] = [
   { value: 'today', label: 'Hoy' },
@@ -41,6 +43,11 @@ const INSTALLMENT_ITEMS: { value: InstallmentChoice; label: string }[] = [
   { value: 'other', label: 'Otra' },
 ];
 
+const PROMO_ITEMS: { value: PromoKind; label: string }[] = [
+  { value: 'zero', label: '0 % de interés' },
+  { value: 'other', label: 'Otra tasa' },
+];
+
 /** Un préstamo no es de donde sale un gasto: solo cuentas y tarjetas. */
 const sourcesOf = (products: Product[]) => products.filter((p) => p.kind !== 'loan');
 
@@ -53,6 +60,10 @@ export default function NewExpense() {
   const [productId, setProductId] = useState<number | null>(null);
   const [installmentChoice, setInstallmentChoice] = useState<InstallmentChoice>(1);
   const [otherInstallments, setOtherInstallments] = useState('');
+  const [promoEnabled, setPromoEnabled] = useState(false);
+  const [promoKind, setPromoKind] = useState<PromoKind>('zero');
+  const [promoPercent, setPromoPercent] = useState('');
+  const [promoDescription, setPromoDescription] = useState('');
   const [dateChoice, setDateChoice] = useState<DateChoice>('today');
   const [otherDate, setOtherDate] = useState(today());
   const [categoryId, setCategoryId] = useState<number | null>(null);
@@ -99,6 +110,12 @@ export default function NewExpense() {
       }
     }
 
+    // La promoción solo existe con tarjeta: con una cuenta, aunque el interruptor haya quedado encendido, no se manda
+    const promo = isCard
+      ? buildPromo({ enabled: promoEnabled, kind: promoKind, percent: promoPercent, description: promoDescription })
+      : { promo: null };
+    if ('error' in promo) return setFormError(promo.error);
+
     setFormError(null);
     const body = {
       date,
@@ -107,6 +124,7 @@ export default function NewExpense() {
       ...(categoryId !== null && { categoryId }),
       ...(description.trim() !== '' && { description: description.trim() }),
       ...(cuotas !== undefined && { installments: cuotas }),
+      ...(promo.promo !== null && { promo: promo.promo }),
     };
 
     // El saldo de hoy sale de la proyección que ya tiene Inicio en caché: no se pide otra vez, y si no está, no se estorba
@@ -188,6 +206,35 @@ export default function NewExpense() {
                 keyboardType="number-pad"
               />
             )}
+
+            <View style={styles.promoRow}>
+              <Label>Promoción</Label>
+              <Switch
+                accessibilityLabel="Promoción"
+                value={promoEnabled}
+                onValueChange={setPromoEnabled}
+                trackColor={{ false: colors.border, true: colors.primarySoft }}
+                thumbColor={promoEnabled ? colors.primary : colors.textMuted}
+              />
+            </View>
+            {promoEnabled && (
+              <>
+                <Pills items={PROMO_ITEMS} selected={promoKind} onSelect={setPromoKind} />
+                {promoKind === 'other' && (
+                  <Input
+                    value={promoPercent}
+                    onChangeText={setPromoPercent}
+                    placeholder="E.A. en %, ej. 12,5"
+                    keyboardType="decimal-pad"
+                  />
+                )}
+                <Input
+                  value={promoDescription}
+                  onChangeText={setPromoDescription}
+                  placeholder="Descripción (opcional), ej. Primera compra 0 %"
+                />
+              </>
+            )}
           </>
         )}
 
@@ -258,6 +305,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', gap: space.xs, paddingVertical: space.lg },
   heroLabel: { ...type.caption, color: colors.textMuted },
   amount: { textAlign: 'center', alignSelf: 'stretch' },
+  promoRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: space.md },
   footer: {
     gap: space.sm,
