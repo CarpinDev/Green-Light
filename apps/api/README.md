@@ -80,3 +80,13 @@ DATABASE_URL_DIRECT='postgresql://usuario:clave@ep-xxxx.region.aws.neon.tech/neo
 El CLI usa esa URL si existe; la API sigue usando las `DB_*`. Haz antes un respaldo (rama de Neon `backup-antes-auth` y, opcional, `pg_dump`).
 
 En `requests/` hay peticiones `.http` de ejemplo por módulo (ahora llevan `Authorization`).
+
+## Despliegue
+
+La API se despliega en Render (plan free) con la base en Neon. Todo lo que Render necesita está en [`render.yaml`](../../render.yaml) en la raíz: el comando de build (compila el motor y luego la API), el de arranque, el health check (`GET /`) y las variables fijas.
+
+En el panel de Render (Blueprint) solo se escriben estas variables, que nunca van en el repo: `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` e `INVITE_CODE`. `JWT_SECRET` lo genera Render.
+
+Las migraciones **no** corren en Render: se aplican desde tu PC con `DATABASE_URL_DIRECT` (la conexión directa de Neon, sin `-pooler`) y, si la base ya tiene datos, `OWNER_*`. Esas variables no se ponen en Render.
+
+El APK se construye con EAS (`apps/mobile/eas.json`, perfil `preview`); la URL de la API llega por la variable `EXPO_PUBLIC_API_URL` del entorno `preview` de EAS.
