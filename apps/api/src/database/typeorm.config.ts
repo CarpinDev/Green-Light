@@ -20,5 +20,6 @@ export function typeOrmConfig(env: EnvReader = (key) => process.env[key]): DataS
     namingStrategy: new SnakeNamingStrategy(),
     // El esquema solo cambia con migraciones
     synchronize: false,
+    ssl: true,
   };
 }
