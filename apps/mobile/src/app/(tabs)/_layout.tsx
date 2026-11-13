@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AddButton } from '@/components/add-button';
+import { AccountButton } from '@/components/auth/account-button';
 import { TAB_BAR_HEIGHT, TAB_BAR_MARGIN } from '@/navigation';
 import { colors, fonts, radius } from '@/theme/tokens';
 
@@ -28,6 +29,8 @@ export default function TabsLayout() {
         headerTintColor: colors.text,
         headerTitleStyle: { fontFamily: fonts.title },
         headerShadowVisible: false,
+        // Con quién estás y cerrar sesión: en las cuatro pestañas
+        headerRight: () => <AccountButton />,
         sceneStyle: { backgroundColor: colors.bg },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,

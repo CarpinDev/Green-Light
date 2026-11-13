@@ -39,7 +39,7 @@ export class AccountsService {
   constructor(private readonly dataSource: DataSource) {}
 
   /** Crea el producto y la cuenta; con saldo inicial, también su primera fila de saldo. */
-  async create(input: CreateAccountInput): Promise<Product> {
+  async create(userId: number, input: CreateAccountInput): Promise<Product> {
     const hasBalance = input.openingBalanceCents !== undefined;
     if (hasBalance !== (input.asOf !== undefined)) {
       throw new BadRequestException('El saldo inicial y su fecha (asOf) van juntos: envía los dos o ninguno');
@@ -48,6 +48,7 @@ export class AccountsService {
     try {
       return await this.dataSource.transaction(async (manager) => {
         const product = await manager.save(Product, {
+          userId,
           kind: 'account',
           name: input.name,
           bank: input.bank,
@@ -58,6 +59,7 @@ export class AccountsService {
 
         if (input.openingBalanceCents !== undefined && input.asOf !== undefined) {
           await manager.save(AccountBalance, {
+            userId,
             productId: product.id,
             asOf: input.asOf,
             balanceCents: input.openingBalanceCents,
@@ -70,6 +72,7 @@ export class AccountsService {
       if (isUniqueViolation(err)) {
         throw await duplicateProductError(
           this.dataSource,
+          userId,
           'account',
           input.bank,
           input.last4,
@@ -81,14 +84,16 @@ export class AccountsService {
   }
 
   /** Las cuentas activas, por nombre, cada una con su saldo confirmado más reciente (null si no tiene). */
-  async listActive(): Promise<AccountSummary[]> {
+  async listActive(userId: number): Promise<AccountSummary[]> {
     const products = await this.dataSource.getRepository(Product).find({
-      where: { kind: 'account', active: true },
+      where: { userId, kind: 'account', active: true },
       order: { name: 'ASC' },
     });
     // Del más nuevo al más viejo: el primero que aparece de cada cuenta es su último saldo.
     // Con pocas cuentas basta traerlos todos; si crece, se filtra en la consulta.
-    const balances = await this.dataSource.getRepository(AccountBalance).find({ order: { asOf: 'DESC' } });
+    const balances = await this.dataSource
+      .getRepository(AccountBalance)
+      .find({ where: { userId }, order: { asOf: 'DESC' } });
     const latest = new Map<number, AccountBalance>();
     for (const balance of balances) {
       if (!latest.has(balance.productId)) latest.set(balance.productId, balance);
@@ -110,18 +115,21 @@ export class AccountsService {
    * Confirma el saldo de una cuenta en una fecha; el último es el punto de partida de la proyección.
    * Si ya había uno ese día lo reemplaza: confirmar en la mañana y corregir en la tarde es lo normal.
    */
-  async confirmBalance(accountId: number, input: ConfirmBalanceInput): Promise<AccountBalance> {
+  async confirmBalance(userId: number, accountId: number, input: ConfirmBalanceInput): Promise<AccountBalance> {
+    // Primero el dueño: una cuenta ajena responde 404, igual que una que no existe
+    const owned = await this.dataSource.getRepository(Product).findOneBy({ id: accountId, userId });
     // Account solo existe para productos que son cuentas: un préstamo o una tarjeta también dan 404
-    const account = await this.dataSource.getRepository(Account).findOneBy({ productId: accountId });
+    const account = owned ? await this.dataSource.getRepository(Account).findOneBy({ productId: accountId }) : null;
     if (!account) throw new NotFoundException(`No existe la cuenta ${accountId}`);
 
     // El saldo del mismo día se reemplaza borrando la fila y creando otra, no actualizándola: así su
     // `createdAt` (la hora que usa la proyección para saber qué se registró después) avanza. Con un
     // UPDATE conservaría la hora de la primera confirmación, y lo registrado entre las dos contaría doble.
     return this.dataSource.transaction(async (manager) => {
-      const sameDay = await manager.findOneBy(AccountBalance, { productId: accountId, asOf: input.asOf });
-      if (sameDay) await manager.delete(AccountBalance, { id: sameDay.id });
+      const sameDay = await manager.findOneBy(AccountBalance, { userId, productId: accountId, asOf: input.asOf });
+      if (sameDay) await manager.delete(AccountBalance, { id: sameDay.id, userId });
       return manager.save(AccountBalance, {
+        userId,
         productId: accountId,
         asOf: input.asOf,
         balanceCents: input.balanceCents,

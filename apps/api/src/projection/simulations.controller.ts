@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
 import type { SimulationOutcome } from './build-simulation';
 import { SimulatePurchaseDto } from './dto/simulate-purchase.dto';
 import { SimulationsService } from './simulations.service';
@@ -10,7 +11,7 @@ export class SimulationsController {
   /** ¿Puedo comprar esto? No guarda nada: por eso responde 200, no 201. */
   @Post()
   @HttpCode(200)
-  simulate(@Body() dto: SimulatePurchaseDto): Promise<SimulationOutcome> {
-    return this.simulations.simulate(dto);
+  simulate(@CurrentUser() userId: number, @Body() dto: SimulatePurchaseDto): Promise<SimulationOutcome> {
+    return this.simulations.simulate(userId, dto);
   }
 }

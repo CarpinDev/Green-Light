@@ -3,24 +3,31 @@
 ### (accounts.http). Mientras más tengas (tarjetas, compras, préstamo, ingresos, gastos fijos), más
 ### completa la proyección. Cada mes trae su semáforo: green, yellow o red.
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 
 ### 1. Tres meses (el valor por defecto) -> 200 con asOf, openingBalanceCents, staleAccounts y months
 GET {{host}}/projection
+Authorization: Bearer {{token}}
 
 ### 2. Seis meses
 GET {{host}}/projection?months=6
+Authorization: Bearer {{token}}
 
 ### 3. Un solo mes
 GET {{host}}/projection?months=1
+Authorization: Bearer {{token}}
 
 ### 4. months = 0 -> 400
 GET {{host}}/projection?months=0
+Authorization: Bearer {{token}}
 
 ### 5. months = 25 -> 400
 GET {{host}}/projection?months=25
+Authorization: Bearer {{token}}
 
 ### 6. months que no es número -> 400
 GET {{host}}/projection?months=abc
+Authorization: Bearer {{token}}
 
 ### La respuesta trae daysSinceBalance: los días entre tu último saldo confirmado y hoy.
 ### Con más de 31 días el saldo ya no sirve de punto de partida y la API responde

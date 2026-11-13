@@ -12,7 +12,7 @@ export const MAX_CUTS = 24;
 export class CardPlanService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async plan(cardId: number, cuts: number = DEFAULT_CUTS, today = isoDateOf()): Promise<CardPlan> {
-    return buildCardPlan(await loadCardPlanFacts(this.dataSource, cardId), cuts, today);
+  async plan(userId: number, cardId: number, cuts: number = DEFAULT_CUTS, today = isoDateOf()): Promise<CardPlan> {
+    return buildCardPlan(await loadCardPlanFacts(this.dataSource, userId, cardId), cuts, today);
   }
 }

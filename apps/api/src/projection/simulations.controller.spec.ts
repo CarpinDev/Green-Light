@@ -4,6 +4,8 @@ import type { Server } from 'node:http';
 import request from 'supertest';
 import { SimulationsController } from './simulations.controller';
 import { SimulationsService } from './simulations.service';
+import { fakeAuth } from '../testing/fake-auth';
+import { USER } from '../testing/users';
 
 // Sin base de datos: un SimulationsService falso. Prueba la ruta, el código HTTP y la validación.
 
@@ -15,7 +17,7 @@ describe('POST /simulations', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [SimulationsController],
-      providers: [{ provide: SimulationsService, useValue: { simulate } }],
+      providers: [fakeAuth, { provide: SimulationsService, useValue: { simulate } }],
     }).compile();
     app = module.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
@@ -31,7 +33,7 @@ describe('POST /simulations', () => {
     const res = await request(server()).post('/simulations').send(body);
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ asOf: '2026-03-10' });
-    expect(simulate).toHaveBeenCalledWith(expect.objectContaining(body));
+    expect(simulate).toHaveBeenCalledWith(USER, expect.objectContaining(body));
   });
 
   it('un cuerpo inválido es 400 y no llega al service', async () => {

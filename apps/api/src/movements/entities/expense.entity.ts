@@ -5,6 +5,7 @@ import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { decimalTransformer } from '../../common/transformers/decimal.transformer';
 import { Product } from '../../products/entities/product.entity';
 import { Category } from './category.entity';
+import { User } from '../../users/entities/user.entity';
 
 /**
  * Gasto diario. Con tarjeta, el motor lo ubica en el corte según la fecha.
@@ -12,7 +13,7 @@ import { Category } from './category.entity';
  * con tarjeta) van en el service, no aquí.
  */
 @Entity('expense')
-@Index(['date'])
+@Index(['userId', 'date'])
 @Index(['sourceProductId', 'date'])
 @Check(`"amount_cents" > 0`)
 @Check(`"installments" IS NULL OR "installments" BETWEEN 1 AND 72`)
@@ -21,6 +22,13 @@ import { Category } from './category.entity';
 @Check(`"promo_ea" >= 0 AND "promo_mv" >= 0`)
 export class Expense {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column({ type: 'date' }) date!: IsoDate;
 

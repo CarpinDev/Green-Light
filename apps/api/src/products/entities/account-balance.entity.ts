@@ -1,13 +1,31 @@
 import type { Cents, IsoDate } from '@greenlight/engine';
-import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn, Unique } from 'typeorm';
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
+  Unique,
+} from 'typeorm';
 import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Account } from './account.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** Saldos confirmados; el último es el punto de partida de la proyección. */
 @Entity('account_balance')
+@Index(['userId'])
 @Unique(['productId', 'asOf'])
 export class AccountBalance {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   @Column() productId!: number;
 

@@ -4,6 +4,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { StatementChecksController } from './statement-checks.controller';
 import { StatementChecksService } from './statement-checks.service';
+import { fakeAuth } from '../testing/fake-auth';
+import { USER } from '../testing/users';
 
 // Sin base de datos: un StatementChecksService falso. Prueba la ruta, el código HTTP y la validación.
 
@@ -15,7 +17,7 @@ describe('POST /statement-checks', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({
       controllers: [StatementChecksController],
-      providers: [{ provide: StatementChecksService, useValue: { create } }],
+      providers: [fakeAuth, { provide: StatementChecksService, useValue: { create } }],
     }).compile();
     app = module.createNestApplication();
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true }));
@@ -31,7 +33,7 @@ describe('POST /statement-checks', () => {
     const res = await request(server()).post('/statement-checks').send(body);
     expect(res.status).toBe(201);
     expect(res.body).toEqual({ id: 7 });
-    expect(create).toHaveBeenCalledWith(expect.objectContaining(body));
+    expect(create).toHaveBeenCalledWith(USER, expect.objectContaining(body));
   });
 
   it('un cuerpo inválido es 400 y no llega al service', async () => {

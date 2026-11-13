@@ -10,6 +10,7 @@ import { Category } from './entities/category.entity';
 import { Expense } from './entities/expense.entity';
 import { MovementsFeedController } from './movements-feed.controller';
 import { DEFAULT_LIMIT, MovementsFeedService } from './movements-feed.service';
+import { USER } from '../testing/users';
 
 // GET /movements: lo que ya pasó, mezclado y ordenado. Datos ficticios.
 
@@ -79,7 +80,7 @@ describe('MovementsFeedService', () => {
         },
       ]);
 
-      const list = await service.list(20, TODAY);
+      const list = await service.list(USER, 20, TODAY);
       expect(list.map((m) => m.id)).toEqual(['expense:2', 'capital:1', 'income:1', 'expense:1']);
       expect(list.map((m) => [m.type, m.direction])).toEqual([
         ['expense', 'out'],
@@ -93,25 +94,25 @@ describe('MovementsFeedService', () => {
       db.seed(Expense, [expense(1, '2026-11-10', at('2026-11-10', 8)), expense(2, '2026-11-10', at('2026-11-10', 18))]);
       db.seed(OneOffIncome, [income(1, '2026-11-10', at('2026-11-10', 12))]);
 
-      expect((await service.list(20, TODAY)).map((m) => m.id)).toEqual(['expense:2', 'income:1', 'expense:1']);
+      expect((await service.list(USER, 20, TODAY)).map((m) => m.id)).toEqual(['expense:2', 'income:1', 'expense:1']);
     });
 
     it('si hasta la hora empata, el id más alto va primero', async () => {
       const same = at('2026-11-10', 8);
       db.seed(Expense, [expense(1, '2026-11-10', same), expense(2, '2026-11-10', same)]);
-      expect((await service.list(20, TODAY)).map((m) => m.id)).toEqual(['expense:2', 'expense:1']);
+      expect((await service.list(USER, 20, TODAY)).map((m) => m.id)).toEqual(['expense:2', 'expense:1']);
     });
 
     it('un movimiento con fecha futura no sale: es de Próximos', async () => {
       db.seed(OneOffIncome, [income(1, '2026-11-20', at('2026-11-01', 9)), income(2, TODAY, at('2026-11-12', 9))]);
       db.seed(Expense, [expense(1, '2026-12-01', at('2026-11-01', 9))]);
-      expect((await service.list(20, TODAY)).map((m) => m.id)).toEqual(['income:2']);
+      expect((await service.list(USER, 20, TODAY)).map((m) => m.id)).toEqual(['income:2']);
     });
 
     it('el monto va en positivo y la dirección dice el signo', async () => {
       db.seed(Expense, [expense(1, '2026-11-10', at('2026-11-10', 9), { amountCents: 12_000_000 })]);
       db.seed(OneOffIncome, [income(1, '2026-11-09', at('2026-11-09', 9), { amountCents: 50_000_000 })]);
-      const [out, inc] = await service.list(20, TODAY);
+      const [out, inc] = await service.list(USER, 20, TODAY);
       expect([out?.amountCents, out?.direction]).toEqual([12_000_000, 'out']);
       expect([inc?.amountCents, inc?.direction]).toEqual([50_000_000, 'in']);
     });
@@ -124,7 +125,7 @@ describe('MovementsFeedService', () => {
         Array.from({ length: 25 }, (_, i) => expense(i + 1, '2026-11-10', at('2026-11-10', 1 + (i % 20)))),
       );
       expect(DEFAULT_LIMIT).toBe(20);
-      expect(await service.list(undefined, TODAY)).toHaveLength(20);
+      expect(await service.list(USER, undefined, TODAY)).toHaveLength(20);
     });
 
     it('corta en `limit` y no pierde ninguno de los más recientes entre tablas', async () => {
@@ -144,7 +145,7 @@ describe('MovementsFeedService', () => {
         { id: 2, productId: VISA, date: '2026-11-05', amountCents: 1, expenseId: null, createdAt: at('2026-11-05', 9) },
       ]);
 
-      expect((await service.list(3, TODAY)).map((m) => m.id)).toEqual(['expense:1', 'income:1', 'capital:1']);
+      expect((await service.list(USER, 3, TODAY)).map((m) => m.id)).toEqual(['expense:1', 'income:1', 'capital:1']);
     });
 
     it('lo programado entra a la mezcla y también se corta', async () => {
@@ -152,7 +153,7 @@ describe('MovementsFeedService', () => {
         { id: 1, name: 'Salario', amountCents: 300, dayOfMonth: 5, startDate: '2026-01-01', endDate: null },
       ]);
       db.seed(Expense, [expense(1, '2026-11-12', at('2026-11-12', 9)), expense(2, '2026-11-01', at('2026-11-01', 9))]);
-      expect((await service.list(2, TODAY)).map((m) => m.id)).toEqual(['expense:1', 'recurring:1:2026-11-05']);
+      expect((await service.list(USER, 2, TODAY)).map((m) => m.id)).toEqual(['expense:1', 'recurring:1:2026-11-05']);
     });
   });
 
@@ -168,7 +169,7 @@ describe('MovementsFeedService', () => {
       ...extra,
     });
     const scheduledIds = async (today = TODAY) =>
-      (await service.list(100, today)).filter((m) => m.scheduled).map((m) => m.id);
+      (await service.list(USER, 100, today)).filter((m) => m.scheduled).map((m) => m.id);
 
     it('las fechas ya vencidas de los últimos 60 días, hasta hoy incluido', async () => {
       db.seed(RecurringIncome, [salary({ dayOfMonth: 12 })]); // hoy es 12
@@ -241,7 +242,7 @@ describe('MovementsFeedService', () => {
           cardId: null,
         },
       ]);
-      const list = await service.list(100, TODAY);
+      const list = await service.list(USER, 100, TODAY);
       const pay = list.find((m) => m.id === 'recurring:1:2026-11-05');
       const rent = list.find((m) => m.id === 'fixed:4:2026-11-05');
       expect(pay).toMatchObject({
@@ -263,7 +264,7 @@ describe('MovementsFeedService', () => {
     it('en un empate de fecha va después de lo registrado', async () => {
       db.seed(RecurringIncome, [salary()]);
       db.seed(Expense, [expense(1, '2026-11-05', at('2026-11-05', 1))]);
-      const ids = (await service.list(100, TODAY)).map((m) => m.id);
+      const ids = (await service.list(USER, 100, TODAY)).map((m) => m.id);
       expect(ids.indexOf('expense:1')).toBeLessThan(ids.indexOf('recurring:1:2026-11-05'));
     });
   });
@@ -279,7 +280,7 @@ describe('MovementsFeedService', () => {
         }),
         expense(2, '2026-11-09', at('2026-11-09', 9), { sourceProductId: AHORROS }),
       ]);
-      const [card, account] = await service.list(20, TODAY);
+      const [card, account] = await service.list(USER, 20, TODAY);
       expect(card).toMatchObject({
         product: { id: VISA, name: 'Visa', last4: '1234', kind: 'credit_card' },
         installments: 3,
@@ -299,7 +300,7 @@ describe('MovementsFeedService', () => {
         income(1, '2026-11-10', at('2026-11-10', 9)),
         income(2, '2026-11-09', at('2026-11-09', 9), { destinationAccountId: null }),
       ]);
-      const [withAccount, without] = await service.list(20, TODAY);
+      const [withAccount, without] = await service.list(USER, 20, TODAY);
       expect(withAccount?.product).toMatchObject({ id: AHORROS, kind: 'account' });
       expect(without?.product).toBeNull();
     });
@@ -315,7 +316,7 @@ describe('MovementsFeedService', () => {
           createdAt: at('2026-11-10', 9),
         },
       ]);
-      expect((await service.list(20, TODAY))[0]?.product).toMatchObject({ id: PRESTAMO, kind: 'loan' });
+      expect((await service.list(USER, 20, TODAY))[0]?.product).toMatchObject({ id: PRESTAMO, kind: 'loan' });
     });
 
     it('un abono dice de dónde salió el dinero: la cuenta, "externo" o nada (los de antes)', async () => {
@@ -335,7 +336,7 @@ describe('MovementsFeedService', () => {
         payment(2, { isExternal: true }),
         payment(3, {}),
       ]);
-      const list = await service.list(20, TODAY);
+      const list = await service.list(USER, 20, TODAY);
       const labelOf = (id: string) => list.find((m) => m.id === id)?.sourceLabel;
       expect(labelOf('capital:1')).toBe('desde Ahorros ••5678');
       expect(labelOf('capital:2')).toBe('externo');
@@ -386,7 +387,7 @@ describe('MovementsFeedService', () => {
           destinationAccountId: AHORROS,
         },
       ]);
-      const list = await service.list(100, TODAY);
+      const list = await service.list(USER, 100, TODAY);
       const byId = (id: string) => list.find((m) => m.id === id);
       expect(byId('fixed:1:2026-11-05')?.product).toMatchObject({ id: VISA, kind: 'credit_card' });
       expect(byId('fixed:2:2026-11-05')?.product).toBeNull();
@@ -395,7 +396,7 @@ describe('MovementsFeedService', () => {
     });
 
     it('sin nada registrado ni programado, una lista vacía', async () => {
-      expect(await service.list(20, TODAY)).toEqual([]);
+      expect(await service.list(USER, 20, TODAY)).toEqual([]);
     });
   });
 });
@@ -403,7 +404,7 @@ describe('MovementsFeedService', () => {
 describe('MovementsFeedController: limit', () => {
   const calls: number[] = [];
   const controller = new MovementsFeedController({
-    list: (limit: number) => {
+    list: (_userId: number, limit: number) => {
       calls.push(limit);
       return Promise.resolve([]);
     },
@@ -412,15 +413,15 @@ describe('MovementsFeedController: limit', () => {
     value === undefined ? Promise.resolve(DEFAULT_LIMIT) : new ParseIntPipe().transform(value, { type: 'query' });
 
   it('acepta de 1 a 100', async () => {
-    await controller.list(1);
-    await controller.list(100);
+    await controller.list(USER, 1);
+    await controller.list(USER, 100);
     expect(calls).toEqual([1, 100]);
   });
 
   it('rechaza 0 y 101 con 400', () => {
-    expect(() => controller.list(0)).toThrow(BadRequestException);
-    expect(() => controller.list(101)).toThrow(BadRequestException);
-    expect(() => controller.list(-5)).toThrow(/entre 1 y 100/);
+    expect(() => controller.list(USER, 0)).toThrow(BadRequestException);
+    expect(() => controller.list(USER, 101)).toThrow(BadRequestException);
+    expect(() => controller.list(USER, -5)).toThrow(/entre 1 y 100/);
   });
 
   it('un texto que no es número es 400 (ParseIntPipe) y sin limit se usa el 20', async () => {

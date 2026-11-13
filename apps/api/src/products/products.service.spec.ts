@@ -1,6 +1,7 @@
 import { FakeDb } from '../testing/fake-db';
 import { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
+import { USER } from '../testing/users';
 
 // GET /products: lo que la app necesita para elegir de dónde sale un gasto. Datos ficticios.
 
@@ -18,7 +19,7 @@ describe('ProductsService.listActive', () => {
       { id: 1, kind: 'credit_card', name: 'Visa', bank: 'Banco Ejemplo', last4: '4321', active: true },
       { id: 2, kind: 'account', name: 'Ahorros vieja', bank: 'Banco Ejemplo', last4: '1111', active: false },
     ]);
-    const products = await service.listActive();
+    const products = await service.listActive(USER);
     expect(products.map((p) => p.id)).toEqual([1]);
   });
 
@@ -28,7 +29,7 @@ describe('ProductsService.listActive', () => {
       { id: 2, kind: 'account', name: 'Ahorros', bank: 'B', last4: '1111', active: true },
       { id: 3, kind: 'credit_card', name: 'Visa', bank: 'B', last4: '2222', active: true },
     ]);
-    expect((await service.listActive()).map((p) => p.name)).toEqual(['Ahorros', 'Préstamo', 'Visa']);
+    expect((await service.listActive(USER)).map((p) => p.name)).toEqual(['Ahorros', 'Préstamo', 'Visa']);
   });
 
   it('solo trae lo que usa la app, incluido el tipo para saber si es tarjeta', async () => {
@@ -43,12 +44,12 @@ describe('ProductsService.listActive', () => {
         createdAt: new Date(),
       },
     ]);
-    expect(await service.listActive()).toEqual([
+    expect(await service.listActive(USER)).toEqual([
       { id: 1, kind: 'credit_card', name: 'Visa', bank: 'Banco Ejemplo', last4: '4321' },
     ]);
   });
 
   it('sin productos devuelve una lista vacía', async () => {
-    expect(await service.listActive()).toEqual([]);
+    expect(await service.listActive(USER)).toEqual([]);
   });
 });

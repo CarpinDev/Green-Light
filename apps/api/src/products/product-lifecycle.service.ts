@@ -54,10 +54,10 @@ export class ProductLifecycleService {
   ) {}
 
   /** Cuánto se borraría y qué lo bloquea, para que la app lo muestre antes de confirmar. */
-  async usage(productId: number): Promise<ProductUsage> {
+  async usage(userId: number, productId: number): Promise<ProductUsage> {
     return this.dataSource.transaction(async (manager) => {
-      await this.requireProduct(manager, productId);
-      return this.usageOf(manager, productId);
+      await this.requireProduct(manager, userId, productId);
+      return this.usageOf(manager, userId, productId);
     });
   }
 
@@ -67,22 +67,24 @@ export class ProductLifecycleService {
    * los gastos, y al final el producto. Sus tasas, saldos, extractos y los datos de tarjeta/cuenta/préstamo
    * cuelgan de él con CASCADE; se borran a mano igual para no depender de eso y que el orden se lea completo.
    */
-  async remove(productId: number): Promise<void> {
+  async remove(userId: number, productId: number): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
-      const product = await this.requireProduct(manager, productId);
-      const usage = await this.usageOf(manager, productId);
+      // requireProduct ya comprobó que el producto es de este usuario; el userId en cada delete es el cinturón
+      // además de los tirantes: aun si alguien cambiara el orden de arriba, no podría borrar filas ajenas.
+      const product = await this.requireProduct(manager, userId, productId);
+      const usage = await this.usageOf(manager, userId, productId);
       if (usage.blockers.length > 0)
         throw new ConflictException(blockedMessage(product.kind, usage.blockers, 'eliminar'));
 
-      await manager.delete(CapitalPayment, { productId });
-      await manager.delete(Expense, { sourceProductId: productId });
-      await manager.delete(StatementCheck, { productId });
-      await manager.delete(AccountBalance, { productId });
-      await manager.delete(ProductRate, { productId });
+      await manager.delete(CapitalPayment, { userId, productId });
+      await manager.delete(Expense, { userId, sourceProductId: productId });
+      await manager.delete(StatementCheck, { userId, productId });
+      await manager.delete(AccountBalance, { userId, productId });
+      await manager.delete(ProductRate, { userId, productId });
       await manager.delete(CreditCard, { productId });
       await manager.delete(Account, { productId });
       await manager.delete(Loan, { productId });
-      await manager.delete(Product, { id: productId });
+      await manager.delete(Product, { id: productId, userId });
     });
   }
 
@@ -90,10 +92,10 @@ export class ProductLifecycleService {
    * Archiva. Una tarjeta o un préstamo con deuda pendiente no se puede (409); una cuenta sí, aunque tenga saldo.
    * Archivar uno ya archivado no cambia nada.
    */
-  async archive(productId: number, today = isoDateOf()): Promise<{ id: number; active: boolean }> {
+  async archive(userId: number, productId: number, today = isoDateOf()): Promise<{ id: number; active: boolean }> {
     const product = await this.dataSource.transaction(async (manager) => {
-      const found = await this.requireProduct(manager, productId);
-      const usage = await this.usageOf(manager, productId);
+      const found = await this.requireProduct(manager, userId, productId);
+      const usage = await this.usageOf(manager, userId, productId);
       // Una cuenta con gastos fijos se puede archivar (justo para eso sirve: cerrarla conservando su historial);
       // lo que sí frena a todos es un ingreso que le llega o, en una tarjeta, un gasto fijo que cobra
       const blockers = usage.blockers.filter((b) => !(found.kind === 'account' && b.kind === 'fixed_expense'));
@@ -101,7 +103,7 @@ export class ProductLifecycleService {
       return found;
     });
 
-    const owed = await this.pendingDebt(product, today);
+    const owed = await this.pendingDebt(userId, product, today);
     if (owed > 0) {
       const { word, clitic } = NOUN[product.kind];
       const that = clitic === 'la' ? 'esta' : 'este';
@@ -116,18 +118,18 @@ export class ProductLifecycleService {
     return { id: productId, active: false };
   }
 
-  async unarchive(productId: number): Promise<{ id: number; active: boolean }> {
-    const product = await this.dataSource.getRepository(Product).findOneBy({ id: productId });
+  async unarchive(userId: number, productId: number): Promise<{ id: number; active: boolean }> {
+    const product = await this.dataSource.getRepository(Product).findOneBy({ id: productId, userId });
     if (!product) throw new NotFoundException(`El producto ${productId} no existe`);
     await this.dataSource.getRepository(Product).save({ ...product, active: true });
     return { id: productId, active: true };
   }
 
   /** Lo que todavía se debe: el capital por facturar de la tarjeta, o el saldo del préstamo. 0 en una cuenta. */
-  private async pendingDebt(product: Product, today: string): Promise<number> {
+  private async pendingDebt(userId: number, product: Product, today: string): Promise<number> {
     if (product.kind === 'credit_card') {
       // El primer corte del plan es el extracto sin vencer: su capital más todo el que falta por facturar
-      const [first] = (await this.cardPlan.plan(product.id, 1, today)).cuts;
+      const [first] = (await this.cardPlan.plan(userId, product.id, 1, today)).cuts;
       return first === undefined ? 0 : first.minimum.capital + first.remainingDebtCents;
     }
     if (product.kind === 'loan') {
@@ -135,33 +137,34 @@ export class ProductLifecycleService {
       const loan = await db.getRepository(Loan).findOneBy({ productId: product.id });
       if (!loan) return 0;
       const [rates, payments] = await Promise.all([
-        db.getRepository(ProductRate).find({ where: { productId: product.id } }),
-        db.getRepository(CapitalPayment).find({ where: { productId: product.id } }),
+        db.getRepository(ProductRate).find({ where: { userId, productId: product.id } }),
+        db.getRepository(CapitalPayment).find({ where: { userId, productId: product.id } }),
       ]);
       return payoffAmount(toEngineLoan(loan, rates), today, payments.map(toLoanPrepayment));
     }
     return 0;
   }
 
-  private async requireProduct(manager: EntityManager, id: number): Promise<Product> {
-    const product = await manager.findOneBy(Product, { id });
+  /** El producto del usuario. Uno de otra persona es "no existe": 404, no 403, para no revelar que está ahí. */
+  private async requireProduct(manager: EntityManager, userId: number, id: number): Promise<Product> {
+    const product = await manager.findOneBy(Product, { id, userId });
     if (!product) throw new NotFoundException(`El producto ${id} no existe`);
     return product;
   }
 
-  private async usageOf(manager: EntityManager, productId: number): Promise<ProductUsage> {
+  private async usageOf(manager: EntityManager, userId: number, productId: number): Promise<ProductUsage> {
     const [expenses, capitalPayments, balances, rates, fixed, recurring, oneOff] = await Promise.all([
-      manager.find(Expense, { where: { sourceProductId: productId } }),
-      manager.find(CapitalPayment, { where: { productId } }),
-      manager.find(AccountBalance, { where: { productId } }),
-      manager.find(ProductRate, { where: { productId } }),
+      manager.find(Expense, { where: { userId, sourceProductId: productId } }),
+      manager.find(CapitalPayment, { where: { userId, productId } }),
+      manager.find(AccountBalance, { where: { userId, productId } }),
+      manager.find(ProductRate, { where: { userId, productId } }),
       // De una tarjeta (cardId) o de una cuenta (accountId): según el tipo del producto solo una de las dos tiene filas
       Promise.all([
-        manager.find(FixedExpense, { where: { cardId: productId } }),
-        manager.find(FixedExpense, { where: { accountId: productId } }),
+        manager.find(FixedExpense, { where: { userId, cardId: productId } }),
+        manager.find(FixedExpense, { where: { userId, accountId: productId } }),
       ]).then(([fromCard, fromAccount]) => [...fromCard, ...fromAccount]),
-      manager.find(RecurringIncome, { where: { destinationAccountId: productId } }),
-      manager.find(OneOffIncome, { where: { destinationAccountId: productId } }),
+      manager.find(RecurringIncome, { where: { userId, destinationAccountId: productId } }),
+      manager.find(OneOffIncome, { where: { userId, destinationAccountId: productId } }),
     ]);
     return {
       expenses: expenses.length,

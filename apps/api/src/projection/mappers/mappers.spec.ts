@@ -294,7 +294,7 @@ describe('ingresos y gastos fijos', () => {
 
 describe('toEngineSettings', () => {
   const row = make(Settings, {
-    id: 1,
+    userId: 1,
     yellowBelowIncomePct: D('0.1000'),
     cardUtilizationPct: D('0.3000'),
     debtToIncomePct: D('0.3000'),

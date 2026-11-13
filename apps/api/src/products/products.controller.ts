@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
+import { CurrentUser } from '../auth/current-user.decorator';
 import { RateDto } from './dto/rate.dto';
 import { type ProductUsage, ProductLifecycleService } from './product-lifecycle.service';
 import { type ProductSummary, ProductsService } from './products.service';
@@ -15,39 +16,49 @@ export class ProductsController {
    * Con `?archived=true`, los archivados (para desarchivarlos).
    */
   @Get()
-  list(@Query('archived') archived?: string): Promise<ProductSummary[]> {
-    return archived === 'true' ? this.products.listArchived() : this.products.listActive();
+  list(@CurrentUser() userId: number, @Query('archived') archived?: string): Promise<ProductSummary[]> {
+    return archived === 'true' ? this.products.listArchived(userId) : this.products.listActive(userId);
   }
 
   /** Cuánto se borraría con el producto y qué lo bloquea. */
   @Get(':id/usage')
-  usage(@Param('id', ParseIntPipe) id: number): Promise<ProductUsage> {
-    return this.lifecycle.usage(id);
+  usage(@CurrentUser() userId: number, @Param('id', ParseIntPipe) id: number): Promise<ProductUsage> {
+    return this.lifecycle.usage(userId, id);
   }
 
   /** Elimina el producto con todo lo suyo. 204; 404 si no existe; 409 si un gasto fijo o un ingreso lo usa. */
   @Delete(':id')
   @HttpCode(204)
-  remove(@Param('id', ParseIntPipe) id: number): Promise<void> {
-    return this.lifecycle.remove(id);
+  remove(@CurrentUser() userId: number, @Param('id', ParseIntPipe) id: number): Promise<void> {
+    return this.lifecycle.remove(userId, id);
   }
 
   /** Lo saca de las listas y de la proyección, conservando su historial. 409 si todavía se debe. */
   @Post(':id/archive')
   @HttpCode(200)
-  archive(@Param('id', ParseIntPipe) id: number): Promise<{ id: number; active: boolean }> {
-    return this.lifecycle.archive(id);
+  archive(
+    @CurrentUser() userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ id: number; active: boolean }> {
+    return this.lifecycle.archive(userId, id);
   }
 
   @Post(':id/unarchive')
   @HttpCode(200)
-  unarchive(@Param('id', ParseIntPipe) id: number): Promise<{ id: number; active: boolean }> {
-    return this.lifecycle.unarchive(id);
+  unarchive(
+    @CurrentUser() userId: number,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<{ id: number; active: boolean }> {
+    return this.lifecycle.unarchive(userId, id);
   }
 
   /** Una tasa nueva en el historial. 201 con el id; 409 si esa fecha ya tiene tasa; 400 si es una cuenta. */
   @Post(':id/rates')
-  addRate(@Param('id', ParseIntPipe) id: number, @Body() dto: RateDto): Promise<{ id: number; replaced: boolean }> {
-    return this.products.addRate(id, dto);
+  addRate(
+    @CurrentUser() userId: number,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: RateDto,
+  ): Promise<{ id: number; replaced: boolean }> {
+    return this.products.addRate(userId, id, dto);
   }
 }

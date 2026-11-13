@@ -119,12 +119,13 @@ type MonthlyClass = new () => MonthlyEntity;
 export class IncomesService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async createRecurringIncome(input: CreateRecurringIncomeInput): Promise<RecurringIncome> {
+  async createRecurringIncome(userId: number, input: CreateRecurringIncomeInput): Promise<RecurringIncome> {
     assertDateRange(input.startDate, input.endDate);
     if (input.destinationAccountId !== undefined)
-      await assertAccountExists(this.dataSource, input.destinationAccountId);
+      await assertAccountExists(this.dataSource, userId, input.destinationAccountId);
 
     return this.dataSource.getRepository(RecurringIncome).save({
+      userId,
       name: input.name,
       amountCents: input.amountCents,
       dayOfMonth: input.dayOfMonth,
@@ -134,12 +135,13 @@ export class IncomesService {
     });
   }
 
-  async createOneOffIncome(input: CreateOneOffIncomeInput): Promise<OneOffIncome> {
-    if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'income');
+  async createOneOffIncome(userId: number, input: CreateOneOffIncomeInput): Promise<OneOffIncome> {
+    if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, userId, input.categoryId, 'income');
     if (input.destinationAccountId !== undefined)
-      await assertAccountExists(this.dataSource, input.destinationAccountId);
+      await assertAccountExists(this.dataSource, userId, input.destinationAccountId);
 
     return this.dataSource.getRepository(OneOffIncome).save({
+      userId,
       date: input.date,
       amountCents: input.amountCents,
       ...(input.description !== undefined && { description: input.description }),
@@ -148,14 +150,17 @@ export class IncomesService {
     });
   }
 
-  async createFixedExpense(input: CreateFixedExpenseInput): Promise<FixedExpense> {
+  async createFixedExpense(userId: number, input: CreateFixedExpenseInput): Promise<FixedExpense> {
     assertDateRange(input.startDate, input.endDate);
-    if (input.categoryId !== undefined) await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
-    if (input.cardId !== undefined) await assertActiveCard(this.dataSource, input.cardId);
-    if (input.accountId !== undefined) await assertAccountExists(this.dataSource, input.accountId);
+    if (input.categoryId !== undefined) {
+      await assertCategoryOfKind(this.dataSource, userId, input.categoryId, 'expense');
+    }
+    if (input.cardId !== undefined) await assertActiveCard(this.dataSource, userId, input.cardId);
+    if (input.accountId !== undefined) await assertAccountExists(this.dataSource, userId, input.accountId);
     assertOneSource(input.cardId, input.accountId);
 
     return this.dataSource.getRepository(FixedExpense).save({
+      userId,
       name: input.name,
       amountCents: input.amountCents,
       dayOfMonth: input.dayOfMonth,
@@ -168,11 +173,15 @@ export class IncomesService {
   }
 
   /** Todos los ingresos recurrentes, por día del mes y nombre, con el nombre de su cuenta destino. */
-  async listRecurringIncomes(filter: ListFilter = {}, today: IsoDate = isoDateOf()): Promise<RecurringIncomeSummary[]> {
+  async listRecurringIncomes(
+    userId: number,
+    filter: ListFilter = {},
+    today: IsoDate = isoDateOf(),
+  ): Promise<RecurringIncomeSummary[]> {
     const rows = await this.dataSource
       .getRepository(RecurringIncome)
-      .find({ order: { dayOfMonth: 'ASC', name: 'ASC' } });
-    const names = await this.productNames();
+      .find({ where: { userId }, order: { dayOfMonth: 'ASC', name: 'ASC' } });
+    const names = await this.productNames(userId);
 
     return rows
       .map((r) => ({
@@ -184,9 +193,15 @@ export class IncomesService {
   }
 
   /** Todos los gastos fijos, por día del mes y nombre, con el nombre de su tarjeta. */
-  async listFixedExpenses(filter: ListFilter = {}, today: IsoDate = isoDateOf()): Promise<FixedExpenseSummary[]> {
-    const rows = await this.dataSource.getRepository(FixedExpense).find({ order: { dayOfMonth: 'ASC', name: 'ASC' } });
-    const names = await this.productNames();
+  async listFixedExpenses(
+    userId: number,
+    filter: ListFilter = {},
+    today: IsoDate = isoDateOf(),
+  ): Promise<FixedExpenseSummary[]> {
+    const rows = await this.dataSource
+      .getRepository(FixedExpense)
+      .find({ where: { userId }, order: { dayOfMonth: 'ASC', name: 'ASC' } });
+    const names = await this.productNames(userId);
 
     return rows
       .map((r) => ({
@@ -201,28 +216,31 @@ export class IncomesService {
   }
 
   /** Edita solo lo que llega. Las reglas del create se revisan contra el inicio que ya está guardado. */
-  async updateRecurringIncome(id: number, input: UpdateRecurringIncomeInput): Promise<{ id: number }> {
+  async updateRecurringIncome(userId: number, id: number, input: UpdateRecurringIncomeInput): Promise<{ id: number }> {
     const repository = this.dataSource.getRepository(RecurringIncome);
-    const current = await repository.findOneBy({ id });
+    // Con el userId en la búsqueda, el registro de otra persona es "no existe": 404
+    const current = await repository.findOneBy({ id, userId });
     if (!current) throw notFound('El ingreso recurrente', id);
 
     if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate);
     if (typeof input.destinationAccountId === 'number')
-      await assertAccountExists(this.dataSource, input.destinationAccountId);
+      await assertAccountExists(this.dataSource, userId, input.destinationAccountId);
 
     await repository.save({ ...current, ...definedOnly(input) });
     return { id };
   }
 
-  async updateFixedExpense(id: number, input: UpdateFixedExpenseInput): Promise<{ id: number }> {
+  async updateFixedExpense(userId: number, id: number, input: UpdateFixedExpenseInput): Promise<{ id: number }> {
     const repository = this.dataSource.getRepository(FixedExpense);
-    const current = await repository.findOneBy({ id });
+    const current = await repository.findOneBy({ id, userId });
     if (!current) throw notFound('El gasto fijo', id);
 
     if (input.endDate !== undefined) assertDateRange(current.startDate, input.endDate);
-    if (typeof input.categoryId === 'number') await assertCategoryOfKind(this.dataSource, input.categoryId, 'expense');
-    if (typeof input.cardId === 'number') await assertActiveCard(this.dataSource, input.cardId);
-    if (typeof input.accountId === 'number') await assertAccountExists(this.dataSource, input.accountId);
+    if (typeof input.categoryId === 'number') {
+      await assertCategoryOfKind(this.dataSource, userId, input.categoryId, 'expense');
+    }
+    if (typeof input.cardId === 'number') await assertActiveCard(this.dataSource, userId, input.cardId);
+    if (typeof input.accountId === 'number') await assertAccountExists(this.dataSource, userId, input.accountId);
 
     // Se valida lo que quedaría guardado, no solo lo que llega: pasar de tarjeta a cuenta llega como
     // { cardId: null, accountId }, y mandar solo accountId no debe dejar las dos
@@ -235,33 +253,33 @@ export class IncomesService {
   }
 
   /** Cambia el monto desde una fecha sin tocar los meses anteriores. Devuelve el id del registro nuevo. */
-  changeRecurringIncomeAmount(id: number, input: AmountChangeInput): Promise<{ id: number }> {
-    return this.changeAmount(RecurringIncome, 'El ingreso recurrente', id, input);
+  changeRecurringIncomeAmount(userId: number, id: number, input: AmountChangeInput): Promise<{ id: number }> {
+    return this.changeAmount(userId, RecurringIncome, 'El ingreso recurrente', id, input);
   }
 
-  changeFixedExpenseAmount(id: number, input: AmountChangeInput): Promise<{ id: number }> {
-    return this.changeAmount(FixedExpense, 'El gasto fijo', id, input);
+  changeFixedExpenseAmount(userId: number, id: number, input: AmountChangeInput): Promise<{ id: number }> {
+    return this.changeAmount(userId, FixedExpense, 'El gasto fijo', id, input);
   }
 
   /** Quita el fin de un ingreso recurrente terminado. 409 si lo reemplazó un cambio de monto. */
-  async reactivateRecurringIncome(id: number): Promise<RecurringIncomeSummary> {
-    await this.reactivate(RecurringIncome, 'El ingreso recurrente', id);
-    return this.summaryOf(await this.listRecurringIncomes(), id, 'El ingreso recurrente');
+  async reactivateRecurringIncome(userId: number, id: number): Promise<RecurringIncomeSummary> {
+    await this.reactivate(userId, RecurringIncome, 'El ingreso recurrente', id);
+    return this.summaryOf(await this.listRecurringIncomes(userId), id, 'El ingreso recurrente');
   }
 
   /** Quita el fin de un gasto fijo terminado. 409 si lo reemplazó un cambio de monto. */
-  async reactivateFixedExpense(id: number): Promise<FixedExpenseSummary> {
-    await this.reactivate(FixedExpense, 'El gasto fijo', id);
-    return this.summaryOf(await this.listFixedExpenses(), id, 'El gasto fijo');
+  async reactivateFixedExpense(userId: number, id: number): Promise<FixedExpenseSummary> {
+    await this.reactivate(userId, FixedExpense, 'El gasto fijo', id);
+    return this.summaryOf(await this.listFixedExpenses(userId), id, 'El gasto fijo');
   }
 
   /**
    * Un terminado a mano se reactiva quitándole el fin; uno reemplazado por un cambio de monto no (se superpondría
    * con su sucesor). Sin fin ya no hay nada que hacer: devuelve lo mismo (idempotente).
    */
-  private async reactivate(Entity: MonthlyClass, label: string, id: number): Promise<void> {
+  private async reactivate(userId: number, Entity: MonthlyClass, label: string, id: number): Promise<void> {
     const repository = this.dataSource.getRepository(Entity);
-    const current = await repository.findOneBy({ id });
+    const current = await repository.findOneBy({ id, userId });
     if (!current) throw notFound(label, id);
     if ((current.replacedById ?? null) !== null) throw new ConflictException(REPLACED_MESSAGE);
     if ((current.endDate ?? null) === null) return;
@@ -276,13 +294,13 @@ export class IncomesService {
   }
 
   /** Borrado real, para lo que se creó por error: no deja historia. Para terminar uno, se le pone endDate. */
-  async removeRecurringIncome(id: number): Promise<void> {
-    const { affected } = await this.dataSource.getRepository(RecurringIncome).delete({ id });
+  async removeRecurringIncome(userId: number, id: number): Promise<void> {
+    const { affected } = await this.dataSource.getRepository(RecurringIncome).delete({ id, userId });
     if (!affected) throw notFound('El ingreso recurrente', id);
   }
 
-  async removeFixedExpense(id: number): Promise<void> {
-    const { affected } = await this.dataSource.getRepository(FixedExpense).delete({ id });
+  async removeFixedExpense(userId: number, id: number): Promise<void> {
+    const { affected } = await this.dataSource.getRepository(FixedExpense).delete({ id, userId });
     if (!affected) throw notFound('El gasto fijo', id);
   }
 
@@ -291,13 +309,14 @@ export class IncomesService {
    * nuevo, con el monto nuevo, empieza ese día. Los dos pasos van juntos o ninguno.
    */
   private changeAmount(
+    userId: number,
     Entity: MonthlyClass,
     label: string,
     id: number,
     input: AmountChangeInput,
   ): Promise<{ id: number }> {
     return this.dataSource.transaction(async (manager) => {
-      const current = await manager.findOneBy<MonthlyEntity>(Entity, { id });
+      const current = await manager.findOneBy<MonthlyEntity>(Entity, { id, userId });
       if (!current) throw notFound(label, id);
 
       if (input.effectiveFrom <= current.startDate) {
@@ -332,8 +351,8 @@ export class IncomesService {
   }
 
   /** Los nombres de los productos por id: con pocos productos basta traerlos todos. */
-  private async productNames(): Promise<Map<number, string>> {
-    const products = await this.dataSource.getRepository(Product).find();
+  private async productNames(userId: number): Promise<Map<number, string>> {
+    const products = await this.dataSource.getRepository(Product).find({ where: { userId } });
     return new Map(products.map((p) => [p.id, p.name]));
   }
 }

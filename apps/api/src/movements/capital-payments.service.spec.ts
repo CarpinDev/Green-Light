@@ -8,6 +8,7 @@ import { FakeDb } from '../testing/fake-db';
 import { CapitalPaymentsService, type CreateCapitalPaymentInput } from './capital-payments.service';
 import { CapitalPayment } from './entities/capital-payment.entity';
 import { Expense } from './entities/expense.entity';
+import { USER } from '../testing/users';
 
 // Un abono extra a capital de una tarjeta o un préstamo.
 // La regla fina: con expenseId, la compra tiene que ser de ESA tarjeta y anterior al abono; y el monto no pasa
@@ -99,8 +100,8 @@ describe('CapitalPaymentsService', () => {
 
     // Postgres devuelve null/false en las columnas sin valor; el DataSource falso las deja sin definir
     const create = service.create.bind(service);
-    service.create = async (data) => {
-      const saved = await create(data);
+    service.create = async (userId, data) => {
+      const saved = await create(userId, data);
       for (const p of db.rows(CapitalPayment)) {
         p.expenseId ??= null;
         p.sourceAccountId ??= null;
@@ -112,21 +113,28 @@ describe('CapitalPaymentsService', () => {
   });
 
   const rejects = async (overrides: Partial<CreateCapitalPaymentInput>, message: RegExp) => {
-    await expect(service.create(input(overrides))).rejects.toThrow(BadRequestException);
-    await expect(service.create(input(overrides))).rejects.toThrow(message);
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(BadRequestException);
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(message);
+    expect(db.rows(CapitalPayment)).toHaveLength(0);
+  };
+
+  // Un producto o cuenta que no existe (o es de otra persona) es 404; el resto de errores de quien pide, 400
+  const notFound = async (overrides: Partial<CreateCapitalPaymentInput>, message: RegExp) => {
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(NotFoundException);
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(message);
     expect(db.rows(CapitalPayment)).toHaveLength(0);
   };
 
   describe('create: a una tarjeta', () => {
     it('sin compra: se guarda y el motor lo reparte por mayor tasa', async () => {
-      const { id } = await service.create(input());
+      const { id } = await service.create(USER, input());
       const [saved] = db.rows(CapitalPayment);
       expect(saved).toMatchObject({ id, productId: VISA, date: '2026-03-25', amountCents: 20_000_000 });
       expect(saved?.expenseId ?? null).toBeNull();
     });
 
     it('a una compra de esa tarjeta, con el modo pedido', async () => {
-      await service.create(input({ expenseId: TV, mode: 'reduce_payment' }));
+      await service.create(USER, input({ expenseId: TV, mode: 'reduce_payment' }));
       expect(db.rows(CapitalPayment)[0]).toMatchObject({ expenseId: TV, mode: 'reduce_payment' });
     });
 
@@ -138,14 +146,14 @@ describe('CapitalPaymentsService', () => {
       rejects({ expenseId: TV, date: '2026-03-11' }, /antes/i));
 
     it('el mismo día de la compra sí se puede', async () => {
-      await service.create(input({ expenseId: TV, date: '2026-03-12' }));
+      await service.create(USER, input({ expenseId: TV, date: '2026-03-12' }));
       expect(db.rows(CapitalPayment)).toHaveLength(1);
     });
   });
 
   describe('create: a un préstamo', () => {
     it('se guarda sin compra', async () => {
-      await service.create(input({ productId: PRESTAMO }));
+      await service.create(USER, input({ productId: PRESTAMO }));
       expect(db.rows(CapitalPayment)[0]).toMatchObject({ productId: PRESTAMO });
     });
 
@@ -154,7 +162,7 @@ describe('CapitalPaymentsService', () => {
 
     it('hasta el saldo sí; un peso (100 centavos) más, no', async () => {
       await rejects({ productId: PRESTAMO, amountCents: 1_000_000_00 + 100 }, /hasta .*1.000.000.*debes del préstamo/);
-      await service.create(input({ productId: PRESTAMO, amountCents: 1_000_000_00 }));
+      await service.create(USER, input({ productId: PRESTAMO, amountCents: 1_000_000_00 }));
       expect(db.rows(CapitalPayment)).toHaveLength(1);
     });
   });
@@ -162,20 +170,20 @@ describe('CapitalPaymentsService', () => {
   describe('create: destino inválido', () => {
     it('a una cuenta: 400', () => rejects({ productId: AHORROS }, /cuenta/i));
 
-    it('a un producto que no existe: 400 con el id', () => rejects({ productId: 999 }, /999/));
+    it('a un producto que no existe: 404 con el id', () => notFound({ productId: 999 }, /999/));
 
     it('a un producto desactivado: 400', () => rejects({ productId: VIEJA }, /activ/i));
   });
 
   describe('create: de dónde sale el dinero', () => {
     it('de una cuenta: guarda sourceAccountId y no es externo', async () => {
-      await service.create(input({ sourceAccountId: AHORROS }));
+      await service.create(USER, input({ sourceAccountId: AHORROS }));
       expect(db.rows(CapitalPayment)[0]).toMatchObject({ sourceAccountId: AHORROS });
       expect(db.rows(CapitalPayment)[0]?.isExternal ?? false).toBe(false);
     });
 
     it('externo: isExternal y ninguna cuenta', async () => {
-      await service.create(input({ external: true }));
+      await service.create(USER, input({ external: true }));
       expect(db.rows(CapitalPayment)[0]).toMatchObject({ isExternal: true });
       expect(db.rows(CapitalPayment)[0]?.sourceAccountId ?? null).toBeNull();
     });
@@ -184,25 +192,25 @@ describe('CapitalPaymentsService', () => {
       rejects({ sourceAccountId: AHORROS, external: true }, /cuenta o es externo, no de las dos/));
 
     it('ninguna: se acepta como antes (compatibilidad)', async () => {
-      await service.create(input());
+      await service.create(USER, input());
       expect(db.rows(CapitalPayment)).toHaveLength(1);
     });
 
     it('external: false cuenta como ninguna', async () => {
-      await service.create(input({ external: false, sourceAccountId: AHORROS }));
+      await service.create(USER, input({ external: false, sourceAccountId: AHORROS }));
       expect(db.rows(CapitalPayment)[0]).toMatchObject({ sourceAccountId: AHORROS });
     });
 
-    it('una cuenta que no existe, que es una tarjeta o que está cerrada: 400', async () => {
-      await rejects({ sourceAccountId: 999 }, /999/);
-      await rejects({ sourceAccountId: MASTER }, /no existe/);
+    it('una cuenta que no existe: 404; una tarjeta o una cuenta cerrada: 400', async () => {
+      await notFound({ sourceAccountId: 999 }, /999/);
+      await rejects({ sourceAccountId: MASTER }, /no es una cuenta/);
       await rejects({ sourceAccountId: CERRADA }, /desactivada/);
     });
   });
 
   describe('create: el límite es la deuda abonable (lo que no está facturado)', () => {
     it('justo en el límite sí; un peso (100 centavos) más, no', async () => {
-      await service.create(input({ amountCents: LIMIT }));
+      await service.create(USER, input({ amountCents: LIMIT }));
       db.seed(CapitalPayment, []);
       await rejects({ amountCents: LIMIT + 1 }, /Solo puedes abonar hasta .*666\.667.*no está facturado/);
     });
@@ -222,15 +230,15 @@ describe('CapitalPaymentsService', () => {
           isOpeningDebt: false,
         }),
       ]);
-      await service.create(input({ amountCents: LIMIT + 1_000, expenseId: undefined }));
+      await service.create(USER, input({ amountCents: LIMIT + 1_000, expenseId: undefined }));
       db.seed(CapitalPayment, []);
       await rejects({ expenseId: TV, amountCents: LIMIT + 1 }, /Solo puedes abonar hasta/);
     });
 
     it('los abonos que ya hay bajan el límite', async () => {
-      await service.create(input({ amountCents: LIMIT - 100 }));
-      await expect(service.create(input({ amountCents: 101 }))).rejects.toThrow(/Solo puedes abonar hasta/);
-      await expect(service.create(input({ amountCents: 100 }))).resolves.toBeDefined();
+      await service.create(USER, input({ amountCents: LIMIT - 100 }));
+      await expect(service.create(USER, input({ amountCents: 101 }))).rejects.toThrow(/Solo puedes abonar hasta/);
+      await expect(service.create(USER, input({ amountCents: 100 }))).resolves.toBeDefined();
       expect(db.rows(CapitalPayment)).toHaveLength(2);
     });
 
@@ -285,7 +293,7 @@ describe('CapitalPaymentsService', () => {
           createdAt: new Date('2026-03-26T10:00:00Z'),
         },
       ]);
-      const list = await service.listOfProduct(VISA, 'credit_card');
+      const list = await service.listOfProduct(USER, VISA, 'credit_card');
 
       expect(list.map((p) => p.id)).toEqual([2, 1, 3]);
       expect(list[0]).toMatchObject({ amountCents: 200, mode: 'reduce_payment', source: { kind: 'external' } });
@@ -316,14 +324,14 @@ describe('CapitalPaymentsService', () => {
           createdAt: new Date('2026-03-21T10:00:00Z'),
         },
       ]);
-      expect((await service.listOfProduct(PRESTAMO, 'loan')).map((p) => p.id)).toEqual([1]);
-      await expect(service.listOfProduct(VISA, 'loan')).rejects.toThrow(NotFoundException);
-      await expect(service.listOfProduct(999, 'loan')).rejects.toThrow(NotFoundException);
+      expect((await service.listOfProduct(USER, PRESTAMO, 'loan')).map((p) => p.id)).toEqual([1]);
+      await expect(service.listOfProduct(USER, VISA, 'loan')).rejects.toThrow(NotFoundException);
+      await expect(service.listOfProduct(USER, 999, 'loan')).rejects.toThrow(NotFoundException);
     });
 
     it('404 si la tarjeta no existe y 400 si no es una tarjeta', async () => {
-      await expect(service.listOfProduct(999, 'credit_card')).rejects.toThrow(NotFoundException);
-      await expect(service.listOfProduct(AHORROS, 'credit_card')).rejects.toThrow(BadRequestException);
+      await expect(service.listOfProduct(USER, 999, 'credit_card')).rejects.toThrow(NotFoundException);
+      await expect(service.listOfProduct(USER, AHORROS, 'credit_card')).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -333,12 +341,12 @@ describe('CapitalPaymentsService', () => {
         { id: 1, productId: VISA, date: '2026-03-20', amountCents: 100 },
         { id: 2, productId: VISA, date: '2026-03-21', amountCents: 100 },
       ]);
-      await service.remove(1);
+      await service.remove(USER, 1);
       expect(db.rows(CapitalPayment).map((p) => p.id)).toEqual([2]);
     });
 
     it('404 si no existe', async () => {
-      await expect(service.remove(99)).rejects.toThrow(NotFoundException);
+      await expect(service.remove(USER, 99)).rejects.toThrow(NotFoundException);
     });
   });
 });

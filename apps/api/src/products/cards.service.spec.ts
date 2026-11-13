@@ -6,6 +6,7 @@ import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import type { EntityClass } from '../testing/fake-db';
+import { USER } from '../testing/users';
 
 // Va en apps/api/src/products/. Prueba el service sin Postgres: un DataSource falso guarda en
 // memoria y respeta lo que importa de una transacción (si algo falla, no queda nada).
@@ -83,7 +84,7 @@ describe('CardsService.create', () => {
   });
 
   it('escribe product (kind credit_card), credit_card y su primera tasa, enlazados por el id', async () => {
-    const created = await service.create(input());
+    const created = await service.create(USER, input());
 
     const [product] = db.rows(Product);
     expect(product).toMatchObject({ kind: 'credit_card', name: 'Visa Ficticia', bank: 'Banco Ejemplo', last4: '4321' });
@@ -101,31 +102,31 @@ describe('CardsService.create', () => {
   });
 
   it('pasa los campos opcionales que vengan', async () => {
-    await service.create(input({ handlingFeeCents: 3_000_000, firstPeriodInterest: 'full_month' }));
+    await service.create(USER, input({ handlingFeeCents: 3_000_000, firstPeriodInterest: 'full_month' }));
     expect(db.rows(CreditCard)[0]).toMatchObject({ handlingFeeCents: 3_000_000, firstPeriodInterest: 'full_month' });
   });
 
   it('si falla una escritura no queda nada a medias', async () => {
     db.failOn = ProductRate;
-    await expect(service.create(input())).rejects.toThrow();
+    await expect(service.create(USER, input())).rejects.toThrow();
     expect(db.rows(Product)).toHaveLength(0);
     expect(db.rows(CreditCard)).toHaveLength(0);
   });
 
   it('una tasa inválida es un 400 y no toca la base', async () => {
     await expect(
-      service.create(input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } })),
+      service.create(USER, input({ rate: { effectiveFrom: '2026-01-01', ea: '0.2899', mv: '0.0241' } })),
     ).rejects.toThrow(BadRequestException);
     expect(db.rows(Product)).toHaveLength(0);
   });
 
   it('misma tarjeta (banco + últimos 4) dos veces: 409, no un 500', async () => {
-    await service.create(input());
-    await expect(service.create(input({ name: 'Otra' }))).rejects.toThrow(ConflictException);
+    await service.create(USER, input());
+    await expect(service.create(USER, input({ name: 'Otra' }))).rejects.toThrow(ConflictException);
   });
 
   it('otros errores de la base no se disfrazan de 409', async () => {
     db.failOn = Product;
-    await expect(service.create(input())).rejects.not.toThrow(ConflictException);
+    await expect(service.create(USER, input())).rejects.not.toThrow(ConflictException);
   });
 });

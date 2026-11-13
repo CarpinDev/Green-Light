@@ -1,9 +1,11 @@
 ### Pruebas manuales de POST /cards (extensión REST Client de VS Code). Datos ficticios.
 ### Ejecútalas en orden. Si ya existe la tarjeta de prueba, la primera da 409: cambia last4.
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 
 ### 1. Tarjeta válida -> 201 { "id": ... }
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -18,6 +20,7 @@ Content-Type: application/json
 
 ### 2. La misma otra vez (mismo banco y últimos 4) -> 409
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -32,6 +35,7 @@ Content-Type: application/json
 
 ### 3. cutDay fuera de rango -> 400
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -46,6 +50,7 @@ Content-Type: application/json
 
 ### 4. Un campo que no está en el DTO -> 400
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -61,6 +66,7 @@ Content-Type: application/json
 
 ### 5. E.A. con una M.V. que no cuadra -> 400
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -75,6 +81,7 @@ Content-Type: application/json
 
 ### 6. E.A. de 15.000 % (150) -> 400 "fuera de rango", no un 500 de Postgres
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -89,6 +96,7 @@ Content-Type: application/json
 
 ### 7. M.V. de 20 % mensual (su E.A. calculada sería 790 %) -> 400 "fuera de rango"
 POST {{host}}/cards
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {

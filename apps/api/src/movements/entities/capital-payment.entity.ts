@@ -5,9 +5,11 @@ import { Account } from '../../products/entities/account.entity';
 import { Product } from '../../products/entities/product.entity';
 import { PREPAYMENT_MODES } from '../prepayment-mode';
 import { Expense } from './expense.entity';
+import { User } from '../../users/entities/user.entity';
 
 /** Abono extraordinario a capital de una tarjeta o un préstamo. */
 @Entity('capital_payment')
+@Index(['userId', 'date'])
 // La proyección pregunta seguido por los abonos de una tarjeta o préstamo
 @Index(['productId', 'date'])
 @Check(`"amount_cents" > 0`)
@@ -15,6 +17,13 @@ import { Expense } from './expense.entity';
 @Check(`NOT ("is_external" AND "source_account_id" IS NOT NULL)`)
 export class CapitalPayment {
   @PrimaryGeneratedColumn() id!: number;
+
+  /** Dueño de la fila: toda consulta filtra por él. */
+  @Column() userId!: number;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'user_id' })
+  user!: User;
 
   /** Tarjeta o préstamo. */
   @Column() productId!: number;

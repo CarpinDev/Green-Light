@@ -94,6 +94,15 @@ Todos los comandos se ejecutan desde la raíz del repo.
 
    El usuario y la clave `greenlight` son los de `docker-compose.yml` y sirven solo para desarrollo local. Los archivos `.env` no se suben a git.
 
+   Además, la API **no arranca** sin dos variables que no tienen valor por defecto. Agrégalas al mismo `apps/api/.env`:
+
+   ```env
+   JWT_SECRET=<48 caracteres aleatorios, mínimo 32>
+   INVITE_CODE=<el código que pedirá el registro>
+   ```
+
+   Genera el secreto con `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. Más detalle en el [README de la API](apps/api/README.md).
+
 4. Compila el motor. La API importa `packages/engine/dist`, que no está en el repo:
 
    ```bash
@@ -114,7 +123,7 @@ Todos los comandos se ejecutan desde la raíz del repo.
    npm run start:dev -w @greenlight/api
    ```
 
-   Queda en `http://localhost:3001` (otro puerto con la variable `PORT`). `GET /` responde `GreenLight: $1.234.567`.
+   Queda en `http://localhost:3001` (otro puerto con la variable `PORT`). `GET /` responde `GreenLight: $1.234.567`; todo lo demás pide iniciar sesión.
 
 7. Crea `apps/mobile/.env` con la dirección de la API:
 
@@ -132,7 +141,7 @@ Todos los comandos se ejecutan desde la raíz del repo.
 
    Para probar en un celular con Expo Go, usa `npm run start -w @greenlight/mobile`. En un celular físico, `EXPO_PUBLIC_API_URL` debe llevar la IP del PC en la red local (por ejemplo `http://192.168.1.20:3001`), no `localhost`.
 
-La app necesita al menos una cuenta con saldo confirmado para proyectar: créala en la pestaña Productos.
+La primera vez, crea tu cuenta en la pantalla de registro con el `INVITE_CODE` de tu `.env`. Después necesitas al menos una cuenta bancaria con saldo confirmado para proyectar: créala en la pestaña Productos.
 
 ## Scripts útiles
 
@@ -189,7 +198,14 @@ npm test -w @greenlight/api
 npm test -w @greenlight/mobile
 ```
 
-El motor se prueba con Vitest; la API y la app, con Jest. Las pruebas de la API importan el motor compilado, así que primero hay que correr `npm run build -w @greenlight/engine`.
+El motor se prueba con Vitest; la API y la app, con Jest. Las pruebas de la API importan el motor compilado, así que primero hay que correr `npm run build -w @greenlight/engine`. Usa `npm test`, no `npx jest` suelto (la API necesita un flag de Node que el script ya pone).
+
+La API tiene además pruebas de extremo a extremo (la app completa, el aislamiento entre usuarios y la migración) que necesitan el Postgres local arriba. Crean y borran bases `gl_e2e_*` y nunca tocan la de tu `.env`:
+
+```bash
+docker compose up -d
+npm run test:e2e -w @greenlight/api
+```
 
 Antes de cada push:
 
@@ -219,16 +235,12 @@ git checkout -b feat/nombre-del-cambio
 **Hecho**
 
 - Motor: dinero, tasas E.A./M.V., calendario de cortes, amortización, abonos a capital, compras y extractos de tarjeta, préstamos con tasa variable, proyección con semáforo, simulador, validación del mínimo y alertas.
-- API: productos (tarjetas, préstamos, cuentas), gastos, categorías, ingresos, gastos fijos, abonos a capital, ajustes, proyección, simulaciones y validación de extractos.
-- App: Inicio con saldo actual, restante real y compromisos del mes; movimientos y próximos pagos; simulador; alta y edición de productos; deuda inicial por grupos y plan de pagos por corte; préstamos con cronograma y abonos; ingresos y gastos fijos.
+- API: productos (tarjetas, préstamos, cuentas), gastos, categorías, ingresos, gastos fijos, abonos a capital, ajustes, proyección, simulaciones y validación de extractos. Multiusuario: registro con código de invitación, login con JWT (argon2id) y datos separados por usuario.
+- App: Inicio con saldo actual, restante real y compromisos del mes; movimientos y próximos pagos; simulador; alta y edición de productos; deuda inicial por grupos y plan de pagos por corte; préstamos con cronograma y abonos; ingresos y gastos fijos; inicio de sesión, registro y cierre de sesión.
 
 **Siguiente**
 
-- Autenticación multiusuario: JWT + argon2 y `userId` en cada tabla, para hasta unas 5 usuarias. Hoy la API no tiene autenticación y todos los datos son de una sola persona.
-
-**Después**
-
-- Despliegue de la API en Render y Postgres en Neon (`sslmode=require`, `TZ=America/Bogota`).
+- Despliegue de la API en Render y Postgres en Neon (`sslmode=require`, `TZ=America/Bogota`, `TRUST_PROXY=1`).
 - APK de Android con EAS.
 
 **Más adelante**

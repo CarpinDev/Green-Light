@@ -1,9 +1,11 @@
 ### Pruebas manuales de POST /loans (extensión REST Client de VS Code). Datos ficticios.
 ### Ejecútalas en orden. Si ya existe el préstamo de prueba, la primera da 409: cambia last4.
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 
 ### 1. Préstamo válido -> 201 { "id": ... }
 POST {{host}}/loans
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -19,6 +21,7 @@ Content-Type: application/json
 
 ### 2. El mismo otra vez -> 409
 POST {{host}}/loans
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -33,6 +36,7 @@ Content-Type: application/json
 
 ### 3. Con la cuota informada por el banco -> 201
 POST {{host}}/loans
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -48,6 +52,7 @@ Content-Type: application/json
 
 ### 4. Cuota informada en 0 -> 400
 POST {{host}}/loans
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -63,6 +68,7 @@ Content-Type: application/json
 
 ### 5. Sin tasa -> 400
 POST {{host}}/loans
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {

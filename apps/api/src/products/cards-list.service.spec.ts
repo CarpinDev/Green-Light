@@ -6,6 +6,7 @@ import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
 import { Product } from './entities/product.entity';
 import { ProductsService } from './products.service';
+import { USER } from '../testing/users';
 
 // Listar y editar tarjetas, y el historial de tasas. Datos ficticios.
 
@@ -71,7 +72,7 @@ describe('tarjetas y tasas', () => {
 
   describe('GET /cards', () => {
     it('solo las tarjetas activas, por nombre, con todos sus campos', async () => {
-      const list = await cards.listActive(TODAY);
+      const list = await cards.listActive(USER, TODAY);
       expect(list.map((c) => c.name)).toEqual(['Master', 'Visa']);
       expect(list[1]).toMatchObject({
         id: VISA,
@@ -94,18 +95,18 @@ describe('tarjetas y tasas', () => {
         rate(VISA, '2026-05-01', '0.2750', '0.0204'),
         rate(VISA, '2026-09-01', '0.3000', '0.0222'),
       ]);
-      const [, visa] = await cards.listActive(TODAY);
+      const [, visa] = await cards.listActive(USER, TODAY);
       expect(visa?.currentRate).toEqual({ effectiveFrom: '2026-05-01', ea: '0.275', mv: '0.0204' });
     });
 
     it('una tasa que empieza hoy ya rige', async () => {
       db.seed(ProductRate, [rate(VISA, TODAY, '0.2899', '0.0214')]);
-      expect((await cards.listActive(TODAY))[1]?.currentRate?.effectiveFrom).toBe(TODAY);
+      expect((await cards.listActive(USER, TODAY))[1]?.currentRate?.effectiveFrom).toBe(TODAY);
     });
 
     it('ea y mv van como texto, con todos los decimales (no number)', async () => {
       db.seed(ProductRate, [rate(VISA, '2026-01-01', '0.2899', '0.021440335512')]);
-      const current = (await cards.listActive(TODAY))[1]?.currentRate;
+      const current = (await cards.listActive(USER, TODAY))[1]?.currentRate;
       expect(typeof current?.ea).toBe('string');
       expect(current).toMatchObject({ ea: '0.2899', mv: '0.021440335512' });
       // Así llega al JSON, sin pasar por float
@@ -114,7 +115,7 @@ describe('tarjetas y tasas', () => {
 
     it('sin tasa que ya rija, currentRate es null', async () => {
       db.seed(ProductRate, [rate(VISA, '2026-09-01', '0.3', '0.0222')]);
-      const list = await cards.listActive(TODAY);
+      const list = await cards.listActive(USER, TODAY);
       expect(list.map((c) => c.currentRate)).toEqual([null, null]);
     });
 
@@ -123,7 +124,7 @@ describe('tarjetas y tasas', () => {
         rate(MASTER, '2026-02-01', '0.3', '0.0222'),
         rate(PRESTAMO, '2026-03-01', '0.2', '0.0153'),
       ]);
-      const [master, visa] = await cards.listActive(TODAY);
+      const [master, visa] = await cards.listActive(USER, TODAY);
       expect(master?.currentRate?.ea).toBe('0.3');
       expect(visa?.currentRate).toBeNull();
     });
@@ -131,7 +132,7 @@ describe('tarjetas y tasas', () => {
 
   describe('PATCH /cards/:id', () => {
     it('cambia el nombre (product) y el día de corte (credit_card) juntos', async () => {
-      await cards.update(VISA, { name: 'Visa Oro', cutDay: 20 });
+      await cards.update(USER, VISA, { name: 'Visa Oro', cutDay: 20 });
       expect(db.rows(Product).find((p) => p.id === VISA)?.name).toBe('Visa Oro');
       expect(db.rows(CreditCard).find((c) => c.productId === VISA)).toMatchObject({
         cutDay: 20,
@@ -141,15 +142,15 @@ describe('tarjetas y tasas', () => {
     });
 
     it('no toca el banco ni los últimos 4, ni las otras tarjetas', async () => {
-      await cards.update(VISA, { name: 'Otra', dueDay: 8 });
+      await cards.update(USER, VISA, { name: 'Otra', dueDay: 8 });
       expect(db.rows(Product).find((p) => p.id === VISA)).toMatchObject({ bank: 'Banco Ejemplo', last4: '4321' });
       expect(db.rows(Product).find((p) => p.id === MASTER)?.name).toBe('Master');
       expect(db.rows(CreditCard).find((c) => c.productId === MASTER)?.dueDay).toBe(10);
     });
 
     it('solo el nombre, o solo campos de la tarjeta, también funcionan', async () => {
-      await cards.update(VISA, { name: 'Solo nombre' });
-      await cards.update(VISA, { singleInstallmentInterestFree: false, firstPeriodInterest: 'full_month' });
+      await cards.update(USER, VISA, { name: 'Solo nombre' });
+      await cards.update(USER, VISA, { singleInstallmentInterestFree: false, firstPeriodInterest: 'full_month' });
       expect(db.rows(Product).find((p) => p.id === VISA)?.name).toBe('Solo nombre');
       expect(db.rows(CreditCard).find((c) => c.productId === VISA)).toMatchObject({
         singleInstallmentInterestFree: false,
@@ -158,15 +159,15 @@ describe('tarjetas y tasas', () => {
     });
 
     it('404 si no existe o si no es una tarjeta', async () => {
-      await expect(cards.update(999, { name: 'x' })).rejects.toThrow(NotFoundException);
-      await expect(cards.update(AHORROS, { name: 'x' })).rejects.toThrow(NotFoundException);
-      await expect(cards.update(PRESTAMO, { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(cards.update(USER, 999, { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(cards.update(USER, AHORROS, { name: 'x' })).rejects.toThrow(NotFoundException);
+      await expect(cards.update(USER, PRESTAMO, { name: 'x' })).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('POST /products/:id/rates', () => {
     it('con la E.A. calcula la M.V. y guarda la tasa en el historial', async () => {
-      const { id } = await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.2899' });
+      const { id } = await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', ea: '0.2899' });
       const saved = db.rows(ProductRate).find((r) => r.id === id);
       expect(saved).toMatchObject({ productId: VISA, effectiveFrom: '2026-07-01', source: 'ea' });
       expect(saved?.ea.toFixed()).toBe('0.2899');
@@ -175,23 +176,23 @@ describe('tarjetas y tasas', () => {
     });
 
     it('con la M.V. calcula la E.A.', async () => {
-      await products.addRate(VISA, { effectiveFrom: '2026-07-01', mv: '0.0214' });
+      await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', mv: '0.0214' });
       const [saved] = db.rows(ProductRate);
       expect(saved?.source).toBe('mv');
       expect(saved?.ea.toFixed(2)).toBe('0.29');
     });
 
     it('sirve también para un préstamo', async () => {
-      await expect(products.addRate(PRESTAMO, { effectiveFrom: '2026-07-01', ea: '0.2' })).resolves.toHaveProperty(
-        'id',
-      );
+      await expect(
+        products.addRate(USER, PRESTAMO, { effectiveFrom: '2026-07-01', ea: '0.2' }),
+      ).resolves.toHaveProperty('id');
     });
 
     it('la misma fecha corrige la tasa: una sola fila, con los valores nuevos y replaced', async () => {
-      const first = await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
+      const first = await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
       expect(first.replaced).toBe(false);
 
-      const second = await products.addRate(VISA, { effectiveFrom: '2026-07-01', mv: '0.0214' });
+      const second = await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', mv: '0.0214' });
       expect(second).toEqual({ id: first.id, replaced: true });
       const rows = db.rows(ProductRate).filter((r) => r.productId === VISA && r.effectiveFrom === '2026-07-01');
       expect(rows).toHaveLength(1);
@@ -200,34 +201,34 @@ describe('tarjetas y tasas', () => {
     });
 
     it('con otra fecha entra como una tasa nueva', async () => {
-      await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
-      await expect(products.addRate(VISA, { effectiveFrom: '2026-08-01', ea: '0.29' })).resolves.toMatchObject({
+      await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
+      await expect(products.addRate(USER, VISA, { effectiveFrom: '2026-08-01', ea: '0.29' })).resolves.toMatchObject({
         replaced: false,
       });
       expect(db.rows(ProductRate)).toHaveLength(2);
     });
 
     it('la misma fecha en otro producto no choca', async () => {
-      await products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
-      await expect(products.addRate(MASTER, { effectiveFrom: '2026-07-01', ea: '0.28' })).resolves.toBeDefined();
+      await products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', ea: '0.28' });
+      await expect(products.addRate(USER, MASTER, { effectiveFrom: '2026-07-01', ea: '0.28' })).resolves.toBeDefined();
     });
 
     it('400 si es una cuenta: no tiene tasa', async () => {
-      await expect(products.addRate(AHORROS, { effectiveFrom: '2026-07-01', ea: '0.2' })).rejects.toThrow(
+      await expect(products.addRate(USER, AHORROS, { effectiveFrom: '2026-07-01', ea: '0.2' })).rejects.toThrow(
         BadRequestException,
       );
       expect(db.rows(ProductRate)).toHaveLength(0);
     });
 
     it('404 si el producto no existe', async () => {
-      await expect(products.addRate(999, { effectiveFrom: '2026-07-01', ea: '0.2' })).rejects.toThrow(
+      await expect(products.addRate(USER, 999, { effectiveFrom: '2026-07-01', ea: '0.2' })).rejects.toThrow(
         NotFoundException,
       );
     });
 
     it('400 si falta la tasa o es inválida', async () => {
-      await expect(products.addRate(VISA, { effectiveFrom: '2026-07-01' })).rejects.toThrow(BadRequestException);
-      await expect(products.addRate(VISA, { effectiveFrom: '2026-07-01', ea: '2' })).rejects.toThrow(
+      await expect(products.addRate(USER, VISA, { effectiveFrom: '2026-07-01' })).rejects.toThrow(BadRequestException);
+      await expect(products.addRate(USER, VISA, { effectiveFrom: '2026-07-01', ea: '2' })).rejects.toThrow(
         BadRequestException,
       );
     });

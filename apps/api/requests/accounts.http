@@ -2,9 +2,11 @@
 ### Ejecútalas en orden. Si ya existe la cuenta de prueba, la primera da 409: cambia last4.
 ### Los casos 5 a 8 usan el id 1: cámbialo por el que te devolvió el caso 1 (o 2).
 @host = http://localhost:3001
+@token = pega-aqui-el-accessToken-de-auth.http
 
 ### 1. Cuenta sin saldo inicial -> 201 { "id": ... }
 POST {{host}}/accounts
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -16,6 +18,7 @@ Content-Type: application/json
 
 ### 2. Cuenta con saldo inicial negativo (sobregiro) -> 201
 POST {{host}}/accounts
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -29,6 +32,7 @@ Content-Type: application/json
 
 ### 3. La misma cuenta otra vez -> 409
 POST {{host}}/accounts
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -40,6 +44,7 @@ Content-Type: application/json
 
 ### 4. Saldo inicial sin fecha -> 400
 POST {{host}}/accounts
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -52,24 +57,28 @@ Content-Type: application/json
 
 ### 5. Confirmar un saldo -> 201 { "id": ... }
 POST {{host}}/accounts/1/balances
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "asOf": "2026-04-01", "balanceCents": 250000000 }
 
 ### 6. La misma fecha otra vez -> 409
 POST {{host}}/accounts/1/balances
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "asOf": "2026-04-01", "balanceCents": 260000000 }
 
 ### 7. Una cuenta que no existe -> 404
 POST {{host}}/accounts/999/balances
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "asOf": "2026-04-01", "balanceCents": 1000 }
 
 ### 8. Un id que no es número -> 400
 POST {{host}}/accounts/abc/balances
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 { "asOf": "2026-04-01", "balanceCents": 1000 }

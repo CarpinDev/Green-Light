@@ -1,10 +1,11 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import Decimal from 'decimal.js';
 import { FakeDb } from '../testing/fake-db';
 import { Product } from '../products/entities/product.entity';
 import { Category } from './entities/category.entity';
 import { Expense } from './entities/expense.entity';
 import { ExpensesService, type CreateExpenseInput } from './expenses.service';
+import { USER } from '../testing/users';
 
 // Las reglas que en SQLite eran un trigger y en Postgres no caben en un CHECK porque cruzan
 // tablas: dependen del tipo del producto de origen.
@@ -45,14 +46,14 @@ describe('ExpensesService.create', () => {
   });
 
   const rejects = async (overrides: Partial<CreateExpenseInput>, message: RegExp) => {
-    await expect(service.create(input(overrides))).rejects.toThrow(BadRequestException);
-    await expect(service.create(input(overrides))).rejects.toThrow(message);
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(BadRequestException);
+    await expect(service.create(USER, input(overrides))).rejects.toThrow(message);
     expect(db.rows(Expense)).toHaveLength(0);
   };
 
   describe('desde una cuenta', () => {
     it('se guarda sin cuotas ni promoción y devuelve el id', async () => {
-      const { id } = await service.create(input({ description: 'Mercado', categoryId: MERCADO }));
+      const { id } = await service.create(USER, input({ description: 'Mercado', categoryId: MERCADO }));
       const [saved] = db.rows(Expense);
       expect(saved).toMatchObject({
         id,
@@ -75,7 +76,7 @@ describe('ExpensesService.create', () => {
 
   describe('desde una tarjeta', () => {
     it('se guarda con sus cuotas', async () => {
-      await service.create(input({ sourceProductId: VISA, installments: 12 }));
+      await service.create(USER, input({ sourceProductId: VISA, installments: 12 }));
       expect(db.rows(Expense)[0]).toMatchObject({ sourceProductId: VISA, installments: 12 });
     });
 
@@ -83,6 +84,7 @@ describe('ExpensesService.create', () => {
 
     it('con promoción al 0 %: guarda E.A. y M.V. resueltas y la descripción', async () => {
       await service.create(
+        USER,
         input({ sourceProductId: VISA, installments: 12, promo: { ea: '0', description: '12 cuotas sin interés' } }),
       );
       const [saved] = db.rows(Expense);
@@ -95,7 +97,7 @@ describe('ExpensesService.create', () => {
       rejects({ sourceProductId: VISA, installments: 12, promo: { ea: '0.2899', mv: '0.0241' } }, /no corresponde/i));
 
     it('puede ser deuda inicial', async () => {
-      await service.create(input({ sourceProductId: VISA, installments: 8, isOpeningDebt: true }));
+      await service.create(USER, input({ sourceProductId: VISA, installments: 8, isOpeningDebt: true }));
       expect(db.rows(Expense)[0]).toMatchObject({ isOpeningDebt: true });
     });
   });
@@ -103,7 +105,11 @@ describe('ExpensesService.create', () => {
   describe('origen inválido', () => {
     it('desde un préstamo: 400', () => rejects({ sourceProductId: PRESTAMO }, /préstamo/i));
 
-    it('un producto que no existe: 400 con el id', () => rejects({ sourceProductId: 999 }, /999/));
+    it('un producto que no existe: 404 con el id', async () => {
+      await expect(service.create(USER, input({ sourceProductId: 999 }))).rejects.toThrow(NotFoundException);
+      await expect(service.create(USER, input({ sourceProductId: 999 }))).rejects.toThrow(/999/);
+      expect(db.rows(Expense)).toHaveLength(0);
+    });
 
     it('un producto desactivado: 400', () => rejects({ sourceProductId: CERRADA, installments: 1 }, /activ/i));
   });

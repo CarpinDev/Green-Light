@@ -15,19 +15,17 @@ export type Threshold = (typeof THRESHOLDS)[number];
 export type SettingsView = Record<Threshold, string>;
 export type UpdateSettingsInput = Partial<Record<Threshold, string>>;
 
-/** Siempre es la fila con id = 1: la crea la migración y un CHECK impide otra. */
-const SETTINGS_ID = 1;
-
+/** Una fila por usuario: se crea junto con la cuenta (ver UsersService.create). */
 @Injectable()
 export class SettingsService {
   constructor(private readonly dataSource: DataSource) {}
 
-  async get(): Promise<SettingsView> {
-    return toView(await this.load());
+  async get(userId: number): Promise<SettingsView> {
+    return toView(await this.load(userId));
   }
 
   /** Cambia solo los umbrales que lleguen. Cada uno debe estar entre 0 y 1. */
-  async update(input: UpdateSettingsInput): Promise<SettingsView> {
+  async update(userId: number, input: UpdateSettingsInput): Promise<SettingsView> {
     const changes: Partial<Record<Threshold, Decimal>> = {};
     for (const key of THRESHOLDS) {
       const raw = input[key];
@@ -38,14 +36,14 @@ export class SettingsService {
     }
 
     // Se carga primero: si falta la fila es un error del sistema, no del usuario
-    await this.load();
-    await this.dataSource.getRepository(Settings).save({ id: SETTINGS_ID, ...changes });
+    await this.load(userId);
+    await this.dataSource.getRepository(Settings).save({ userId, ...changes });
     // save() con un objeto parcial devuelve solo lo que se le pasó: se recarga la fila completa
-    return toView(await this.load());
+    return toView(await this.load(userId));
   }
 
-  private async load(): Promise<Settings> {
-    const row = await this.dataSource.getRepository(Settings).findOneBy({ id: SETTINGS_ID });
+  private async load(userId: number): Promise<Settings> {
+    const row = await this.dataSource.getRepository(Settings).findOneBy({ userId });
     if (!row) throw new InternalServerErrorException('Falta la fila de ajustes: ¿se corrieron las migraciones?');
     return row;
   }
