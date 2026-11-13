@@ -1,0 +1,57 @@
+# Blueprint de Render: le dice qué servicio crear, cómo construirlo y qué variables necesita.
+# Las migraciones NO corren aquí: se aplican desde tu PC con DATABASE_URL_DIRECT (por eso OWNER_* y esa URL no están).
+services:
+  - type: web
+    name: greenlight-api
+    runtime: node
+    plan: free
+    # Misma zona que el proyecto Neon (aws-us-east-2 = Ohio): menos latencia entre la API y la base
+    region: ohio
+
+    # Instala solo la API, el motor y la raíz (sin Expo ni React Native) y compila el motor antes que la API,
+    # porque la API importa @greenlight/engine desde packages/engine/dist.
+    # --include=dev: Render pone NODE_ENV=production y npm omitiría las devDependencies, pero `nest build` y `tsc`
+    # viven ahí; sin esto el build falla.
+    buildCommand: npm ci --workspace @greenlight/engine --workspace @greenlight/api --include-workspace-root --include=dev && npm run build -w @greenlight/engine && npm run build -w @greenlight/api
+    startCommand: npm run start:prod -w @greenlight/api
+    # GET / es público: Render lo consulta para saber que la API arrancó
+    healthCheckPath: /
+
+    # Un cambio solo en apps/mobile no redespliega
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/engine/**
+        - package.json
+        - package-lock.json
+        - render.yaml
+
+    envVars:
+      # Valores fijos: no son secretos
+      - key: NODE_VERSION
+        value: 24.22.2
+      - key: TZ
+        value: America/Bogota
+      - key: TRUST_PROXY
+        value: "1"
+      - key: JWT_EXPIRES_IN
+        value: 30d
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_SSL
+        value: "true"
+      # Render lo genera una vez y nadie lo ve ni lo pega
+      - key: JWT_SECRET
+        generateValue: true
+      # Secretos: Render los pide en el panel, nunca van en el repo
+      # Host DIRECTO de Neon (sin "-pooler"): con pocas usuarias no hace falta el pooler y así es el mismo host de las migraciones
+      - key: DB_HOST
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: INVITE_CODE
+        sync: false
