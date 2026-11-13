@@ -4,6 +4,7 @@
 import type { Movement } from '@/api/types';
 import { formatDayShort, fromIsoDate, toIsoDate, yesterday } from '@/dates';
 import { formatCop } from '@/money';
+import { percentToFraction } from '@/products/rates';
 
 const TYPE_LABEL: Record<Movement['type'], string> = {
   expense: 'Gasto',
@@ -74,4 +75,42 @@ export function groupByDay<T extends { date: string }>(items: readonly T[], toda
     else groups.push({ date: item.date, title: dayTitle(item.date, today), items: [item] });
   }
   return groups;
+}
+
+/** Lo que el formulario de gasto sabe de la promoción de una compra con tarjeta. */
+export interface PromoForm {
+  enabled: boolean;
+  /** '0': sin interés; 'other': una E.A. que se escribe. */
+  kind: 'zero' | 'other';
+  /** La E.A. en porcentaje, tal como la escribe el usuario ("28,99"). Solo cuenta con kind 'other'. */
+  percent: string;
+  description: string;
+}
+
+/** El `promo` del cuerpo de POST /expenses: la E.A. como fracción en texto y, si hay, la descripción. */
+export interface PromoPayload {
+  ea: string;
+  description?: string;
+}
+
+/**
+ * Del formulario al `promo` que espera la API. Apagado: `{ promo: null }` y no se manda. 0 %: ea '0'. Otra tasa:
+ * el porcentaje pasa a fracción con la misma utilidad del formulario de tarjeta; si no es un porcentaje válido
+ * (letras, negativo, 100 % o más) devuelve `{ error }`.
+ */
+export function buildPromo(form: PromoForm): { promo: PromoPayload | null } | { error: string } {
+  if (!form.enabled) return { promo: null };
+
+  const ea = form.kind === 'zero' ? '0' : percentToFraction(form.percent);
+  if (ea === null) return { error: 'Escribe la tasa de la promoción como porcentaje menor a 100, por ejemplo 12,5.' };
+
+  const description = form.description.trim();
+  return { promo: { ea, ...(description !== '' && { description }) } };
+}
+
+/** El id de un gasto que se puede borrar desde la lista: uno registrado ('expense:12'); no lo programado ni la deuda inicial. */
+export function deletableExpenseId(m: Pick<Movement, 'id' | 'type' | 'scheduled' | 'isOpeningDebt'>): number | null {
+  if (m.type !== 'expense' || m.scheduled || m.isOpeningDebt) return null;
+  const match = /^expense:(\d+)$/.exec(m.id);
+  return match === null ? null : Number(match[1]);
 }

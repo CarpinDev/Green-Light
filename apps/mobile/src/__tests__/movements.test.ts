@@ -2,7 +2,16 @@ import { describe, expect, it } from '@jest/globals';
 
 import type { Movement } from '@/api/types';
 import { upcomingEvents } from '@/home/summary';
-import { dayTitle, groupByDay, movementLabel, movementTags, signedAmount, sourceText } from '@/movements/logic';
+import {
+  buildPromo,
+  dayTitle,
+  deletableExpenseId,
+  groupByDay,
+  movementLabel,
+  movementTags,
+  signedAmount,
+  sourceText,
+} from '@/movements/logic';
 
 const movement = (overrides: Partial<Movement> = {}): Movement => ({
   id: 'expense:1',
@@ -165,5 +174,50 @@ describe('upcomingEvents', () => {
 
   it('sin eventos futuros, una lista vacía', () => {
     expect(upcomingEvents([month('2026-11', [event('2026-11-01', -1)])], '2026-11', '2026-11-12')).toEqual([]);
+  });
+});
+
+describe('buildPromo', () => {
+  const form = { enabled: true, kind: 'zero' as const, percent: '', description: '' };
+
+  it('apagado: no hay promo, aunque haya texto escrito', () => {
+    expect(buildPromo({ ...form, enabled: false, percent: '12', description: 'x' })).toEqual({ promo: null });
+  });
+
+  it('0 %: ea "0", y la descripción solo si se escribió', () => {
+    expect(buildPromo(form)).toEqual({ promo: { ea: '0' } });
+    expect(buildPromo({ ...form, description: '  Primera compra 0 %  ' })).toEqual({
+      promo: { ea: '0', description: 'Primera compra 0 %' },
+    });
+  });
+
+  it('0 % ignora lo que haya en el campo de otra tasa', () => {
+    expect(buildPromo({ ...form, percent: 'abc' })).toEqual({ promo: { ea: '0' } });
+  });
+
+  it('otra tasa: el porcentaje pasa a fracción en texto', () => {
+    expect(buildPromo({ ...form, kind: 'other', percent: '28,99' })).toEqual({ promo: { ea: '0.2899' } });
+    expect(buildPromo({ ...form, kind: 'other', percent: '12.5', description: 'Promo' })).toEqual({
+      promo: { ea: '0.125', description: 'Promo' },
+    });
+  });
+
+  it('otra tasa inválida (vacía, con letras, negativa o de 100 % o más): error', () => {
+    for (const percent of ['', 'abc', '-5', '100', '1,2,3']) {
+      expect(buildPromo({ ...form, kind: 'other', percent })).toHaveProperty('error');
+    }
+  });
+});
+
+describe('deletableExpenseId', () => {
+  it('un gasto registrado: su id numérico', () => {
+    expect(deletableExpenseId(movement({ id: 'expense:12' }))).toBe(12);
+  });
+
+  it('ni ingresos, abonos, lo programado ni la deuda inicial', () => {
+    expect(deletableExpenseId(movement({ id: 'income:5', type: 'income' }))).toBeNull();
+    expect(deletableExpenseId(movement({ id: 'capital:3', type: 'capital_payment' }))).toBeNull();
+    expect(deletableExpenseId(movement({ id: 'fixed:4:2026-11-05', scheduled: true }))).toBeNull();
+    expect(deletableExpenseId(movement({ isOpeningDebt: true }))).toBeNull();
   });
 });
