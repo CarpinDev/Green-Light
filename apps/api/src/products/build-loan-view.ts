@@ -1,6 +1,8 @@
 import { type Cents, type IsoDate, loanSchedule, payoffAmount } from '@greenlight/engine';
 import { toEngineLoan, toLoanPrepayment } from '../projection/mappers';
 import type { CapitalPayment } from '../movements/entities/capital-payment.entity';
+import { type ConfirmedPaymentInfo, confirmedInfoOf } from '../payments/confirmed-info';
+import type { DebtPayment } from '../payments/entities/debt-payment.entity';
 import { currentRateOf } from './cards.service';
 import type { Loan } from './entities/loan.entity';
 import type { ProductRate } from './entities/product-rate.entity';
@@ -38,6 +40,8 @@ export interface LoanScheduleRow {
   prepayment: Cents;
   /** La fecha de pago ya llegó (`dueDate <= hoy`): se da por pagada. */
   paid: boolean;
+  /** El pago que la persona confirmó para esta cuota; null si todavía no. */
+  confirmed: ConfirmedPaymentInfo | null;
 }
 
 /** Los datos con que se creó o se editó el préstamo, para llenar el formulario de edición. */
@@ -64,6 +68,8 @@ export interface LoanFacts {
   rates: readonly ProductRate[];
   /** Los abonos de este préstamo. */
   payments: readonly CapitalPayment[];
+  /** Los pagos de cuotas ya confirmados. */
+  debtPayments?: readonly DebtPayment[];
 }
 
 /**
@@ -112,6 +118,7 @@ export function buildLoanDetail(facts: LoanFacts, today: IsoDate): LoanDetail {
       closingBalance: r.closingBalance,
       prepayment: r.prepayment,
       paid: r.dueDate <= today,
+      confirmed: confirmedInfoOf(facts.debtPayments, facts.payments, r.dueDate),
     })),
   };
 }

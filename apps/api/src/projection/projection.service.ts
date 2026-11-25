@@ -11,6 +11,8 @@ import { CreditCard } from '../products/entities/credit-card.entity';
 import { Loan } from '../products/entities/loan.entity';
 import { ProductRate } from '../products/entities/product-rate.entity';
 import { Product } from '../products/entities/product.entity';
+import { DebtPayment } from '../payments/entities/debt-payment.entity';
+import { RecurringConfirmation } from '../payments/entities/recurring-confirmation.entity';
 import { Settings } from '../settings/entities/settings.entity';
 import { type ProjectionFacts, type ProjectionResult, buildProjection } from './build-projection';
 import { excludeArchived } from './exclude-archived';
@@ -38,6 +40,8 @@ export class ProjectionService {
       recurringIncomes,
       oneOffIncomes,
       fixedExpenses,
+      debtPayments,
+      recurringConfirmations,
       settings,
       products,
     ] = await Promise.all([
@@ -50,6 +54,8 @@ export class ProjectionService {
       db.getRepository(RecurringIncome).find(mine),
       db.getRepository(OneOffIncome).find(mine),
       db.getRepository(FixedExpense).find(mine),
+      db.getRepository(DebtPayment).find(mine),
+      db.getRepository(RecurringConfirmation).find(mine),
       db.getRepository(Settings).findOneByOrFail({ userId }),
       db.getRepository(Product).find(mine),
     ]);
@@ -73,6 +79,8 @@ export class ProjectionService {
         recurringIncomes,
         oneOffIncomes,
         fixedExpenses,
+        debtPayments,
+        recurringConfirmations,
         settings,
       },
       new Set(archived.map((p) => p.id)),

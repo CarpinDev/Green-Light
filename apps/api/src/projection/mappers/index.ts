@@ -5,6 +5,8 @@ import type { OneOffIncome } from '../../incomes/entities/one-off-income.entity'
 import type { RecurringIncome } from '../../incomes/entities/recurring-income.entity';
 import type { CapitalPayment } from '../../movements/entities/capital-payment.entity';
 import type { Expense } from '../../movements/entities/expense.entity';
+import type { DebtPayment } from '../../payments/entities/debt-payment.entity';
+import type { RecurringConfirmation } from '../../payments/entities/recurring-confirmation.entity';
 import type { CreditCard } from '../../products/entities/credit-card.entity';
 import type { Loan } from '../../products/entities/loan.entity';
 import type { ProductRate } from '../../products/entities/product-rate.entity';
@@ -113,7 +115,40 @@ export function toLoanPrepayment(payment: CapitalPayment): Engine.LoanPrepayment
   };
 }
 
-export function toRecurringIncome(income: RecurringIncome): Engine.RecurringIncome {
+/**
+ * Un pago de tarjeta o préstamo confirmado. Al motor le llega lo pagado MENOS el excedente: el excedente (lo que
+ * pasó del mínimo) ya es un abono a capital ligado a este pago, y el motor lo recibe como abono normal, así que no
+ * puede contarse dos veces. La caja total siempre suma lo pagado. `afterBalance` ya viene resuelto.
+ */
+export function toConfirmedDebtPayment(
+  payment: DebtPayment,
+  linked: readonly CapitalPayment[],
+  afterBalance = false,
+): Engine.ConfirmedPayment {
+  const excess = linked.filter((c) => c.debtPaymentId === payment.id).reduce((sum, c) => sum + c.amountCents, 0);
+  return {
+    scheduledDate: payment.scheduledDate,
+    date: payment.paidDate,
+    amount: payment.amountCents - excess,
+    ...(payment.isExternal && { external: true }),
+    ...(afterBalance && { afterBalance }),
+  };
+}
+
+/** Una llegada de salario o pago de un gasto fijo confirmado: la fecha y el monto reales. */
+export function toConfirmedRecurring(row: RecurringConfirmation, afterBalance = false): Engine.ConfirmedPayment {
+  return {
+    scheduledDate: row.scheduledDate,
+    date: row.actualDate,
+    amount: row.amountCents,
+    ...(afterBalance && { afterBalance }),
+  };
+}
+
+export function toRecurringIncome(
+  income: RecurringIncome,
+  confirmed: readonly Engine.ConfirmedPayment[] = [],
+): Engine.RecurringIncome {
   return {
     id: String(income.id),
     name: income.name,
@@ -121,6 +156,7 @@ export function toRecurringIncome(income: RecurringIncome): Engine.RecurringInco
     day: income.dayOfMonth,
     start: income.startDate,
     ...(income.endDate !== null && { end: income.endDate }),
+    ...(confirmed.length > 0 && { confirmed }),
   };
 }
 
@@ -136,7 +172,10 @@ export function toOneOffIncome(income: OneOffIncome, afterBalance = false): Engi
 }
 
 /** Con tarjeta, el motor lo vuelve una compra a 1 cuota cada mes; sin tarjeta sale del disponible. */
-export function toFixedExpense(expense: FixedExpense): Engine.FixedExpense {
+export function toFixedExpense(
+  expense: FixedExpense,
+  confirmed: readonly Engine.ConfirmedPayment[] = [],
+): Engine.FixedExpense {
   return {
     id: String(expense.id),
     name: expense.name,
@@ -145,6 +184,7 @@ export function toFixedExpense(expense: FixedExpense): Engine.FixedExpense {
     start: expense.startDate,
     ...(expense.endDate !== null && { end: expense.endDate }),
     ...(expense.cardId !== null && { cardId: String(expense.cardId) }),
+    ...(confirmed.length > 0 && { confirmed }),
   };
 }
 

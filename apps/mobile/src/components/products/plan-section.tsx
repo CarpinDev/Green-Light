@@ -5,10 +5,12 @@ import { getJson } from '@/api/client';
 import type { CardPlan, PlanCut } from '@/api/types';
 import { BAR_LABEL_SPACE, BarValue } from '@/components/bar-value';
 import { Card } from '@/components/card';
+import { ConfirmButton, UndoButton } from '@/components/payments/confirm-button';
 import { QueryState } from '@/components/query-state';
 import { Text } from '@/components/text';
-import { formatDay, formatMonthShort } from '@/dates';
+import { formatDay, formatMonthShort, today } from '@/dates';
 import { formatCop } from '@/money';
+import { paidSummary } from '@/payments/logic';
 import { barHeights, planBars } from '@/products/plan';
 import { colors, fonts, radius, space, type } from '@/theme/tokens';
 
@@ -31,7 +33,7 @@ export function PlanSection({ cardId }: { cardId: number }) {
             <PlanBarsCard cuts={cuts} />
             <Card style={styles.list}>
               {cuts.map((cut, i) => (
-                <CutRow key={cut.cutDate} cut={cut} first={i === 0} />
+                <CutRow key={cut.cutDate} cardId={cardId} cut={cut} first={i === 0} />
               ))}
             </Card>
           </>
@@ -82,7 +84,7 @@ function PlanBarsCard({ cuts }: { cuts: readonly PlanCut[] }) {
   );
 }
 
-function CutRow({ cut, first }: { cut: PlanCut; first: boolean }) {
+function CutRow({ cardId, cut, first }: { cardId: number; cut: PlanCut; first: boolean }) {
   const { capital, interest, fees } = cut.minimum;
   const parts = [`capital ${formatCop(capital)}`, `intereses ${formatCop(interest)}`];
   if (fees > 0) parts.push(`manejo y seguro ${formatCop(fees)}`);
@@ -100,6 +102,26 @@ function CutRow({ cut, first }: { cut: PlanCut; first: boolean }) {
         <Text style={[styles.amount, first && styles.amountNow]}>{formatCop(cut.minimum.total)}</Text>
       </View>
       <Text style={styles.muted}>{parts.join(' · ')}</Text>
+      {cut.confirmed != null ? (
+        <>
+          <Text style={styles.paid}>{paidSummary(cut.confirmed)}</Text>
+          <UndoButton path={`/debt-payments/${cut.confirmed.id}`} cardId={cardId} />
+        </>
+      ) : (
+        // Solo hay extracto que pagar desde su corte
+        cut.cutDate <= today() && (
+          <ConfirmButton
+            target={{
+              kind: 'card',
+              id: cardId,
+              scheduledDate: cut.cutDate,
+              name: `Corte del ${formatDay(cut.cutDate)}`,
+              expectedCents: cut.minimum.total,
+              fullPaymentCents: cut.fullPayment.total,
+            }}
+          />
+        )
+      )}
     </View>
   );
 }
@@ -120,6 +142,7 @@ const styles = StyleSheet.create({
   rowMain: { flex: 1, gap: 2 },
   name: type.bodyMedium,
   muted: { ...type.caption, color: colors.textMuted },
+  paid: { ...type.caption, color: colors.primary },
   amount: { ...type.subtitle, fontSize: 16 },
   amountNow: { color: colors.primary },
 });

@@ -2,16 +2,18 @@ import { StyleSheet, View } from 'react-native';
 
 import type { LoanScheduleRow } from '@/api/types';
 import { Card } from '@/components/card';
+import { ConfirmButton, UndoButton } from '@/components/payments/confirm-button';
 import { Text } from '@/components/text';
 import { formatDayShort } from '@/dates';
 import { formatCop } from '@/money';
+import { paidSummary } from '@/payments/logic';
 import { colors, space, type } from '@/theme/tokens';
 
 /**
  * La tabla de amortización: una fila por cuota con su fecha, el total, capital, interés, seguro y el saldo que
  * queda. Las pagadas van atenuadas y la próxima resaltada.
  */
-export function ScheduleTable({ rows }: { rows: readonly LoanScheduleRow[] }) {
+export function ScheduleTable({ loanId, rows }: { loanId: number; rows: readonly LoanScheduleRow[] }) {
   const next = rows.find((r) => !r.paid && r.payment > 0);
 
   return (
@@ -42,6 +44,24 @@ export function ScheduleTable({ rows }: { rows: readonly LoanScheduleRow[] }) {
             <Text style={[styles.detail, row.paid && styles.dim]}>
               {row.prepayment > 0 && `abono ${formatCop(row.prepayment)} · `}saldo {formatCop(row.closingBalance)}
             </Text>
+            {row.confirmed != null && (
+              <>
+                <Text style={styles.confirmed}>{paidSummary(row.confirmed)}</Text>
+                <UndoButton path={`/debt-payments/${row.confirmed.id}`} />
+              </>
+            )}
+            {/* La próxima cuota, que se puede pagar antes de su fecha */}
+            {isNext && row.confirmed == null && (
+              <ConfirmButton
+                target={{
+                  kind: 'loan',
+                  id: loanId,
+                  scheduledDate: row.dueDate,
+                  name: `Cuota ${row.period}`,
+                  expectedCents: row.total,
+                }}
+              />
+            )}
           </View>
         );
       })}
@@ -57,6 +77,7 @@ const styles = StyleSheet.create({
   date: type.bodyMedium,
   total: type.bodyMedium,
   detail: { ...type.caption, color: colors.textMuted },
+  confirmed: { ...type.caption, color: colors.primary },
   dim: { opacity: 0.45 },
   nextText: { color: colors.primary },
 });

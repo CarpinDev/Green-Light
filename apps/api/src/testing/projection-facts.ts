@@ -130,6 +130,8 @@ export const facts = (overrides: Partial<ProjectionFacts> = {}): ProjectionFacts
       cardId: VISA,
     }),
   ],
+  debtPayments: [],
+  recurringConfirmations: [],
   settings: make(Settings, {
     userId: 1,
     yellowBelowIncomePct: new Decimal('0.10'),

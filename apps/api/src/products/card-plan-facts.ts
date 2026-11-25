@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { CapitalPayment } from '../movements/entities/capital-payment.entity';
 import { Expense } from '../movements/entities/expense.entity';
+import { DebtPayment } from '../payments/entities/debt-payment.entity';
 import type { CardPlanFacts } from './build-card-plan';
 import { CreditCard } from './entities/credit-card.entity';
 import { ProductRate } from './entities/product-rate.entity';
@@ -18,11 +19,12 @@ export async function loadCardPlanFacts(db: DataSource, userId: number, cardId: 
   const card = await db.getRepository(CreditCard).findOneBy({ productId: cardId });
   if (!card) throw new NotFoundException(`La tarjeta ${cardId} no tiene datos de tarjeta`);
 
-  const [rates, expenses, capitalPayments, fixedExpenses] = await Promise.all([
+  const [rates, expenses, capitalPayments, fixedExpenses, debtPayments] = await Promise.all([
     db.getRepository(ProductRate).find({ where: { userId, productId: cardId } }),
     db.getRepository(Expense).find({ where: { userId, sourceProductId: cardId } }),
     db.getRepository(CapitalPayment).find({ where: { userId, productId: cardId } }),
     db.getRepository(FixedExpense).find({ where: { userId } }),
+    db.getRepository(DebtPayment).find({ where: { userId, productId: cardId } }),
   ]);
-  return { card, rates, expenses, capitalPayments, fixedExpenses };
+  return { card, rates, expenses, capitalPayments, fixedExpenses, debtPayments };
 }

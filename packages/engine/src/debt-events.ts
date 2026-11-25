@@ -2,7 +2,8 @@ import { type IsoDate, cutDateFor, dueDateFor, nthCutAfter, shiftMonths } from '
 import type { CapitalPayment, CardPurchase, CreditCard } from './cards';
 import { planCard } from './card-payments';
 import { type Loan, type LoanPrepayment, loanSchedule } from './loans';
-import { type CashEvent, type FixedExpense, monthlyDates } from './projection';
+import { type CashEvent, type ConfirmedPayment, type FixedExpense, monthlyDates } from './projection';
+import type { Cents } from './money';
 import { statement } from './statement';
 
 /**
@@ -45,16 +46,36 @@ export function cardEvents(
   fixed: readonly FixedExpense[],
   from: IsoDate,
   to: IsoDate,
+  confirmed: readonly ConfirmedPayment[] = [],
 ): CashEvent[] {
   const { rows } = planCard(card, [...purchases, ...fixedExpensesAsPurchases(card, fixed, from, to)], payments);
   const events: CashEvent[] = [];
 
-  for (let cut = cutDateFor(lookBack(from), card.cutDay); ; cut = nthCutAfter(cut, card.cutDay, 1)) {
+  // Se corta por el corte y no por el vencimiento: un pago adelantado cae en el rango aunque su `due` no
+  for (let cut = cutDateFor(lookBack(from), card.cutDay); cut <= to; cut = nthCutAfter(cut, card.cutDay, 1)) {
     const due = dueDateFor(cut, card.dueDay);
-    if (due > to) break;
-    if (due <= from) continue;
+    const paid = confirmed.find((c) => c.scheduledDate === cut);
+    // Sin confirmar, el pago supuesto sigue saliendo el día del vencimiento
+    if (paid === undefined && (due <= from || due > to)) continue;
 
     const { minimum, fullPayment } = statement(card, rows, cut);
+
+    if (paid !== undefined) {
+      events.push(
+        ...confirmedEvents(paid, minimum.total, {
+          kind: 'card_payment',
+          label: `Pago tarjeta (corte ${cut})`,
+          refId: card.id,
+          extra: { cutDate: cut, fullPayment: fullPayment.total },
+          nextDue: dueDateFor(nthCutAfter(cut, card.cutDay, 1), card.dueDay),
+          pendingLabel: `Pendiente del corte ${cut}`,
+          from,
+          to,
+        }),
+      );
+      continue;
+    }
+
     if (minimum.total > 0) {
       events.push({
         date: due,
@@ -63,6 +84,7 @@ export function cardEvents(
         label: `Pago mínimo tarjeta (corte ${cut})`,
         refId: card.id,
         cutDate: cut,
+        scheduledDate: cut,
         fullPayment: fullPayment.total,
       });
     }
@@ -78,20 +100,89 @@ export function loanEvents(
   prepayments: readonly LoanPrepayment[],
   from: IsoDate,
   to: IsoDate,
+  confirmed: readonly ConfirmedPayment[] = [],
 ): CashEvent[] {
   const rows = loanSchedule(loan, prepayments);
 
-  const installments: CashEvent[] = rows
-    .filter((r) => r.total > 0 && inWindow(r.dueDate, from, to))
-    .map((r) => ({
-      date: r.dueDate,
-      kind: 'loan_payment',
-      amount: -r.total,
-      label: `Cuota ${r.period} préstamo`,
-      refId: loan.id,
-    }));
+  const installments = rows.flatMap((r, i): CashEvent[] => {
+    const paid = confirmed.find((c) => c.scheduledDate === r.dueDate);
+    if (paid !== undefined) {
+      // El faltante va a la cuota siguiente; en la última no la hay y pasa al mes después
+      const nextDue = rows[i + 1]?.dueDate ?? shiftMonths(r.dueDate, 1, Number(r.dueDate.slice(8)));
+      return confirmedEvents(paid, r.total, {
+        kind: 'loan_payment',
+        label: `Cuota ${r.period} préstamo`,
+        refId: loan.id,
+        extra: {},
+        nextDue,
+        pendingLabel: `Pendiente de la cuota ${r.period}`,
+        from,
+        to,
+      });
+    }
+    if (r.total <= 0 || !inWindow(r.dueDate, from, to)) return [];
+    return [
+      {
+        date: r.dueDate,
+        kind: 'loan_payment',
+        amount: -r.total,
+        label: `Cuota ${r.period} préstamo`,
+        refId: loan.id,
+        scheduledDate: r.dueDate,
+      },
+    ];
+  });
 
   return [...installments, ...capitalPayments(rows, from, to, 'Abono a capital préstamo', () => loan.id)];
+}
+
+interface ConfirmedDebtSpec {
+  kind: 'card_payment' | 'loan_payment';
+  label: string;
+  refId: string;
+  /** Campos propios del tipo de deuda (corte y pago total de la tarjeta). */
+  extra: Pick<CashEvent, 'cutDate' | 'fullPayment'>;
+  /** Fecha del siguiente pago programado: ahí cae lo que faltó por pagar. */
+  nextDue: IsoDate;
+  pendingLabel: string;
+  from: IsoDate;
+  to: IsoDate;
+}
+
+/**
+ * Los eventos de un pago confirmado de una deuda: el pago real (en su fecha y monto reales, que es lo que reemplaza
+ * al supuesto) y, si fue menor al mínimo, el faltante en el siguiente pago programado. Uno externo baja la deuda
+ * pero no sale del disponible: no genera ninguno. Lo que cae antes del saldo ya está dentro de él y tampoco cuenta;
+ * el supuesto desaparece igual porque aquí nunca se emite.
+ */
+function confirmedEvents(paid: ConfirmedPayment, minimum: Cents, spec: ConfirmedDebtSpec): CashEvent[] {
+  if (paid.external === true) return [];
+  const events: CashEvent[] = [];
+  const settled = paid.afterBalance === true ? paid.date >= spec.from : paid.date > spec.from;
+  if (settled && paid.date <= spec.to) {
+    events.push({
+      date: paid.date,
+      kind: spec.kind,
+      amount: -paid.amount,
+      label: spec.label,
+      refId: spec.refId,
+      scheduledDate: paid.scheduledDate,
+      confirmed: true,
+      ...spec.extra,
+      ...(paid.afterBalance === true && { afterBalance: true }),
+    });
+  }
+  // No se modela la mora: lo que faltó se proyecta tal cual para que la proyección no quede optimista
+  if (paid.amount < minimum && inWindow(spec.nextDue, spec.from, spec.to)) {
+    events.push({
+      date: spec.nextDue,
+      kind: spec.kind,
+      amount: -(minimum - paid.amount),
+      label: spec.pendingLabel,
+      refId: spec.refId,
+    });
+  }
+  return events;
 }
 
 interface PrepaidRow {

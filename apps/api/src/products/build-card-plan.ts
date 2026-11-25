@@ -10,6 +10,8 @@ import {
 import type * as Engine from '@greenlight/engine';
 import type { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import type { CapitalPayment } from '../movements/entities/capital-payment.entity';
+import { type ConfirmedPaymentInfo, confirmedInfoOf } from '../payments/confirmed-info';
+import type { DebtPayment } from '../payments/entities/debt-payment.entity';
 import type { Expense } from '../movements/entities/expense.entity';
 import { toCardCapitalPayment, toCardPurchase, toEngineCard, toFixedExpense } from '../projection/mappers';
 import type { CreditCard } from './entities/credit-card.entity';
@@ -24,6 +26,8 @@ export interface CardPlanFacts {
   capitalPayments: readonly CapitalPayment[];
   /** Todos los gastos fijos: los que se pagan con esta tarjeta se facturan en ella. */
   fixedExpenses: readonly FixedExpense[];
+  /** Los pagos ya confirmados de esta tarjeta: sin ellos ningún corte sale como pagado. */
+  debtPayments?: readonly DebtPayment[];
 }
 
 export interface CardPlanCut {
@@ -35,6 +39,8 @@ export interface CardPlanCut {
   fullPayment: Engine.PaymentBreakdown;
   /** El capital que todavía falta por facturar después de este corte (lo que se debe, sin contar este pago). */
   remainingDebtCents: Engine.Cents;
+  /** El pago que la persona confirmó para este corte; null si todavía no. */
+  confirmed: ConfirmedPaymentInfo | null;
 }
 
 export interface CardPlan {
@@ -68,7 +74,12 @@ export function buildCardPlan(facts: CardPlanFacts, count: number, today: Engine
 
   const own = facts.expenses.filter((e) => e.sourceProductId === row.productId).map(toCardPurchase);
   const payments = facts.capitalPayments.filter((p) => p.productId === row.productId).map(toCardCapitalPayment);
-  const fixed = fixedExpensesAsPurchases(card, facts.fixedExpenses.map(toFixedExpense), today, last);
+  const fixed = fixedExpensesAsPurchases(
+    card,
+    facts.fixedExpenses.map((f) => toFixedExpense(f)),
+    today,
+    last,
+  );
   const { rows } = planCard(card, [...own, ...fixed], payments);
 
   return {
@@ -81,6 +92,7 @@ export function buildCardPlan(facts: CardPlanFacts, count: number, today: Engine
         minimum: extract.minimum,
         fullPayment: extract.fullPayment,
         remainingDebtCents: rows.filter((r) => r.cutDate > cutDate).reduce((sum, r) => sum + r.capital, 0),
+        confirmed: confirmedInfoOf(facts.debtPayments, facts.capitalPayments, cutDate),
       };
     }),
   };

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { type Cents, type IsoDate, type PrepaymentMode, payoffAmount } from '@greenlight/engine';
 import { DataSource } from 'typeorm';
 import { formatCop } from '../common/format-cop';
@@ -45,6 +45,30 @@ export class CapitalPaymentsService {
 
   /** Guarda un abono extra a capital. Valida todo antes de escribir. */
   async create(userId: number, input: CreateCapitalPaymentInput): Promise<CapitalPayment> {
+    await this.validate(userId, input);
+    return this.dataSource.getRepository(CapitalPayment).save(this.toRow(userId, input));
+  }
+
+  /** Las columnas de un abono ya validado; `debtPaymentId` liga el excedente de un pago de tarjeta o préstamo. */
+  toRow(userId: number, input: CreateCapitalPaymentInput, debtPaymentId?: number): Partial<CapitalPayment> {
+    return {
+      userId,
+      productId: input.productId,
+      date: input.date,
+      amountCents: input.amountCents,
+      ...(input.mode !== undefined && { mode: input.mode }),
+      ...(input.expenseId !== undefined && { expenseId: input.expenseId }),
+      ...(input.sourceAccountId !== undefined && { sourceAccountId: input.sourceAccountId }),
+      ...(input.external === true && { isExternal: true }),
+      ...(debtPaymentId !== undefined && { debtPaymentId }),
+    };
+  }
+
+  /**
+   * Todas las reglas de un abono, sin escribir nada: así un pago de tarjeta o préstamo con excedente comprueba que
+   * el excedente cabe en la deuda y que el origen es válido ANTES de abrir su transacción, con los mismos mensajes.
+   */
+  async validate(userId: number, input: CreateCapitalPaymentInput): Promise<void> {
     // Un producto de otra persona responde 404, igual que uno que no existe
     const product = await this.dataSource.getRepository(Product).findOneBy({ id: input.productId, userId });
     if (!product) throw new NotFoundException(`El producto ${input.productId} no existe`);
@@ -69,17 +93,6 @@ export class CapitalPaymentsService {
       await this.assertPurchaseOf(userId, product.id, input.expenseId, input.date);
     }
     await this.assertWithinDebt(userId, product, input);
-
-    return this.dataSource.getRepository(CapitalPayment).save({
-      userId,
-      productId: input.productId,
-      date: input.date,
-      amountCents: input.amountCents,
-      ...(input.mode !== undefined && { mode: input.mode }),
-      ...(input.expenseId !== undefined && { expenseId: input.expenseId }),
-      ...(input.sourceAccountId !== undefined && { sourceAccountId: input.sourceAccountId }),
-      ...(input.external === true && { isExternal: true }),
-    });
   }
 
   /**
@@ -124,6 +137,11 @@ export class CapitalPaymentsService {
    * los intereses y la proyección se recalculan siempre desde los datos, y ninguna otra tabla apunta a él.
    */
   async remove(userId: number, id: number): Promise<void> {
+    // El excedente de un pago no se borra suelto: el pago quedaría diciendo que pagó más de lo que cuenta
+    const found = await this.dataSource.getRepository(CapitalPayment).findOneBy({ id, userId });
+    if (found?.debtPaymentId != null) {
+      throw new ConflictException('Este abono es parte de un pago: bórralo desde el pago');
+    }
     // El userId en el delete: el abono de otra persona no coincide y responde 404 sin borrar nada
     const { affected } = await this.dataSource.getRepository(CapitalPayment).delete({ id, userId });
     if (!affected) throw new NotFoundException(`El abono ${id} no existe`);

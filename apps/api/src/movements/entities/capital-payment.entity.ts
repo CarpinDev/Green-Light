@@ -4,6 +4,7 @@ import { centsTransformer } from '../../common/transformers/cents.transformer';
 import { Account } from '../../products/entities/account.entity';
 import { Product } from '../../products/entities/product.entity';
 import { PREPAYMENT_MODES } from '../prepayment-mode';
+import { DebtPayment } from '../../payments/entities/debt-payment.entity';
 import { Expense } from './expense.entity';
 import { User } from '../../users/entities/user.entity';
 
@@ -62,6 +63,13 @@ export class CapitalPayment {
 
   /** Dinero que no pasa por las cuentas (va directo al banco): baja la deuda pero no el disponible. */
   @Column({ default: false }) isExternal!: boolean;
+
+  /** El pago de tarjeta o préstamo del que es el excedente; null si es un abono suelto. Se borra con el pago. */
+  @Column({ type: 'int', nullable: true }) debtPaymentId!: number | null;
+
+  @ManyToOne(() => DebtPayment, { nullable: true, onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'debt_payment_id' })
+  debtPayment!: DebtPayment | null;
 
   @CreateDateColumn({ type: 'timestamptz' }) createdAt!: Date;
 }

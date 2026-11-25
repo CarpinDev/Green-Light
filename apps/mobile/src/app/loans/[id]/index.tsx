@@ -73,7 +73,7 @@ export default function LoanScreen() {
 
           <View style={styles.section}>
             <Text style={type.title}>Cuotas</Text>
-            <ScheduleTable rows={data.schedule} />
+            <ScheduleTable loanId={data.id} rows={data.schedule} />
           </View>
 
           <PaymentsList productId={data.id} base="loans" />

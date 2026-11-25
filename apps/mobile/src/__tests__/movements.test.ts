@@ -26,6 +26,11 @@ const movement = (overrides: Partial<Movement> = {}): Movement => ({
   isOpeningDebt: false,
   sourceLabel: null,
   scheduled: false,
+  scheduledDate: null,
+  refId: null,
+  refKind: null,
+  confirmationId: null,
+  debtPaymentId: null,
   ...overrides,
 });
 

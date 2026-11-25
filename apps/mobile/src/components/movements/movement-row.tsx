@@ -2,9 +2,11 @@ import { Feather } from '@expo/vector-icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import type { Movement } from '@/api/types';
+import { ConfirmButton, UndoButton } from '@/components/payments/confirm-button';
 import { Text } from '@/components/text';
 import { formatDayShort } from '@/dates';
 import { movementLabel, movementTags, signedAmount, sourceText } from '@/movements/logic';
+import { targetFromMovement, undoOfMovement } from '@/payments/logic';
 import { colors, light, radius, space, type } from '@/theme/tokens';
 
 /**
@@ -23,6 +25,8 @@ export function MovementRow({
 }) {
   const income = movement.direction === 'in';
   const tags = movementTags(movement);
+  const target = targetFromMovement(movement);
+  const undo = undoOfMovement(movement);
   const detail = [showDate && formatDayShort(movement.date), sourceText(movement)].filter(Boolean).join(' · ');
 
   return (
@@ -49,6 +53,13 @@ export function MovementRow({
               </Text>
             ))}
           </View>
+        )}
+        {target !== null && <ConfirmButton target={target} />}
+        {undo !== null && (
+          <UndoButton
+            path={undo.path}
+            {...(movement.product?.kind === 'credit_card' && { cardId: movement.product.id })}
+          />
         )}
         {onDelete !== undefined && (
           <Pressable
