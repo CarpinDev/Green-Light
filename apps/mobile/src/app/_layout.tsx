@@ -38,6 +38,7 @@ const MONTHLY_MODALS = [
   { name: 'loans/new', title: 'Nuevo préstamo' },
   { name: 'loans/[id]/edit', title: 'Editar préstamo' },
   { name: 'loans/[id]/payment', title: 'Abonar a capital' },
+  { name: 'confirm-payment', title: 'Confirmar pago' },
 ];
 
 export default function RootLayout() {

@@ -2,10 +2,12 @@ import { Feather } from '@expo/vector-icons';
 import { StyleSheet, View } from 'react-native';
 
 import type { CashEvent, CashEventKind } from '@/api/types';
+import { ConfirmButton } from '@/components/payments/confirm-button';
 import { Text } from '@/components/text';
 import { formatDayShort } from '@/dates';
 import { eventTitle, KIND_LABEL } from '@/home/summary';
 import { formatCop } from '@/money';
+import { targetFromEvent } from '@/payments/logic';
 import { colors, light, radius, space, type } from '@/theme/tokens';
 
 type IconName = React.ComponentProps<typeof Feather>['name'];
@@ -22,6 +24,8 @@ const ICON: Record<CashEventKind, IconName> = {
 /** Un evento futuro de la proyección: ícono, nombre, "tipo · fecha" y monto (con signo; los ingresos en verde). */
 export function EventRow({ event, showDate = true }: { event: CashEvent; showDate?: boolean }) {
   const income = event.amount > 0;
+  // Lo esperado se puede confirmar: "Llegó" en un ingreso y "Marcar pagado" en lo demás
+  const target = targetFromEvent(event);
   return (
     <View style={styles.row}>
       <View style={styles.icon}>
@@ -36,6 +40,7 @@ export function EventRow({ event, showDate = true }: { event: CashEvent; showDat
           {showDate && ` · ${formatDayShort(event.date)}`}
           {event.cutDate !== undefined && ` · corte ${formatDayShort(event.cutDate)}`}
         </Text>
+        {target !== null && <ConfirmButton target={target} />}
       </View>
       <Text style={[styles.amount, income && styles.income]}>
         {income ? '+' : '−'} {formatCop(Math.abs(event.amount))}

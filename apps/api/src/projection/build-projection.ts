@@ -17,6 +17,8 @@ import type { OneOffIncome } from '../incomes/entities/one-off-income.entity';
 import type { RecurringIncome } from '../incomes/entities/recurring-income.entity';
 import type { CapitalPayment } from '../movements/entities/capital-payment.entity';
 import type { Expense } from '../movements/entities/expense.entity';
+import type { DebtPayment } from '../payments/entities/debt-payment.entity';
+import type { RecurringConfirmation } from '../payments/entities/recurring-confirmation.entity';
 import type { AccountBalance } from '../products/entities/account-balance.entity';
 import type { CreditCard } from '../products/entities/credit-card.entity';
 import type { Loan } from '../products/entities/loan.entity';
@@ -27,6 +29,8 @@ import {
   toCardCapitalPayment,
   toCardPurchase,
   toCashExpense,
+  toConfirmedDebtPayment,
+  toConfirmedRecurring,
   toEngineCard,
   toEngineSettings,
   toEngineLoan,
@@ -47,6 +51,10 @@ export interface ProjectionFacts {
   recurringIncomes: readonly RecurringIncome[];
   oneOffIncomes: readonly OneOffIncome[];
   fixedExpenses: readonly FixedExpense[];
+  /** Pagos de tarjetas y préstamos que la persona confirmó: reemplazan al pago supuesto. */
+  debtPayments: readonly DebtPayment[];
+  /** Llegadas de salario y pagos de gastos fijos confirmados. */
+  recurringConfirmations: readonly RecurringConfirmation[];
   settings: Settings;
 }
 
@@ -142,13 +150,23 @@ export function prepareProjection(
   if (orphan)
     throw new Error(`el abono ${orphan.id} es al producto ${orphan.productId}, que no es tarjeta ni préstamo`);
 
-  const fixedExpenses = facts.fixedExpenses.map(toFixedExpense);
-  // Un gasto con tarjeta es una compra; desde una cuenta sale del disponible ese día
-  // Lo del día del saldo cuenta solo si se registró después de confirmarlo (el motor recibe el booleano).
-  // Fuera de esto, a propósito: los abonos a capital y los recurrentes (salario, fijos) de ese día siguen
-  // dándose por incluidos en el saldo.
+  // Lo que se registró ese mismo día después de confirmar el saldo cuenta; lo anterior ya está dentro de él
   const afterBalance = (date: Engine.IsoDate, createdAt: Date) =>
     date === start.asOf && createdAt > start.balanceCreatedAt;
+  // Cada pago confirmado reemplaza al supuesto de su fecha programada (la clave no cambia aunque se pague otro día)
+  const confirmedDebt = (productId: number) =>
+    facts.debtPayments
+      .filter((d) => d.productId === productId)
+      .map((d) => toConfirmedDebtPayment(d, facts.capitalPayments, afterBalance(d.paidDate, d.createdAt)));
+  const confirmedOf = (key: 'recurringIncomeId' | 'fixedExpenseId', id: number) =>
+    facts.recurringConfirmations
+      .filter((c) => c[key] === id)
+      .map((c) => toConfirmedRecurring(c, afterBalance(c.actualDate, c.createdAt)));
+
+  const fixedExpenses = facts.fixedExpenses.map((f) => toFixedExpense(f, confirmedOf('fixedExpenseId', f.id)));
+  // Un gasto con tarjeta es una compra; desde una cuenta sale del disponible ese día
+  // Lo del día del saldo cuenta solo si se registró después de confirmarlo (el motor recibe el booleano).
+  // Fuera de esto, a propósito: los abonos a capital de ese día siguen dándose por incluidos en el saldo.
   const cashExpenses = facts.expenses
     .filter((e) => !cardIds.has(e.sourceProductId))
     .map((e) => toCashExpense(e, afterBalance(e.date, e.createdAt)));
@@ -164,13 +182,16 @@ export function prepareProjection(
   const debtEvents: Engine.CashEvent[] = [
     ...cards
       .filter((c) => c.productId !== withoutCardId)
-      .flatMap(({ card, purchases, payments }) => cardEvents(card, purchases, payments, fixedExpenses, start.asOf, to)),
+      .flatMap(({ productId, card, purchases, payments }) =>
+        cardEvents(card, purchases, payments, fixedExpenses, start.asOf, to, confirmedDebt(productId)),
+      ),
     ...facts.loans.flatMap((loan) =>
       loanEvents(
         toEngineLoan(loan, ratesOf(loan.productId)),
         facts.capitalPayments.filter((p) => p.productId === loan.productId).map(toLoanPrepayment),
         start.asOf,
         to,
+        confirmedDebt(loan.productId),
       ),
     ),
   ];
@@ -179,7 +200,7 @@ export function prepareProjection(
     input: {
       asOf: start.asOf,
       openingBalance: start.openingBalanceCents,
-      recurringIncomes: facts.recurringIncomes.map(toRecurringIncome),
+      recurringIncomes: facts.recurringIncomes.map((i) => toRecurringIncome(i, confirmedOf('recurringIncomeId', i.id))),
       oneOffIncomes: facts.oneOffIncomes.map((i) => toOneOffIncome(i, afterBalance(i.date, i.createdAt))),
       fixedExpenses,
       cashExpenses,

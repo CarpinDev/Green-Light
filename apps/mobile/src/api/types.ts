@@ -17,6 +17,13 @@ export interface CashEvent {
   cutDate?: string;
   /** Solo en `card_payment`: lo que saldaría todo el extracto, en positivo. */
   fullPayment?: number;
+  /**
+   * La fecha programada de lo que se puede confirmar (corte, fecha de la cuota, fecha esperada del salario o del
+   * gasto fijo). Con `refId` y `kind` dice qué confirmar; no se parsea el `label`.
+   */
+  scheduledDate?: string;
+  /** Ya se confirmó: `date` y `amount` son los reales. */
+  confirmed?: true;
 }
 
 export interface MonthSummary {
@@ -212,6 +219,18 @@ export interface PlanCut {
   fullPayment: PaymentBreakdown;
   /** El capital que falta por facturar después de este corte. */
   remainingDebtCents: number;
+  /** El pago que confirmaste para este corte; null si todavía no. */
+  confirmed: ConfirmedPaymentInfo | null;
+}
+
+/** Un pago ya confirmado de una tarjeta o préstamo: `DELETE /debt-payments/:id` lo deshace. */
+export interface ConfirmedPaymentInfo {
+  id: number;
+  paidDate: string;
+  /** Todo lo pagado, con el excedente incluido. */
+  amountCents: number;
+  /** Lo que pasó del mínimo y quedó como abono a capital. */
+  excessCents: number;
 }
 
 /** Respuesta de GET /cards/:id/plan: los próximos pagos de la tarjeta. */
@@ -251,6 +270,8 @@ export interface LoanScheduleRow {
   prepayment: number;
   /** Su fecha ya llegó: se da por pagada. */
   paid: boolean;
+  /** El pago que confirmaste para esta cuota; null si todavía no. */
+  confirmed: ConfirmedPaymentInfo | null;
 }
 
 /** Los datos con que se creó o editó el préstamo (para el formulario de edición). */
@@ -319,7 +340,7 @@ export interface StatementCheckResponse {
 export interface Movement {
   /** 'expense:12', 'income:5', 'capital:3', 'recurring:2:2026-11-01', 'fixed:4:2026-11-05' */
   id: string;
-  type: 'expense' | 'income' | 'capital_payment';
+  type: 'expense' | 'income' | 'capital_payment' | 'debt_payment';
   direction: 'in' | 'out';
   date: string;
   amountCents: number;
@@ -333,6 +354,22 @@ export interface Movement {
   isOpeningDebt: boolean;
   /** Solo en abonos: de dónde salió el dinero, "desde Ahorros ••1357" o "externo"; null si no se sabe. */
   sourceLabel: string | null;
-  /** Una ocurrencia de lo programado (salario, gasto fijo): se calcula, no se registra. */
+  /** Una ocurrencia de lo programado (salario, gasto fijo) sin confirmar: se calcula, no se registra. */
   scheduled: boolean;
+  /** Solo en lo programado sin confirmar: la fecha esperada, el id del ingreso o gasto fijo y de cuál es. */
+  scheduledDate: string | null;
+  refId: number | null;
+  refKind: 'recurring_income' | 'fixed_expense' | null;
+  /** En lo programado ya confirmado: el id de la confirmación, para deshacerla. */
+  confirmationId: number | null;
+  /** En el pago confirmado de una tarjeta o préstamo: su id, para deshacerlo. */
+  debtPaymentId: number | null;
+}
+
+/** Respuesta de POST /debt-payments: lo que se esperaba, lo que sobró (abono) y lo que faltó. */
+export interface DebtPaymentResult {
+  id: number;
+  minimumCents: number;
+  excessCents: number;
+  shortfallCents: number;
 }

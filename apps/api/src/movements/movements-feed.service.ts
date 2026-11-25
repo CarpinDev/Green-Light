@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { type Cents, type IsoDate, monthlyDates } from '@greenlight/engine';
-import { DataSource, LessThanOrEqual } from 'typeorm';
+import { DataSource, IsNull, LessThanOrEqual } from 'typeorm';
 import { addDays, isoDateOf } from '../common/dates';
 import { FixedExpense } from '../incomes/entities/fixed-expense.entity';
 import { OneOffIncome } from '../incomes/entities/one-off-income.entity';
 import { RecurringIncome } from '../incomes/entities/recurring-income.entity';
+import { DebtPayment } from '../payments/entities/debt-payment.entity';
+import { RecurringConfirmation } from '../payments/entities/recurring-confirmation.entity';
 import { Product } from '../products/entities/product.entity';
 import type { ProductKind } from '../products/product-kind';
 import { CapitalPayment } from './entities/capital-payment.entity';
@@ -28,7 +30,7 @@ export interface MovementProduct {
 export interface MovementItem {
   /** 'expense:12', 'income:5', 'capital:3', 'recurring:2:2026-11-01', 'fixed:4:2026-11-05' */
   id: string;
-  type: 'expense' | 'income' | 'capital_payment';
+  type: 'expense' | 'income' | 'capital_payment' | 'debt_payment';
   /** El signo: el monto va siempre en positivo. */
   direction: 'in' | 'out';
   date: IsoDate;
@@ -43,9 +45,27 @@ export interface MovementItem {
   isOpeningDebt: boolean;
   /** Solo en abonos a capital: de dónde salió el dinero, "desde Ahorros ••1357" o "externo". */
   sourceLabel: string | null;
-  /** Una ocurrencia de lo programado (salario, gasto fijo): nunca se "registra", se calcula. */
+  /** Una ocurrencia de lo programado (salario, gasto fijo) que todavía no se confirma: se calcula, no se registra. */
   scheduled: boolean;
+  /** Solo en lo programado sin confirmar: la fecha esperada que la app manda para confirmarlo. */
+  scheduledDate: IsoDate | null;
+  /** Solo en lo programado sin confirmar: el id del ingreso o gasto fijo, y de cuál de los dos es. */
+  refId: number | null;
+  refKind: 'recurring_income' | 'fixed_expense' | null;
+  /** En lo programado ya confirmado: el id de la confirmación, para deshacerla. */
+  confirmationId: number | null;
+  /** En el pago de una tarjeta o préstamo confirmado: su id, para deshacerlo. */
+  debtPaymentId: number | null;
 }
+
+/** Los campos de confirmación en lo que no es programado ni confirmado. */
+const NOT_CONFIRMABLE = {
+  scheduledDate: null,
+  refId: null,
+  refKind: null,
+  confirmationId: null,
+  debtPaymentId: null,
+} as const;
 
 /** Un movimiento con la hora de registro, que solo sirve para ordenar y no sale en la respuesta. */
 interface Ranked {
@@ -69,23 +89,35 @@ export class MovementsFeedService {
       order: { date: 'DESC', createdAt: 'DESC', id: 'DESC' },
     } as const;
     const mine = { where: { userId } };
-    const [expenses, incomes, capital, recurring, fixed, products, categories] = await Promise.all([
-      this.dataSource.getRepository(Expense).find({ ...recent, take: limit }),
-      this.dataSource.getRepository(OneOffIncome).find({ ...recent, take: limit }),
-      this.dataSource.getRepository(CapitalPayment).find({ ...recent, take: limit }),
-      this.dataSource.getRepository(RecurringIncome).find(mine),
-      this.dataSource.getRepository(FixedExpense).find(mine),
-      // Pocos productos y categorías: se cargan una vez y se cruzan en memoria
-      this.dataSource.getRepository(Product).find(mine),
-      this.dataSource.getRepository(Category).find(mine),
-    ]);
+    // Lo confirmado también es "recién pasado", con su fecha real (no la programada)
+    const confirmedRecent = (dateColumn: 'paidDate' | 'actualDate') => ({
+      where: { userId, [dateColumn]: LessThanOrEqual(today) },
+      order: { [dateColumn]: 'DESC', createdAt: 'DESC', id: 'DESC' } as const,
+      take: limit,
+    });
+    const [expenses, incomes, capital, debtPayments, confirmations, recurring, fixed, products, categories] =
+      await Promise.all([
+        this.dataSource.getRepository(Expense).find({ ...recent, take: limit }),
+        this.dataSource.getRepository(OneOffIncome).find({ ...recent, take: limit }),
+        // El excedente de un pago no sale aparte: se muestra dentro del pago
+        this.dataSource
+          .getRepository(CapitalPayment)
+          .find({ ...recent, where: { ...recent.where, debtPaymentId: IsNull() }, take: limit }),
+        this.dataSource.getRepository(DebtPayment).find(confirmedRecent('paidDate')),
+        this.dataSource.getRepository(RecurringConfirmation).find(confirmedRecent('actualDate')),
+        this.dataSource.getRepository(RecurringIncome).find(mine),
+        this.dataSource.getRepository(FixedExpense).find(mine),
+        // Pocos productos y categorías: se cargan una vez y se cruzan en memoria
+        this.dataSource.getRepository(Product).find(mine),
+        this.dataSource.getRepository(Category).find(mine),
+      ]);
 
     const productOf = (id: number | null): MovementProduct | null => {
       const p = id === null ? undefined : products.find((x) => x.id === id);
       return p === undefined ? null : { id: p.id, name: p.name, last4: p.last4, kind: p.kind };
     };
     // De dónde salió el dinero de un abono: la cuenta ("desde Ahorros ••1357") o "externo"; los de antes, nada
-    const sourceLabelOf = (c: CapitalPayment): string | null => {
+    const sourceLabelOf = (c: { isExternal: boolean; sourceAccountId: number | null }): string | null => {
       if (c.isExternal) return 'externo';
       const account = c.sourceAccountId === null ? undefined : products.find((x) => x.id === c.sourceAccountId);
       return account === undefined ? null : `desde ${account.name} ••${account.last4}`;
@@ -108,6 +140,7 @@ export class MovementsFeedService {
           isOpeningDebt: e.isOpeningDebt,
           sourceLabel: null,
           scheduled: false,
+          ...NOT_CONFIRMABLE,
         },
       })),
       ...incomes.map((i) => ({
@@ -125,6 +158,7 @@ export class MovementsFeedService {
           isOpeningDebt: false,
           sourceLabel: null,
           scheduled: false,
+          ...NOT_CONFIRMABLE,
         },
       })),
       ...capital.map((c) => ({
@@ -142,9 +176,45 @@ export class MovementsFeedService {
           isOpeningDebt: false,
           sourceLabel: sourceLabelOf(c),
           scheduled: false,
+          ...NOT_CONFIRMABLE,
         },
       })),
+      // Un pago confirmado de tarjeta o préstamo: lo pagado en total, con la fecha real y de dónde salió
+      ...debtPayments.map((d) => {
+        const product = productOf(d.productId);
+        return {
+          registeredAt: d.createdAt.getTime(),
+          item: {
+            id: `debt:${d.id}`,
+            type: 'debt_payment' as const,
+            direction: 'out' as const,
+            date: d.paidDate,
+            amountCents: d.amountCents,
+            description: product === null ? 'Pago' : `Pago ${product.name} ••${product.last4}`,
+            categoryName: null,
+            product,
+            installments: null,
+            isOpeningDebt: false,
+            sourceLabel: sourceLabelOf(d),
+            scheduled: false,
+            ...NOT_CONFIRMABLE,
+            debtPaymentId: d.id,
+          },
+        };
+      }),
     ];
+
+    // Lo programado que ya se confirmó sale con su fecha y monto reales, no como calculado. Se busca por la fecha
+    // esperada (la clave), que no cambia aunque llegara otro día.
+    const confirmedKey = (kind: 'recurring_income' | 'fixed_expense', id: number, date: IsoDate) =>
+      `${kind}:${id}:${date}`;
+    const confirmedKeys = new Set(
+      confirmations.map((c) =>
+        c.recurringIncomeId !== null
+          ? confirmedKey('recurring_income', c.recurringIncomeId, c.scheduledDate)
+          : confirmedKey('fixed_expense', c.fixedExpenseId ?? 0, c.scheduledDate),
+      ),
+    );
 
     // Lo programado no se registra: se calcula con monthlyDates, el mismo que usa la proyección, para que
     // el día 31 de un mes corto caiga igual en las dos pantallas. Sin hora de registro: en un empate de
@@ -152,6 +222,7 @@ export class MovementsFeedService {
     const from = addDays(today, -SCHEDULED_LOOKBACK_DAYS);
     for (const r of recurring) {
       for (const date of monthlyDates(r.dayOfMonth, r.startDate, r.endDate ?? undefined, from, today)) {
+        if (confirmedKeys.has(confirmedKey('recurring_income', r.id, date))) continue; // sale abajo, con lo real
         ranked.push({
           registeredAt: 0,
           item: {
@@ -167,12 +238,17 @@ export class MovementsFeedService {
             isOpeningDebt: false,
             sourceLabel: null,
             scheduled: true,
+            ...NOT_CONFIRMABLE,
+            scheduledDate: date,
+            refId: r.id,
+            refKind: 'recurring_income' as const,
           },
         });
       }
     }
     for (const f of fixed) {
       for (const date of monthlyDates(f.dayOfMonth, f.startDate, f.endDate ?? undefined, from, today)) {
+        if (confirmedKeys.has(confirmedKey('fixed_expense', f.id, date))) continue;
         ranked.push({
           registeredAt: 0,
           item: {
@@ -189,9 +265,38 @@ export class MovementsFeedService {
             isOpeningDebt: false,
             sourceLabel: null,
             scheduled: true,
+            ...NOT_CONFIRMABLE,
+            scheduledDate: date,
+            // Con tarjeta no se confirma: se paga en el extracto
+            refId: f.cardId === null ? f.id : null,
+            refKind: f.cardId === null ? ('fixed_expense' as const) : null,
           },
         });
       }
+    }
+    for (const c of confirmations) {
+      const r = c.recurringIncomeId === null ? undefined : recurring.find((x) => x.id === c.recurringIncomeId);
+      const f = c.fixedExpenseId === null ? undefined : fixed.find((x) => x.id === c.fixedExpenseId);
+      if (r === undefined && f === undefined) continue;
+      ranked.push({
+        registeredAt: c.createdAt.getTime(),
+        item: {
+          id: r !== undefined ? `recurring:${r.id}:${c.scheduledDate}` : `fixed:${f?.id}:${c.scheduledDate}`,
+          type: r !== undefined ? 'income' : 'expense',
+          direction: r !== undefined ? 'in' : 'out',
+          date: c.actualDate,
+          amountCents: c.amountCents,
+          description: r?.name ?? f?.name ?? '',
+          categoryName: f === undefined ? null : categoryName(f.categoryId),
+          product: productOf(c.accountId ?? r?.destinationAccountId ?? f?.accountId ?? null),
+          installments: null,
+          isOpeningDebt: false,
+          sourceLabel: null,
+          scheduled: false,
+          ...NOT_CONFIRMABLE,
+          confirmationId: c.id,
+        },
+      });
     }
 
     // Por qué basta con `take: limit` en cada tabla: cualquier elemento que esté entre los `limit` primeros

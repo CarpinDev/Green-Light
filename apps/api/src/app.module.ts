@@ -12,6 +12,7 @@ import { IncomesModule } from './incomes/incomes.module';
 import { SettingsModule } from './settings/settings.module';
 import { ProjectionModule } from './projection/projection.module';
 import { StatementsModule } from './statements/statements.module';
+import { PaymentsModule } from './payments/payments.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module';
     SettingsModule,
     ProjectionModule,
     StatementsModule,
+    PaymentsModule,
     UsersModule,
     AuthModule,
   ],

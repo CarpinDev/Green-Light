@@ -16,5 +16,6 @@ export function excludeArchived(facts: ProjectionFacts, archivedIds: ReadonlySet
     rates: facts.rates.filter((r) => live(r.productId)),
     expenses: facts.expenses.filter((e) => live(e.sourceProductId)),
     capitalPayments: facts.capitalPayments.filter((p) => live(p.productId)),
+    debtPayments: facts.debtPayments.filter((p) => live(p.productId)),
   };
 }

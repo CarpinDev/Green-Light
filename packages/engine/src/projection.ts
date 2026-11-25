@@ -3,6 +3,23 @@ import { type IsoDate, endOfMonth, shiftMonths } from './calendar';
 import type { Cents } from './money';
 import { sumBy } from './collections';
 
+/**
+ * Un pago esperado que ya pasó de verdad. Reemplaza al supuesto (misma clave `scheduledDate`), no se suma a él:
+ * el evento sale en la fecha y por el monto reales.
+ */
+export interface ConfirmedPayment {
+  /** Clave del pago esperado: cutDate (tarjeta), dueDate (préstamo) o fecha esperada (recurrente). No cambia al pagar otro día. */
+  scheduledDate: IsoDate;
+  /** Día real. */
+  date: IsoDate;
+  /** Lo que cuenta como este pago (en tarjetas/préstamos: pagado − excedente, que llega como abono aparte). */
+  amount: Cents;
+  /** Pagado con plata externa: baja la deuda pero no sale del disponible. */
+  external?: boolean;
+  /** Registrado después del saldo confirmado (solo importa si `date === asOf`); lo calcula quien arma la entrada. */
+  afterBalance?: boolean;
+}
+
 export interface RecurringIncome {
   id: string;
   name: string;
@@ -11,6 +28,8 @@ export interface RecurringIncome {
   day: number;
   start: IsoDate;
   end?: IsoDate;
+  /** Llegadas ya confirmadas (por su fecha esperada). */
+  confirmed?: readonly ConfirmedPayment[];
 }
 
 export interface OneOffIncome {
@@ -35,6 +54,8 @@ export interface FixedExpense {
   end?: IsoDate;
   /** Si se paga con tarjeta, no sale del disponible hasta que se paga el extracto. */
   cardId?: string;
+  /** Pagos ya confirmados (por su fecha esperada). Con tarjeta no se confirman: se pagan en el extracto. */
+  confirmed?: readonly ConfirmedPayment[];
 }
 
 export interface CashExpense {
@@ -78,6 +99,13 @@ export interface CashEvent {
   cutDate?: IsoDate;
   /** Solo en `card_payment`: lo que saldaría todo el extracto, en positivo (la `amount` es solo el mínimo). */
   fullPayment?: Cents;
+  /**
+   * La fecha programada de lo que se puede confirmar (corte de la tarjeta, vencimiento de la cuota, fecha esperada
+   * del salario o gasto fijo). Es la clave de la confirmación; no cambia aunque se pague otro día.
+   */
+  scheduledDate?: IsoDate;
+  /** Ya lo confirmó la persona: `date` y `amount` son los reales, no los supuestos. */
+  confirmed?: true;
 }
 
 export type TrafficLight = 'green' | 'yellow' | 'red';
@@ -162,6 +190,31 @@ export function project(input: ProjectionInput, months = 3): MonthSummary[] {
   return summarizeMonths(input, buildEvents(input, firstMonth, to), months);
 }
 
+/**
+ * La ocurrencia de un ingreso o gasto fijo en su fecha esperada. Si está confirmada, el evento va en la fecha y por
+ * el monto reales (el signo lo da `expected`: + ingreso, − gasto); si no, como estaba programado.
+ */
+function recurringEvent(
+  kind: 'income' | 'fixed_expense',
+  scheduledDate: IsoDate,
+  expected: Cents,
+  label: string,
+  refId: string,
+  confirmed: ConfirmedPayment | undefined,
+): CashEvent {
+  if (confirmed === undefined) return { date: scheduledDate, kind, amount: expected, label, refId, scheduledDate };
+  return {
+    date: confirmed.date,
+    kind,
+    amount: expected < 0 ? -confirmed.amount : confirmed.amount,
+    label,
+    refId,
+    scheduledDate,
+    confirmed: true,
+    ...(confirmed.afterBalance === true && { afterBalance: true }),
+  };
+}
+
 /** Todos los eventos del rango [from, to], incluso los anteriores a `asOf` (sirven para el ingreso de referencia). */
 function buildEvents(input: ProjectionInput, from: IsoDate, to: IsoDate): CashEvent[] {
   const inRange = (date: IsoDate): boolean => date >= from && date <= to;
@@ -169,7 +222,8 @@ function buildEvents(input: ProjectionInput, from: IsoDate, to: IsoDate): CashEv
 
   for (const inc of input.recurringIncomes ?? []) {
     for (const date of monthlyDates(inc.day, inc.start, inc.end, from, to)) {
-      events.push({ date, kind: 'income', amount: inc.amount, label: inc.name, refId: inc.id });
+      const done = inc.confirmed?.find((c) => c.scheduledDate === date);
+      events.push(recurringEvent('income', date, inc.amount, inc.name, inc.id, done));
     }
   }
   for (const inc of input.oneOffIncomes ?? []) {
@@ -188,7 +242,8 @@ function buildEvents(input: ProjectionInput, from: IsoDate, to: IsoDate): CashEv
     // Con tarjeta afecta el disponible cuando se paga el extracto, no aquí
     if (exp.cardId !== undefined) continue;
     for (const date of monthlyDates(exp.day, exp.start, exp.end, from, to)) {
-      events.push({ date, kind: 'fixed_expense', amount: -exp.amount, label: exp.name, refId: exp.id });
+      const done = exp.confirmed?.find((c) => c.scheduledDate === date);
+      events.push(recurringEvent('fixed_expense', date, -exp.amount, exp.name, exp.id, done));
     }
   }
   for (const exp of input.cashExpenses ?? []) {

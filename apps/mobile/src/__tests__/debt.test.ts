@@ -140,6 +140,7 @@ const cut = (cutDate: string, dueDate: string, total: number) => ({
   minimum: { capital: total, interest: 0, fees: 0, total },
   fullPayment: { capital: total, interest: 0, fees: 0, total },
   remainingDebtCents: 0,
+  confirmed: null,
 });
 
 describe('planBars y barHeights', () => {

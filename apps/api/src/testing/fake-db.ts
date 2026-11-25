@@ -24,6 +24,8 @@ export class FakeDb {
   withoutId = new Set<EntityClass>();
   /** Entidades cuya llave no es id ni productId (settings: userId). Tampoco reciben un id autogenerado. */
   keyBy = new Map<EntityClass, string>();
+  /** Como el ON DELETE CASCADE de la base: al borrar un padre se borran los hijos que apuntan a él por foreignKey. */
+  cascades: { parent: EntityClass; child: EntityClass; foreignKey: string }[] = [];
   private nextId = 1;
 
   /**
@@ -95,6 +97,7 @@ export class FakeDb {
     const matches = (r: Row) =>
       Object.entries(where).every(([k, v]) => {
         if (v instanceof FindOperator && v.type === 'lessThanOrEqual') return String(r[k]) <= String(v.value);
+        if (v instanceof FindOperator && v.type === 'isNull') return r[k] === null || r[k] === undefined;
         return r[k] === v;
       });
     const found = (tables.get(Entity) ?? []).filter(matches);
@@ -119,11 +122,20 @@ export class FakeDb {
   private remove(tables: Table, Entity: EntityClass, where: Row): { affected: number } {
     const matches = (r: Row) => Object.entries(where).every(([k, v]) => r[k] === v);
     const list = tables.get(Entity) ?? [];
+    const gone = list.filter(matches);
     tables.set(
       Entity,
       list.filter((r) => !matches(r)),
     );
-    return { affected: list.filter(matches).length };
+    for (const { parent, child, foreignKey } of this.cascades) {
+      if (parent !== Entity) continue;
+      const ids = new Set(gone.map((r) => r.id));
+      tables.set(
+        child,
+        (tables.get(child) ?? []).filter((r) => !ids.has(r[foreignKey])),
+      );
+    }
+    return { affected: gone.length };
   }
 
   private find(tables: Table, Entity: EntityClass, where: Row): Row | null {

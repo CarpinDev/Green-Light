@@ -70,7 +70,12 @@ export function buildStatementCheck(
   const own = facts.expenses.filter((e) => e.sourceProductId === row.productId).map(toCardPurchase);
   const payments = facts.capitalPayments.filter((p) => p.productId === row.productId).map(toCardCapitalPayment);
   // Los cargos de los gastos fijos con esta tarjeta también se facturan, como en las alertas
-  const fixed = fixedExpensesAsPurchases(card, facts.fixedExpenses.map(toFixedExpense), cutDate, cutDate);
+  const fixed = fixedExpensesAsPurchases(
+    card,
+    facts.fixedExpenses.map((f) => toFixedExpense(f)),
+    cutDate,
+    cutDate,
+  );
 
   const extract = statement(card, planCard(card, [...own, ...fixed], payments).rows, cutDate);
   const { statementTolerancePct } = toEngineSettings(settings);

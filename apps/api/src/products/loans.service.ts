@@ -6,6 +6,7 @@ import { isoDateOf } from '../common/dates';
 import { formatCop } from '../common/format-cop';
 import { isUniqueViolation } from '../common/pg-errors';
 import { CapitalPayment } from '../movements/entities/capital-payment.entity';
+import { DebtPayment } from '../payments/entities/debt-payment.entity';
 import {
   type LoanDetail,
   type LoanFacts,
@@ -266,11 +267,12 @@ export class LoansService {
     const loan = await db.getRepository(Loan).findOneBy({ productId: id });
     if (!product || !loan) throw new NotFoundException(`El préstamo ${id} no existe`);
 
-    const [rates, payments] = await Promise.all([
+    const [rates, payments, debtPayments] = await Promise.all([
       db.getRepository(ProductRate).find({ where: { userId, productId: id } }),
       db.getRepository(CapitalPayment).find({ where: { userId, productId: id } }),
+      db.getRepository(DebtPayment).find({ where: { userId, productId: id } }),
     ]);
-    return { product, loan, rates, payments };
+    return { product, loan, rates, payments, debtPayments };
   }
 }
 

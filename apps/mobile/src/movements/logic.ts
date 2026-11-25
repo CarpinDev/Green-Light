@@ -10,6 +10,7 @@ const TYPE_LABEL: Record<Movement['type'], string> = {
   expense: 'Gasto',
   income: 'Ingreso',
   capital_payment: 'Abono',
+  debt_payment: 'Pago',
 };
 
 /** El nombre de la fila: la descripción si la hay, y si no, el tipo ("Gasto", "Ingreso" o "Abono"). */

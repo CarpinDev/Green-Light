@@ -16,7 +16,15 @@ export function abonableDebt(facts: CardPlanFacts, date: IsoDate, expenseId?: nu
 
   // Solo lo que ya existía en `date`; los gastos fijos con esta tarjeta también se facturan en ella
   const own = facts.expenses.filter((e) => e.sourceProductId === row.productId).map(toCardPurchase);
-  const purchases = [...own, ...fixedExpensesAsPurchases(card, facts.fixedExpenses.map(toFixedExpense), date, date)];
+  const purchases = [
+    ...own,
+    ...fixedExpensesAsPurchases(
+      card,
+      facts.fixedExpenses.map((f) => toFixedExpense(f)),
+      date,
+      date,
+    ),
+  ];
   const payments = facts.capitalPayments
     .filter((p) => p.productId === row.productId && p.date <= date)
     .map(toCardCapitalPayment);
